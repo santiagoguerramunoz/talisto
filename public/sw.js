@@ -2,7 +2,7 @@
 // - Páginas: siempre desde internet (así cada publicación nueva se ve enseguida); sin conexión usa la última copia.
 // - Archivos estáticos con hash (/_next/static) e íconos: se guardan y se reutilizan.
 // - Supabase, mapas y rutas: no pasan por acá (siempre en vivo).
-const CACHE = 'talisto-v1';
+const CACHE = 'talisto-v2';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
