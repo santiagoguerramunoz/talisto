@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/Icon';
 import FormTurno from '@/components/FormTurno';
 import FormBloque from '@/components/FormBloque';
+import FormOrden from '@/components/FormOrden';
 import { usePanel } from '@/components/PanelContext';
 import { useDatosAgenda } from '@/lib/useDatosAgenda';
 import { distribuirColumnas, eventosDelDia, indexarClientes } from '@/lib/agenda';
@@ -22,6 +23,7 @@ export default function Agenda() {
   const [modalTurno, setModalTurno] = useState(null);
   const [modalBloque, setModalBloque] = useState(null);
   const [menuNuevo, setMenuNuevo] = useState(false);
+  const [modalOrden, setModalOrden] = useState(null);
 
   const [desde, hasta] = useMemo(() => {
     if (vista === 'dia') return [fecha, sumarDias(fecha, 1)];
@@ -31,11 +33,13 @@ export default function Agenda() {
 
   const { datos, recargar } = useDatosAgenda(profesional.id, desde.getTime(), hasta.getTime());
   const indice = useMemo(() => indexarClientes(datos.clientes), [datos.clientes]);
+  const empresas = useMemo(() => datos.clientes.filter((c) => c.es_empresa), [datos.clientes]);
 
   const mover = (n) => setFecha((f) => sumarDias(f, vista === 'dia' ? n : n * 7));
 
   function abrirEvento(ev) {
     if (ev.clase === 'turno') setModalTurno({ turno: ev.turno });
+    else if (ev.clase === 'orden') setModalOrden({ orden: ev.orden });
     else setModalBloque({ bloque: ev.bloque, fechaContexto: ev.fecha });
   }
 
@@ -116,6 +120,18 @@ export default function Agenda() {
             >
               <Icon name="relevamiento" className="h-5 w-5 text-marca-naranja" /> Relevamiento
             </button>
+            {empresas.map((e) => (
+              <button
+                key={e.id}
+                className="btn btn-sec shadow-xl"
+                onClick={() => {
+                  setMenuNuevo(false);
+                  setModalOrden({ inicial: { empresa_id: e.id, fecha: fechaISO(fecha) } });
+                }}
+              >
+                <span className="h-3 w-3 rounded-full" style={{ background: e.color }} /> Orden {e.nombre}
+              </button>
+            ))}
             <button
               className="btn btn-sec shadow-xl"
               onClick={() => {
@@ -148,6 +164,15 @@ export default function Agenda() {
         turno={modalTurno?.turno}
         inicial={modalTurno?.inicial}
       />
+      <FormOrden
+        abierto={!!modalOrden}
+        onCerrar={() => setModalOrden(null)}
+        onGuardado={recargar}
+        profesionalId={profesional.id}
+        empresas={empresas}
+        orden={modalOrden?.orden}
+        inicial={modalOrden?.inicial}
+      />
       <FormBloque
         abierto={!!modalBloque}
         onCerrar={() => setModalBloque(null)}
@@ -164,9 +189,11 @@ export default function Agenda() {
 
 function VistaDia({ fecha, datos, indice, onEvento, onHora }) {
   const eventos = useMemo(
-    () => eventosDelDia({ fecha, turnos: datos.turnos, bloques: datos.bloques, indice }),
-    [fecha, datos.turnos, datos.bloques, indice]
+    () => eventosDelDia({ fecha, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, indice }),
+    [fecha, datos.turnos, datos.bloques, datos.ordenes, indice]
   );
+  const conHora = eventos.filter((e) => !e.sinHora);
+  const sinHora = eventos.filter((e) => e.sinHora);
   const franjas = datos.horarios.filter((h) => Number(h.dia) === fecha.getDay());
   const [ahora, setAhora] = useState(() => new Date());
 
@@ -175,13 +202,13 @@ function VistaDia({ fecha, datos, indice, onEvento, onHora }) {
     return () => clearInterval(t);
   }, []);
 
-  const inicioH = Math.max(0, Math.min(7, ...franjas.map((f) => Math.floor(minutos(f.hora_inicio) / 60)), ...eventos.map((e) => Math.floor(e.ini / 60))));
-  const finH = Math.min(24, Math.max(20, ...franjas.map((f) => Math.ceil(minutos(f.hora_fin) / 60)), ...eventos.map((e) => Math.ceil(e.fin / 60))));
+  const inicioH = Math.max(0, Math.min(7, ...franjas.map((f) => Math.floor(minutos(f.hora_inicio) / 60)), ...conHora.map((e) => Math.floor(e.ini / 60))));
+  const finH = Math.min(24, Math.max(20, ...franjas.map((f) => Math.ceil(minutos(f.hora_fin) / 60)), ...conHora.map((e) => Math.ceil(e.fin / 60))));
   const horas = Array.from({ length: finH - inicioH }, (_, i) => inicioH + i);
   const y = (min) => ((min - inicioH * 60) / 60) * HORA_PX;
 
   const total = eventos.reduce((s, e) => s + (Number(e.monto) || 0), 0);
-  const columnas = distribuirColumnas(eventos);
+  const columnas = distribuirColumnas(conHora);
   const esHoy = esMismoDia(fecha, ahora);
   const minAhora = minutosDeFecha(ahora);
 
@@ -198,6 +225,27 @@ function VistaDia({ fecha, datos, indice, onEvento, onHora }) {
         )}
         {franjas.length === 0 && <span className="ml-auto text-xs text-tinta-500">Sin horario de trabajo</span>}
       </div>
+
+      {sinHora.length > 0 && (
+        <div className="mb-3 rounded-xl border border-navy-700 bg-navy-900 p-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-tinta-400">Órdenes sin horario</p>
+          <div className="flex flex-wrap gap-1.5">
+            {sinHora.map((ev) => (
+              <button
+                key={ev.key}
+                type="button"
+                onClick={() => onEvento(ev)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${ev.estado === 'realizado' ? 'opacity-55' : ''}`}
+                style={{ borderColor: ev.color, background: `${ev.color}1f` }}
+              >
+                {ev.estado === 'realizado' && <Icon name="check" className="h-3 w-3" />}
+                {ev.titulo.replace(/^.*? · /, '')}
+                {ev.direccion?.direccion ? <span className="font-normal text-tinta-400">· {ev.direccion.direccion}</span> : null}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="relative" style={{ height: horas.length * HORA_PX }}>
         {/* Horario de trabajo */}
@@ -279,7 +327,7 @@ function VistaSemana({ lunes, datos, indice, onEvento, onDia }) {
   return (
     <div className="space-y-3">
       {dias.map((d) => {
-        const eventos = eventosDelDia({ fecha: d, turnos: datos.turnos, bloques: datos.bloques, indice });
+        const eventos = eventosDelDia({ fecha: d, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, indice });
         const esHoy = esMismoDia(d, hoy);
         return (
           <section key={fechaISO(d)} className={`tarjeta overflow-hidden ${esHoy ? 'border-menta-500/60' : ''}`}>
@@ -299,7 +347,7 @@ function VistaSemana({ lunes, datos, indice, onEvento, onDia }) {
                     <button onClick={() => onEvento(ev)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-navy-850">
                       <span className="h-9 w-1 shrink-0 rounded-full" style={{ background: ev.color }} />
                       <span className="w-[5.5rem] shrink-0 text-sm font-semibold text-tinta-300">
-                        {textoHora(ev.ini)}–{textoHora(Math.min(ev.fin, 1439))}
+                        {ev.sinHora ? 'Sin hora' : `${textoHora(ev.ini)}–${textoHora(Math.min(ev.fin, 1439))}`}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5 truncate font-semibold">

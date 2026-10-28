@@ -12,12 +12,13 @@ import FormBloque from '@/components/FormBloque';
 import SelectorColor from '@/components/SelectorColor';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
+import { cargarClientes } from '@/lib/clientes';
+import SeccionEmpresa from '@/components/SeccionEmpresa';
 import { useAlVolver } from '@/lib/useAlVolver';
 import { indexarClientes } from '@/lib/agenda';
 import { fechaCorta, fechaISO, horaHHMM, textoDias } from '@/lib/fechas';
 import { ESTADOS, linkGoogleMaps, linkWaze, linkWhatsapp, mensajeError, monto } from '@/lib/util';
 
-const CAMPOS_CLIENTE = 'id, nombre, color, telefono, email, notas, direcciones(id, etiqueta, direccion, referencia, lat, lng)';
 
 export default function DetalleCliente() {
   const { id } = useParams();
@@ -40,7 +41,7 @@ export default function DetalleCliente() {
   const cargar = useCallback(async () => {
     const ahora = new Date().toISOString();
     const [cl, bl, prox, pas] = await Promise.all([
-      supabase.from('clientes').select(CAMPOS_CLIENTE).eq('profesional_id', profesional.id).order('nombre'),
+      cargarClientes(profesional.id, 'email, notas'),
       supabase.from('bloques_fijos').select('*, bloques_excepciones(fecha)').eq('profesional_id', profesional.id),
       supabase.from('turnos').select('*').eq('cliente_id', id).gte('fin', ahora).neq('estado', 'cancelado').order('inicio').limit(20),
       supabase.from('turnos').select('*').eq('cliente_id', id).lt('fin', ahora).order('inicio', { ascending: false }).limit(10),
@@ -152,6 +153,8 @@ export default function DetalleCliente() {
 
       <div className="space-y-6 px-4 pt-4">
         {cliente.notas && <p className="rounded-xl bg-navy-900 p-3 text-sm text-tinta-300">{cliente.notas}</p>}
+
+        {'es_empresa' in cliente && <SeccionEmpresa cliente={cliente} onGuardado={cargar} />}
 
         {/* Horarios acordados */}
         <section>

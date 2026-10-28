@@ -64,8 +64,8 @@ export default function MapaDelDia() {
   const indice = useMemo(() => indexarClientes(datos.clientes), [datos.clientes]);
 
   const eventos = useMemo(
-    () => eventosDelDia({ fecha, turnos: datos.turnos, bloques: datos.bloques, indice }),
-    [fecha, datos.turnos, datos.bloques, indice]
+    () => eventosDelDia({ fecha, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, indice }),
+    [fecha, datos.turnos, datos.bloques, datos.ordenes, indice]
   );
   const conUbicacion = eventos.filter((e) => tieneUbicacion(e.direccion));
   const sinUbicacion = eventos.filter((e) => !tieneUbicacion(e.direccion));
@@ -128,7 +128,7 @@ export default function MapaDelDia() {
     lng: p.direccion.lng,
     color: p.color,
     etiqueta: String(pos + 1),
-    popup: `${pos + 1}. ${p.titulo}\n${textoHora(p.ini)}–${textoHora(Math.min(p.fin, 1439))}\n${p.direccion.direccion}`,
+    popup: `${pos + 1}. ${p.titulo}\n${p.sinHora ? 'Sin hora' : `${textoHora(p.ini)}–${textoHora(Math.min(p.fin, 1439))}`}\n${p.direccion.direccion}`,
   }));
 
   // Llegada estimada a la primera parada (si es hoy y salís desde donde estás)
@@ -300,7 +300,7 @@ export default function MapaDelDia() {
                             <span className="truncate">{p.titulo}</span>
                           </p>
                           <p className="truncate text-xs text-tinta-400">
-                            {textoHora(p.ini)}–{textoHora(Math.min(p.fin, 1439))} · {p.direccion.etiqueta}: {p.direccion.direccion}
+                            {p.sinHora ? 'Sin hora' : `${textoHora(p.ini)}–${textoHora(Math.min(p.fin, 1439))}`} · {p.direccion.etiqueta}: {p.direccion.direccion}
                           </p>
                           {Number.isFinite(desdeVos) && (
                             <p className="text-xs font-semibold text-[#5aa9e6]">a {textoDuracion(desdeVos)} de vos</p>
@@ -335,7 +335,7 @@ export default function MapaDelDia() {
                             <span className="truncate">{p.titulo}</span>
                           </p>
                       <p className="truncate text-xs text-tinta-400">
-                        {textoHora(p.ini)}–{textoHora(Math.min(p.fin, 1439))} · {p.direccion ? `${p.direccion.etiqueta}: sin ubicación en el mapa` : 'Sin dirección'}
+                        {p.sinHora ? 'Sin hora' : `${textoHora(p.ini)}–${textoHora(Math.min(p.fin, 1439))}`} · {p.direccion ? `${p.direccion.etiqueta}: sin ubicación en el mapa` : 'Sin dirección'}
                       </p>
                     </div>
                   </li>
