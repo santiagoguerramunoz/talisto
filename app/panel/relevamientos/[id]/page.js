@@ -8,11 +8,16 @@ import Modal from '@/components/Modal';
 import Mapa from '@/components/Mapa';
 import FormTurno from '@/components/FormTurno';
 import DireccionRelevamiento, { UBICACION_VACIA, filaUbicacion } from '@/components/DireccionRelevamiento';
+import EditorMateriales from '@/components/EditorMateriales';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
 import { indexarClientes } from '@/lib/agenda';
 import { fechaISO } from '@/lib/fechas';
 import { comprimirImagen } from '@/lib/imagenes';
+import { useAjustes } from '@/lib/ajustes';
+import { limpiarMateriales, materialesParaEditar, numero, pesos, totalesPresupuesto } from '@/lib/precios';
+import { ESTADOS_PRESUPUESTO, numeroPresupuesto, presupuestoNuevo } from '@/lib/presupuestos';
+import { AVISO_SQL_04, faltaColumna as faltaCol, faltaSql04 } from '@/lib/sql';
 import {
   AVISO_SQL_UBICACION,
   CARPETA_FOTOS,
@@ -24,17 +29,18 @@ import {
   textoCuando,
   ubicacionRelevamiento,
 } from '@/lib/relevamientos';
-import { linkGoogleMaps, linkWaze, linkWhatsapp, mensajeError, monto } from '@/lib/util';
+import { linkGoogleMaps, linkWaze, linkWhatsapp, mensajeError } from '@/lib/util';
 
 const CAMPOS_CLIENTE = 'id, nombre, color, telefono, direcciones(id, etiqueta, direccion, referencia, lat, lng)';
-const MATERIAL_VACIO = { item: '', cantidad: '', unidad: 'u' };
 
 export default function FichaRelevamiento() {
   const { id } = useParams();
   const router = useRouter();
   const { profesional } = usePanel();
+  const { ajustes } = useAjustes(profesional.id);
 
   const [rel, setRel] = useState(null);
+  const [presupuestos, setPresupuestos] = useState([]);
   const [form, setForm] = useState(null);
   const [clientes, setClientes] = useState([]);
   const [urls, setUrls] = useState({});
@@ -49,10 +55,12 @@ export default function FichaRelevamiento() {
   const inputFotos = useRef(null);
 
   const cargar = useCallback(async () => {
-    const [{ data, error }, cl] = await Promise.all([
+    const [{ data, error }, cl, pr] = await Promise.all([
       consultarRelevamientos((campos) => supabase.from('relevamientos').select(campos).eq('id', id).maybeSingle()),
       supabase.from('clientes').select(CAMPOS_CLIENTE).eq('profesional_id', profesional.id).order('nombre'),
+      supabase.from('presupuestos').select('id, numero, estado, total').eq('relevamiento_id', id).order('numero'),
     ]);
+    setPresupuestos(pr.error ? [] : pr.data || []);
     setCargando(false);
     if (error) {
       setAviso({ error: mensajeError(error) });
@@ -65,13 +73,10 @@ export default function FichaRelevamiento() {
         pedido: data.pedido || '',
         notas: data.notas || '',
         medidas: data.medidas || '',
-        materiales: (Array.isArray(data.materiales) ? data.materiales : []).map((m) => ({
-          item: m.item || '',
-          cantidad: m.cantidad ?? '',
-          unidad: m.unidad || 'u',
-        })),
+        materiales: materialesParaEditar(data.materiales),
         horas: data.horas_estimadas ?? '',
-        costo: data.costo_estimado ?? '',
+        // antes se llamaba "costo estimado"
+        manoObra: data.mano_obra ?? data.costo_estimado ?? '',
         estado: data.estado,
       });
     }
@@ -119,32 +124,28 @@ export default function FichaRelevamiento() {
   const direccionesCliente = clientes.find((c) => c.id === rel.cliente_id)?.direcciones || [];
   const estado = ESTADOS_RELEVAMIENTO[form.estado] || ESTADOS_RELEVAMIENTO.pendiente;
   const cambiar = (campo, valor) => setForm((f) => ({ ...f, [campo]: valor }));
-  const cambiarMaterial = (i, campo, valor) =>
-    setForm((f) => ({ ...f, materiales: f.materiales.map((m, k) => (k === i ? { ...m, [campo]: valor } : m)) }));
+  const totales = totalesPresupuesto({ items: form.materiales, mano_obra: form.manoObra, iva_porcentaje: ajustes.iva_porcentaje });
 
-  async function guardar(nuevoEstado) {
+  async function guardar(nuevoEstado, { silencioso = false } = {}) {
     setAviso({});
     setGuardando(true);
-    const materiales = form.materiales
-      .filter((m) => m.item.trim())
-      .map((m) => ({
-        item: m.item.trim(),
-        cantidad: m.cantidad === '' || Number.isNaN(Number(m.cantidad)) ? null : Number(m.cantidad),
-        unidad: m.unidad.trim() || 'u',
-      }));
     const estadoFinal = nuevoEstado || form.estado;
-    const { error } = await supabase
-      .from('relevamientos')
-      .update({
-        pedido: form.pedido.trim() || null,
-        notas: form.notas.trim() || null,
-        medidas: form.medidas.trim() || null,
-        materiales,
-        horas_estimadas: form.horas === '' ? null : Number(form.horas),
-        costo_estimado: form.costo === '' ? null : Number(form.costo),
-        estado: estadoFinal,
-      })
-      .eq('id', rel.id);
+    const fila = {
+      pedido: form.pedido.trim() || null,
+      notas: form.notas.trim() || null,
+      medidas: form.medidas.trim() || null,
+      materiales: limpiarMateriales(form.materiales),
+      horas_estimadas: form.horas === '' ? null : Number(form.horas),
+      mano_obra: numero(form.manoObra),
+      estado: estadoFinal,
+    };
+    let { error } = await supabase.from('relevamientos').update(fila).eq('id', rel.id);
+    if (faltaCol(error)) {
+      // Todavía no se corrió el SQL 04: la mano de obra va en la columna anterior
+      // eslint-disable-next-line no-unused-vars
+      const { mano_obra, ...resto } = fila;
+      ({ error } = await supabase.from('relevamientos').update({ ...resto, costo_estimado: mano_obra }).eq('id', rel.id));
+    }
     // Al marcarlo relevado, el turno de la agenda queda como realizado
     if (!error && nuevoEstado === 'relevado' && rel.turno_id && rel.turnos?.estado !== 'realizado') {
       await supabase.from('turnos').update({ estado: 'realizado' }).eq('id', rel.turno_id);
@@ -152,10 +153,42 @@ export default function FichaRelevamiento() {
     setGuardando(false);
     if (error) {
       setAviso({ error: mensajeError(error) });
+      return false;
+    }
+    if (!silencioso) setAviso({ ok: nuevoEstado === 'relevado' ? 'Relevamiento terminado y guardado.' : 'Guardado.' });
+    cargar();
+    return true;
+  }
+
+  // Arma el presupuesto con los materiales (precio final) y la mano de obra del relevamiento
+  async function crearPresupuesto() {
+    const ok = await guardar(undefined, { silencioso: true });
+    if (!ok) return;
+    setGuardando(true);
+    const primeraLinea = (form.pedido || '').split('\n')[0].trim().slice(0, 120);
+    const { data, error } = await supabase
+      .from('presupuestos')
+      .insert(
+        presupuestoNuevo({
+          profesionalId: profesional.id,
+          ajustes,
+          cliente: rel.clientes ? { id: rel.cliente_id, nombre: rel.clientes.nombre } : null,
+          relevamiento: rel,
+          lugar,
+          items: form.materiales,
+          manoObra: form.manoObra,
+          titulo: primeraLinea || rel.turnos?.titulo || '',
+        })
+      )
+      .select('id')
+      .single();
+    if (error) {
+      setGuardando(false);
+      setAviso({ error: faltaSql04(error) ? AVISO_SQL_04 : mensajeError(error) });
       return;
     }
-    setAviso({ ok: nuevoEstado === 'relevado' ? 'Relevamiento terminado y guardado.' : 'Guardado.' });
-    cargar();
+    await supabase.from('relevamientos').update({ estado: 'presupuestado' }).eq('id', rel.id);
+    router.push(`/panel/finanzas/presupuestos/${data.id}`);
   }
 
   function editarLugar() {
@@ -228,7 +261,6 @@ export default function FichaRelevamiento() {
     router.replace('/panel/relevamientos');
   }
 
-  const totalMateriales = form.materiales.filter((m) => m.item.trim()).length;
 
   return (
     <>
@@ -377,46 +409,65 @@ export default function FichaRelevamiento() {
           </div>
         </section>
 
-        {/* Materiales */}
-        <section>
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="titulo-seccion">Materiales {totalMateriales > 0 && <span className="text-tinta-500">({totalMateriales})</span>}</h2>
-            <button type="button" className="chip chip-activo" onClick={() => cambiar('materiales', [...form.materiales, { ...MATERIAL_VACIO }])}>
-              <Icon name="mas" className="h-3.5 w-3.5" /> Agregar
-            </button>
-          </div>
-          {form.materiales.length === 0 ? (
-            <p className="tarjeta p-4 text-sm text-tinta-400">Sin materiales. Agregá lo que vas a necesitar para el trabajo.</p>
-          ) : (
-            <ul className="space-y-2">
-              {form.materiales.map((m, i) => (
-                <li key={i} className="flex items-center gap-2">
-                  <input className="campo min-w-0 flex-1 px-3 py-2 text-sm" value={m.item} onChange={(e) => cambiarMaterial(i, 'item', e.target.value)} placeholder="Material" />
-                  <input className="campo w-16 px-2 py-2 text-sm" type="number" inputMode="decimal" min="0" value={m.cantidad} onChange={(e) => cambiarMaterial(i, 'cantidad', e.target.value)} placeholder="Cant." aria-label="Cantidad" />
-                  <input className="campo w-14 px-2 py-2 text-sm" value={m.unidad} onChange={(e) => cambiarMaterial(i, 'unidad', e.target.value)} placeholder="u" aria-label="Unidad" />
-                  <button type="button" className="shrink-0 rounded-lg p-2 text-tinta-400 hover:text-red-300" onClick={() => cambiar('materiales', form.materiales.filter((_, k) => k !== i))} aria-label="Quitar material">
-                    <Icon name="cerrar" className="h-4 w-4" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        {/* Materiales con costo, margen y precio final */}
+        <EditorMateriales
+          materiales={form.materiales}
+          onChange={(m) => cambiar('materiales', m)}
+          margenDefecto={ajustes.margen_materiales}
+          vacio="Agregá lo que vas a necesitar con su precio de costo: el margen calcula el precio final de cada ítem."
+        />
 
-        {/* Estimación */}
+        {/* Mano de obra y total */}
         <section>
-          <h2 className="titulo-seccion mb-2">Estimación</h2>
+          <h2 className="titulo-seccion mb-2">Mano de obra</h2>
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="etiqueta" htmlFor="r-horas">Horas de trabajo</label>
               <input id="r-horas" type="number" inputMode="decimal" min="0" step="0.5" className="campo" value={form.horas} onChange={(e) => cambiar('horas', e.target.value)} placeholder="Ej. 6" />
             </div>
             <div>
-              <label className="etiqueta" htmlFor="r-costo">Costo estimado (UYU)</label>
-              <input id="r-costo" type="number" inputMode="decimal" min="0" className="campo" value={form.costo} onChange={(e) => cambiar('costo', e.target.value)} placeholder="Ej. 8500" />
+              <label className="etiqueta" htmlFor="r-mo">Precio mano de obra (UYU)</label>
+              <input id="r-mo" type="number" inputMode="decimal" min="0" className="campo" value={form.manoObra} onChange={(e) => cambiar('manoObra', e.target.value)} placeholder="Ej. 6000" />
             </div>
           </div>
-          {form.costo !== '' && <p className="mt-2 text-xs text-tinta-400">Base para el presupuesto: {monto(form.costo)}</p>}
+          {(totales.venta > 0 || totales.manoObra > 0) && (
+            <div className="tarjeta mt-3 space-y-1 p-3 text-sm">
+              <div className="flex justify-between text-tinta-300"><span>Materiales</span><span>{pesos(totales.venta)}</span></div>
+              <div className="flex justify-between text-tinta-300"><span>Mano de obra</span><span>{pesos(totales.manoObra)}</span></div>
+              <div className="flex justify-between font-semibold"><span>Subtotal</span><span>{pesos(totales.subtotal)}</span></div>
+              <div className="flex justify-between text-tinta-300"><span>IVA {Number(ajustes.iva_porcentaje)}%</span><span>{pesos(totales.iva)}</span></div>
+              <div className="flex justify-between text-base font-extrabold"><span>Total IVA inc.</span><span className="text-menta-300">{pesos(totales.total)}</span></div>
+            </div>
+          )}
+        </section>
+
+        {/* Presupuesto */}
+        <section className="tarjeta space-y-3 border-marca-naranja/40 p-4">
+          <div className="flex items-center gap-2">
+            <Icon name="documento" className="h-5 w-5 text-marca-naranja" />
+            <h2 className="font-bold">Presupuesto para el cliente</h2>
+          </div>
+          {presupuestos.length > 0 && (
+            <ul className="space-y-1.5">
+              {presupuestos.map((p) => (
+                <li key={p.id}>
+                  <Link href={`/panel/finanzas/presupuestos/${p.id}`} className="flex items-center justify-between rounded-xl bg-navy-850 px-3 py-2.5 hover:bg-navy-800">
+                    <span className="font-semibold">Nº {numeroPresupuesto(p.numero)}</span>
+                    <span className="flex items-center gap-2 text-sm">
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${(ESTADOS_PRESUPUESTO[p.estado] || ESTADOS_PRESUPUESTO.borrador).clase}`}>
+                        {(ESTADOS_PRESUPUESTO[p.estado] || ESTADOS_PRESUPUESTO.borrador).texto}
+                      </span>
+                      <b>{pesos(p.total, { decimales: false })}</b>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-tinta-400">Le llega solo con los precios finales de cada ítem, el subtotal, el IVA y el total. Tus costos y márgenes no salen.</p>
+          <button type="button" className="btn btn-menta w-full" onClick={crearPresupuesto} disabled={guardando}>
+            <Icon name="documento" /> {presupuestos.length ? 'Hacer otro presupuesto' : 'Crear presupuesto'}
+          </button>
         </section>
 
         {/* Estado */}

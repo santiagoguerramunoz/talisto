@@ -378,7 +378,7 @@ export default function FormTurno({
 
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="etiqueta" htmlFor="t-monto">{esRelevamiento ? 'Costo de la visita (UYU)' : 'Monto acordado (UYU)'}</label>
+            <label className="etiqueta" htmlFor="t-monto">{esRelevamiento ? 'Costo de la visita (UYU)' : 'Precio mano de obra (UYU)'}</label>
             <input id="t-monto" type="number" inputMode="decimal" min="0" className="campo" value={form.monto} onChange={(e) => cambiar('monto', e.target.value)} placeholder="Opcional" />
           </div>
           <div>

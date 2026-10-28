@@ -207,7 +207,7 @@ export default function FormBloque({ abierto, onCerrar, onGuardado, profesionalI
         </div>
 
         <div>
-          <label className="etiqueta" htmlFor="b-monto">Monto acordado por jornada (UYU)</label>
+          <label className="etiqueta" htmlFor="b-monto">Precio mano de obra por jornada (UYU)</label>
           <input id="b-monto" type="number" inputMode="decimal" min="0" className="campo" value={form.monto} onChange={(e) => cambiar('monto', e.target.value)} placeholder="Opcional" />
         </div>
 

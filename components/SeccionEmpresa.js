@@ -6,8 +6,7 @@ import Icon from './Icon';
 import { supabase } from '@/lib/supabase';
 import { mensajeError } from '@/lib/util';
 
-// Configuración de un cliente "empresa" (ej. Grupo Gamma): trabaja con sus propios clientes,
-// se liquida por acondicionamientos y MOE.
+// Cliente B2B: trabaja con sus propios clientes y se liquida por puestas y MOE.
 export default function SeccionEmpresa({ cliente, onGuardado }) {
   const [esEmpresa, setEsEmpresa] = useState(!!cliente.es_empresa);
   const [precio, setPrecio] = useState(cliente.precio_acondicionamiento ?? '');
@@ -51,9 +50,9 @@ export default function SeccionEmpresa({ cliente, onGuardado }) {
           }}
         />
         <span>
-          <b>Trabaja con sus propios clientes</b>
+          <b>Cliente B2B</b>
           <span className="block text-sm text-tinta-400">
-            Para empresas como Grupo Gamma: cargás órdenes con nº de cliente y de ticket, sin sumar esos clientes a los tuyos, y liquidás el mes por acondicionamientos y MOE.
+            Empresas que te pasan trabajos de sus propios clientes: cargás cada trabajo con nº de cliente y de ticket (sin sumarlos a tus clientes), lo iniciás y finalizás con el tiempo, y liquidás el mes por puestas y MOE.
           </span>
         </span>
       </label>
@@ -62,19 +61,19 @@ export default function SeccionEmpresa({ cliente, onGuardado }) {
         <div className="mt-4 space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="etiqueta" htmlFor="e-precio">Precio por acondicionamiento (UYU)</label>
+              <label className="etiqueta" htmlFor="e-precio">Precio por puesta (UYU)</label>
               <input id="e-precio" type="number" inputMode="decimal" min="0" className="campo" value={precio} onChange={(e) => setPrecio(e.target.value)} placeholder="Ej. 1200" />
             </div>
             <div>
-              <label className="etiqueta" htmlFor="e-factor">1 MOE equivale a (acond.)</label>
+              <label className="etiqueta" htmlFor="e-factor">1 MOE equivale a (puestas)</label>
               <input id="e-factor" type="number" inputMode="decimal" min="0.25" step="0.25" className="campo" value={factor} onChange={(e) => setFactor(e.target.value)} />
             </div>
           </div>
-          <p className="text-xs text-tinta-400">1 acondicionamiento = un dispositivo con hasta 15 m de cable. Se cargan de a medio (0,5).</p>
+          <p className="text-xs text-tinta-400">1 puesta = un dispositivo con hasta 15 m de cable. Se cargan de a media (0,5).</p>
           <div className="grid grid-cols-2 gap-2">
             <button className="btn btn-sec" onClick={() => guardar()} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar precio'}</button>
             <Link href={`/panel/ordenes?empresa=${cliente.id}`} className="btn btn-menta">
-              <Icon name="maletin" /> Órdenes y liquidación
+              <Icon name="maletin" /> Trabajos y liquidación
             </Link>
           </div>
         </div>

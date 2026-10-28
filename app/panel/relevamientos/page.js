@@ -134,7 +134,7 @@ export default function Relevamientos() {
                         <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-tinta-400">
                           <span className="inline-flex items-center gap-1"><Icon name="reloj" className="h-3.5 w-3.5" /> {textoCuando(r.turnos)}</span>
                           {r.fotos?.length > 0 && <span className="inline-flex items-center gap-1"><Icon name="camara" className="h-3.5 w-3.5" /> {r.fotos.length}</span>}
-                          {r.costo_estimado ? <span className="font-semibold text-tinta-300">{monto(r.costo_estimado)}</span> : null}
+                          {r.mano_obra ?? r.costo_estimado ? <span className="font-semibold text-tinta-300">MO {monto(r.mano_obra ?? r.costo_estimado)}</span> : null}
                         </p>
                       </div>
                     </div>

@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/Icon';
 import FormTurno from '@/components/FormTurno';
 import FormBloque from '@/components/FormBloque';
-import FormOrden from '@/components/FormOrden';
+import FormTrabajoB2B from '@/components/FormTrabajoB2B';
+import TrabajosEnCurso from '@/components/TrabajosEnCurso';
 import { usePanel } from '@/components/PanelContext';
 import { useDatosAgenda } from '@/lib/useDatosAgenda';
 import { distribuirColumnas, eventosDelDia, indexarClientes } from '@/lib/agenda';
@@ -12,6 +13,8 @@ import {
   DIAS, esMismoDia, fechaCorta, fechaISO, fechaLarga, inicioDia, inicioSemana, minutos, minutosDeFecha, sumarDias, textoHora,
 } from '@/lib/fechas';
 import { ESTADOS, monto } from '@/lib/util';
+import { ESTADOS_TRABAJO, esFinalizado, estadoTrabajo } from '@/lib/trabajos';
+import { useAjustes } from '@/lib/ajustes';
 
 const HORA_PX = 64;
 const GUTTER = '3.25rem';
@@ -34,6 +37,7 @@ export default function Agenda() {
   const { datos, recargar } = useDatosAgenda(profesional.id, desde.getTime(), hasta.getTime());
   const indice = useMemo(() => indexarClientes(datos.clientes), [datos.clientes]);
   const empresas = useMemo(() => datos.clientes.filter((c) => c.es_empresa), [datos.clientes]);
+  const { ajustes } = useAjustes(profesional.id);
 
   const mover = (n) => setFecha((f) => sumarDias(f, vista === 'dia' ? n : n * 7));
 
@@ -76,6 +80,7 @@ export default function Agenda() {
 
       <div className="px-4 pt-4">
         {datos.error && <p className="mb-3 rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{datos.error.message}</p>}
+        <TrabajosEnCurso trabajos={datos.enCurso} porId={indice.porId} onAbrir={(t) => setModalOrden({ orden: t })} />
         {vista === 'dia' ? (
           <VistaDia
             fecha={fecha}
@@ -129,7 +134,7 @@ export default function Agenda() {
                   setModalOrden({ inicial: { empresa_id: e.id, fecha: fechaISO(fecha) } });
                 }}
               >
-                <span className="h-3 w-3 rounded-full" style={{ background: e.color }} /> Orden {e.nombre}
+                <span className="h-3 w-3 rounded-full" style={{ background: e.color }} /> Trabajo B2B · {e.nombre}
               </button>
             ))}
             <button
@@ -164,7 +169,7 @@ export default function Agenda() {
         turno={modalTurno?.turno}
         inicial={modalTurno?.inicial}
       />
-      <FormOrden
+      <FormTrabajoB2B
         abierto={!!modalOrden}
         onCerrar={() => setModalOrden(null)}
         onGuardado={recargar}
@@ -172,6 +177,7 @@ export default function Agenda() {
         empresas={empresas}
         orden={modalOrden?.orden}
         inicial={modalOrden?.inicial}
+        margenDefecto={ajustes.margen_materiales}
       />
       <FormBloque
         abierto={!!modalBloque}
@@ -228,17 +234,21 @@ function VistaDia({ fecha, datos, indice, onEvento, onHora }) {
 
       {sinHora.length > 0 && (
         <div className="mb-3 rounded-xl border border-navy-700 bg-navy-900 p-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-tinta-400">Órdenes sin horario</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-tinta-400">Trabajos B2B sin horario</p>
           <div className="flex flex-wrap gap-1.5">
             {sinHora.map((ev) => (
               <button
                 key={ev.key}
                 type="button"
                 onClick={() => onEvento(ev)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${ev.estado === 'realizado' ? 'opacity-55' : ''}`}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${esFinalizado(ev) ? 'opacity-55' : ''}`}
                 style={{ borderColor: ev.color, background: `${ev.color}1f` }}
               >
-                {ev.estado === 'realizado' && <Icon name="check" className="h-3 w-3" />}
+                {esFinalizado(ev) ? (
+                  <Icon name="check" className="h-3 w-3" />
+                ) : estadoTrabajo(ev.estado) !== 'pendiente' ? (
+                  <span className={`h-2 w-2 rounded-full ${ESTADOS_TRABAJO[estadoTrabajo(ev.estado)]?.punto} ${ev.estado === 'en_curso' ? 'animate-pulse' : ''}`} />
+                ) : null}
                 {ev.titulo.replace(/^.*? · /, '')}
                 {ev.direccion?.direccion ? <span className="font-normal text-tinta-400">· {ev.direccion.direccion}</span> : null}
               </button>
@@ -288,7 +298,7 @@ function VistaDia({ fecha, datos, indice, onEvento, onHora }) {
               key={ev.key}
               type="button"
               onClick={() => onEvento(ev)}
-              className={`absolute z-10 overflow-hidden rounded-xl px-2.5 text-left shadow-lg ${compacto ? 'py-1' : 'py-1.5'} ${ev.estado === 'realizado' ? 'opacity-55' : ''}`}
+              className={`absolute z-10 overflow-hidden rounded-xl px-2.5 text-left shadow-lg ${compacto ? 'py-1' : 'py-1.5'} ${ev.estado === 'realizado' || (ev.clase === 'orden' && esFinalizado(ev)) ? 'opacity-55' : ''}`}
               style={{
                 top: y(ev.ini) + 1,
                 height: alto,
@@ -303,12 +313,17 @@ function VistaDia({ fecha, datos, indice, onEvento, onHora }) {
               <p className="flex items-center gap-1 truncate text-sm font-bold leading-tight text-tinta-100">
                 {ev.clase === 'bloque' && <Icon name="repetir" className="h-3.5 w-3.5 shrink-0 opacity-70" />}
                 {ev.tipo === 'relevamiento' && <Icon name="relevamiento" className="h-3.5 w-3.5 shrink-0 text-marca-naranja" />}
-                {ev.estado === 'pendiente' && <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />}
+                {ev.clase === 'orden' && estadoTrabajo(ev.estado) !== 'pendiente' && !esFinalizado(ev) ? (
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${ESTADOS_TRABAJO[estadoTrabajo(ev.estado)]?.punto} ${ev.estado === 'en_curso' ? 'animate-pulse' : ''}`} />
+                ) : ev.estado === 'pendiente' ? (
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />
+                ) : null}
                 <span className="truncate">{ev.titulo}</span>
               </p>
               <p className="truncate text-xs text-tinta-300">
                 {ev.tipo === 'relevamiento' ? (ev.flexible ? 'Relevar entre ' : 'Relevar ') : ''}
                 {textoHora(ev.ini)}–{textoHora(Math.min(ev.fin, 1439))}
+                {ev.clase === 'orden' && estadoTrabajo(ev.estado) !== 'pendiente' ? ` · ${ESTADOS_TRABAJO[estadoTrabajo(ev.estado)]?.texto}` : ''}
                 {ev.direccion ? ` · ${ev.direccion.etiqueta}` : ''}
                 {!compacto && ev.monto ? ` · ${monto(ev.monto)}` : ''}
               </p>
@@ -357,7 +372,7 @@ function VistaSemana({ lunes, datos, indice, onEvento, onDia }) {
                         </span>
                         <span className="block truncate text-xs text-tinta-400">
                           {ev.tipo === 'relevamiento' ? `Relevamiento${ev.flexible ? ' · horario flexible' : ''} · ` : ''}
-                          {ev.direccion ? `${ev.direccion.etiqueta} · ${ev.direccion.direccion}` : ev.clase === 'bloque' ? 'Horario fijo' : ESTADOS[ev.estado]}
+                          {ev.clase === 'orden' ? `${ESTADOS_TRABAJO[estadoTrabajo(ev.estado)]?.texto || ''}${ev.direccion?.direccion ? ` · ${ev.direccion.direccion}` : ''}` : ev.direccion ? `${ev.direccion.etiqueta} · ${ev.direccion.direccion}` : ev.clase === 'bloque' ? 'Horario fijo' : ESTADOS[ev.estado]}
                         </span>
                       </span>
                     </button>
