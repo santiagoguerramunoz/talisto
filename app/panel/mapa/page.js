@@ -295,7 +295,10 @@ export default function MapaDelDia() {
                           {pos + 1}
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate font-bold">{p.titulo}</p>
+                          <p className="flex items-center gap-1.5 truncate font-bold">
+                            {p.tipo === 'relevamiento' && <Icon name="relevamiento" className="h-4 w-4 shrink-0 text-marca-naranja" />}
+                            <span className="truncate">{p.titulo}</span>
+                          </p>
                           <p className="truncate text-xs text-tinta-400">
                             {textoHora(p.ini)}–{textoHora(Math.min(p.fin, 1439))} · {p.direccion.etiqueta}: {p.direccion.direccion}
                           </p>
@@ -327,7 +330,10 @@ export default function MapaDelDia() {
                   <li key={p.key} className="tarjeta flex items-center gap-3 p-3 opacity-70">
                     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-dashed border-navy-500 text-sm text-tinta-400">–</span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-bold">{p.titulo}</p>
+                      <p className="flex items-center gap-1.5 truncate font-bold">
+                            {p.tipo === 'relevamiento' && <Icon name="relevamiento" className="h-4 w-4 shrink-0 text-marca-naranja" />}
+                            <span className="truncate">{p.titulo}</span>
+                          </p>
                       <p className="truncate text-xs text-tinta-400">
                         {textoHora(p.ini)}–{textoHora(Math.min(p.fin, 1439))} · {p.direccion ? `${p.direccion.etiqueta}: sin ubicación en el mapa` : 'Sin dirección'}
                       </p>

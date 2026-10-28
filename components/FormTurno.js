@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import Modal from './Modal';
 import Icon from './Icon';
@@ -12,6 +13,11 @@ function sumarMinutos(hora, n) {
   const total = Math.min(minutos(hora) + n, 23 * 60 + 59);
   return textoHora(Math.max(total, 0));
 }
+
+const TIPOS = [
+  ['trabajo', 'Trabajo', 'maletin'],
+  ['relevamiento', 'Relevamiento', 'relevamiento'],
+];
 
 export default function FormTurno({
   abierto,
@@ -37,6 +43,10 @@ export default function FormTurno({
     setError('');
     if (turno) {
       setForm({
+        tipo: turno.tipo || 'trabajo',
+        flexible: !!turno.flexible,
+        pedido: '',
+        relevamientoId: null,
         cliente_id: turno.cliente_id || '',
         titulo: turno.titulo || '',
         direccion_id: turno.direccion_id || '',
@@ -47,17 +57,32 @@ export default function FormTurno({
         estado: turno.estado,
         notas: turno.notas || '',
       });
+      if (turno.tipo === 'relevamiento') {
+        supabase
+          .from('relevamientos')
+          .select('id, pedido')
+          .eq('turno_id', turno.id)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data) setForm((f) => (f ? { ...f, pedido: data.pedido || '', relevamientoId: data.id } : f));
+          });
+      }
     } else {
       const clienteId = inicial?.cliente_id || '';
       const cliente = clientes.find((c) => c.id === clienteId);
       const desde = inicial?.hora || '09:00';
+      const esRelevamiento = inicial?.tipo === 'relevamiento';
       setForm({
+        tipo: esRelevamiento ? 'relevamiento' : 'trabajo',
+        flexible: esRelevamiento,
+        pedido: inicial?.pedido || '',
+        relevamientoId: null,
         cliente_id: clienteId,
         titulo: '',
         direccion_id: cliente?.direcciones?.[0]?.id || '',
         fecha: inicial?.fecha || fechaISO(new Date()),
         desde,
-        hasta: sumarMinutos(desde, 60),
+        hasta: sumarMinutos(desde, esRelevamiento ? 240 : 60),
         monto: '',
         estado: 'confirmado',
         notas: '',
@@ -71,6 +96,8 @@ export default function FormTurno({
 
   if (!form) return null;
 
+  const esRelevamiento = form.tipo === 'relevamiento';
+  const esVisitaApp = form.tipo === 'visita';
   const cambiar = (campo, valor) => setForm((f) => ({ ...f, [campo]: valor }));
 
   function cambiarCliente(id) {
@@ -97,7 +124,7 @@ export default function FormTurno({
       return;
     }
     const activo = form.estado === 'pendiente' || form.estado === 'confirmado';
-    if (activo) {
+    if (activo && !(esRelevamiento && form.flexible)) {
       const choques = choquesConBloques({ fecha: form.fecha, desde: form.desde, hasta: form.hasta, bloques, indice });
       if (choques.length && !window.confirm(`Este turno se superpone con el horario fijo de ${choques.join(', ')}. ¿Guardar igual?`)) {
         return;
@@ -115,21 +142,50 @@ export default function FormTurno({
       estado: form.estado,
       notas: form.notas.trim() || null,
     };
+    if (esRelevamiento) {
+      fila.tipo = 'relevamiento';
+      fila.flexible = !!form.flexible;
+    } else if (turno?.tipo === 'relevamiento') {
+      fila.tipo = 'trabajo';
+      fila.flexible = false;
+    }
+
     const consulta = turno?.id
-      ? supabase.from('turnos').update(fila).eq('id', turno.id)
-      : supabase.from('turnos').insert(fila);
-    const { error: err } = await consulta;
-    setGuardando(false);
+      ? supabase.from('turnos').update(fila).eq('id', turno.id).select('id').single()
+      : supabase.from('turnos').insert(fila).select('id').single();
+    const { data, error: err } = await consulta;
     if (err) {
+      setGuardando(false);
       setError(mensajeError(err));
       return;
     }
+
+    if (esRelevamiento) {
+      const { error: errRel } = await supabase.from('relevamientos').upsert(
+        {
+          profesional_id: profesionalId,
+          turno_id: data.id,
+          cliente_id: fila.cliente_id,
+          direccion_id: fila.direccion_id,
+          pedido: form.pedido.trim() || null,
+        },
+        { onConflict: 'turno_id' }
+      );
+      if (errRel) {
+        setGuardando(false);
+        setError(`El turno se guardó, pero no la ficha del relevamiento: ${mensajeError(errRel)}`);
+        onGuardado?.();
+        return;
+      }
+    }
+    setGuardando(false);
     onGuardado?.();
     onCerrar();
   }
 
   async function eliminar() {
-    if (!turno?.id || !window.confirm('¿Eliminar este turno?')) return;
+    const que = esRelevamiento ? 'este relevamiento de la agenda (la ficha con lo relevado se conserva)' : 'este turno';
+    if (!turno?.id || !window.confirm(`¿Eliminar ${que}?`)) return;
     const { error: err } = await supabase.from('turnos').delete().eq('id', turno.id);
     if (err) setError(mensajeError(err));
     else {
@@ -139,31 +195,65 @@ export default function FormTurno({
   }
 
   const direccionElegida = direcciones.find((d) => d.id === form.direccion_id);
-  const textoWhatsapp = cliente
-    ? `Hola ${cliente.nombre}! Te confirmo el ${fechaLarga(combinar(form.fecha, '00:00')).toLowerCase()} de ${form.desde} a ${form.hasta}` +
-      `${direccionElegida ? ` en ${direccionElegida.direccion}` : ''}. ¡Gracias!${nombreProfesional ? ` — ${nombreProfesional}` : ''}`
-    : '';
+  const dia = fechaLarga(combinar(form.fecha, '00:00')).toLowerCase();
+  const lugar = direccionElegida ? ` en ${direccionElegida.direccion}` : '';
+  const firma = nombreProfesional ? ` — ${nombreProfesional}` : '';
+  let textoWhatsapp = '';
+  if (cliente) {
+    textoWhatsapp = esRelevamiento
+      ? `Hola ${cliente.nombre}! Paso a ver el trabajo el ${dia}${form.flexible ? ` entre las ${form.desde} y las ${form.hasta}` : ` a las ${form.desde}`}${lugar}. ¡Gracias!${firma}`
+      : `Hola ${cliente.nombre}! Te confirmo el ${dia} de ${form.desde} a ${form.hasta}${lugar}. ¡Gracias!${firma}`;
+  }
   const whatsapp = cliente?.telefono ? linkWhatsapp(cliente.telefono, textoWhatsapp) : '';
+
+  const titulo = turno?.id ? (esRelevamiento ? 'Relevamiento' : 'Editar turno') : esRelevamiento ? 'Nuevo relevamiento' : 'Nuevo turno';
 
   return (
     <Modal
       abierto={abierto}
       onCerrar={onCerrar}
-      titulo={turno?.id ? 'Editar turno' : 'Nuevo turno'}
+      titulo={titulo}
       pie={
         <div className="flex gap-2">
           {turno?.id && (
-            <button type="button" className="btn btn-peligro px-3" onClick={eliminar} aria-label="Eliminar turno">
+            <button type="button" className="btn btn-peligro px-3" onClick={eliminar} aria-label="Eliminar">
               <Icon name="borrar" />
             </button>
           )}
           <button type="button" className="btn btn-menta flex-1" onClick={guardar} disabled={guardando}>
-            {guardando ? 'Guardando…' : 'Guardar turno'}
+            {guardando ? 'Guardando…' : esRelevamiento ? 'Guardar relevamiento' : 'Guardar turno'}
           </button>
         </div>
       }
     >
       <div className="space-y-4">
+        {!esVisitaApp && (
+          <div className="grid grid-cols-2 gap-2 rounded-2xl bg-navy-850 p-1.5">
+            {TIPOS.map(([valor, texto, icono]) => (
+              <button
+                key={valor}
+                type="button"
+                onClick={() =>
+                  setForm((f) => ({
+                    ...f,
+                    tipo: valor,
+                    flexible: valor === 'relevamiento' ? (turno ? f.flexible : true) : false,
+                  }))
+                }
+                className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold transition ${form.tipo === valor ? 'bg-navy-700 text-tinta-100' : 'text-tinta-400'}`}
+              >
+                <Icon name={icono} className="h-4 w-4" /> {texto}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {esRelevamiento && form.relevamientoId && (
+          <Link href={`/panel/relevamientos/${form.relevamientoId}`} onClick={onCerrar} className="btn btn-sec w-full border-marca-naranja/50">
+            <Icon name="relevamiento" /> Abrir la ficha del relevamiento
+          </Link>
+        )}
+
         <div>
           <label className="etiqueta" htmlFor="t-cliente">Cliente</label>
           <select id="t-cliente" className="campo" value={form.cliente_id} onChange={(e) => cambiarCliente(e.target.value)}>
@@ -177,7 +267,7 @@ export default function FormTurno({
         {!form.cliente_id && (
           <div>
             <label className="etiqueta" htmlFor="t-titulo">Título</label>
-            <input id="t-titulo" className="campo" value={form.titulo} onChange={(e) => cambiar('titulo', e.target.value)} placeholder="Ej. Comprar materiales" />
+            <input id="t-titulo" className="campo" value={form.titulo} onChange={(e) => cambiar('titulo', e.target.value)} placeholder={esRelevamiento ? 'Ej. Relevar baño en Pocitos' : 'Ej. Comprar materiales'} />
           </div>
         )}
 
@@ -197,6 +287,20 @@ export default function FormTurno({
           </div>
         )}
 
+        {esRelevamiento && (
+          <div>
+            <label className="etiqueta" htmlFor="t-pedido">¿Qué pide el cliente?</label>
+            <textarea
+              id="t-pedido"
+              rows={3}
+              className="campo"
+              value={form.pedido}
+              onChange={(e) => cambiar('pedido', e.target.value)}
+              placeholder="Ej. Cambiar el tablero, agregar 3 enchufes en el living y revisar la puesta a tierra"
+            />
+          </div>
+        )}
+
         <div className="grid grid-cols-3 gap-2">
           <div className="col-span-3 sm:col-span-1">
             <label className="etiqueta" htmlFor="t-fecha">Fecha</label>
@@ -204,19 +308,31 @@ export default function FormTurno({
           </div>
           <div className="col-span-3 grid grid-cols-2 gap-2 sm:col-span-2">
             <div>
-              <label className="etiqueta" htmlFor="t-desde">Desde</label>
+              <label className="etiqueta" htmlFor="t-desde">{esRelevamiento && form.flexible ? 'Entre las' : 'Desde'}</label>
               <input id="t-desde" type="time" step="900" className="campo" value={form.desde} onChange={(e) => cambiarDesde(e.target.value)} />
             </div>
             <div>
-              <label className="etiqueta" htmlFor="t-hasta">Hasta</label>
+              <label className="etiqueta" htmlFor="t-hasta">{esRelevamiento && form.flexible ? 'y las' : 'Hasta'}</label>
               <input id="t-hasta" type="time" step="900" className="campo" value={form.hasta} onChange={(e) => e.target.value && cambiar('hasta', e.target.value)} />
             </div>
           </div>
         </div>
 
+        {esRelevamiento && (
+          <label className="flex items-start gap-3 rounded-xl bg-navy-850 p-3 text-sm">
+            <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[#2cc79b]" checked={form.flexible} onChange={(e) => cambiar('flexible', e.target.checked)} />
+            <span>
+              <b className="text-tinta-100">Horario flexible</b>
+              <span className="block text-tinta-400">
+                Paso en algún momento de esa franja. No bloquea la agenda: podés agendar otras cosas en ese horario.
+              </span>
+            </span>
+          </label>
+        )}
+
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="etiqueta" htmlFor="t-monto">Monto acordado (UYU)</label>
+            <label className="etiqueta" htmlFor="t-monto">{esRelevamiento ? 'Costo de la visita (UYU)' : 'Monto acordado (UYU)'}</label>
             <input id="t-monto" type="number" inputMode="decimal" min="0" className="campo" value={form.monto} onChange={(e) => cambiar('monto', e.target.value)} placeholder="Opcional" />
           </div>
           <div>
@@ -231,16 +347,16 @@ export default function FormTurno({
 
         <div>
           <label className="etiqueta" htmlFor="t-notas">Notas</label>
-          <textarea id="t-notas" rows={2} className="campo" value={form.notas} onChange={(e) => cambiar('notas', e.target.value)} placeholder="Qué hay que hacer, qué llevar…" />
+          <textarea id="t-notas" rows={2} className="campo" value={form.notas} onChange={(e) => cambiar('notas', e.target.value)} placeholder={esRelevamiento ? 'Quién recibe, timbre, horarios de portería…' : 'Qué hay que hacer, qué llevar…'} />
         </div>
 
-        {turno?.tipo === 'visita' && (
+        {esVisitaApp && (
           <p className="rounded-xl bg-menta-500/10 p-3 text-sm text-menta-300">Visita técnica reservada por TaListo!</p>
         )}
 
         {whatsapp && (
           <a href={whatsapp} target="_blank" rel="noreferrer" className="btn btn-sec w-full">
-            <Icon name="whatsapp" /> Confirmar por WhatsApp
+            <Icon name="whatsapp" /> {esRelevamiento ? 'Avisar al cliente por WhatsApp' : 'Confirmar por WhatsApp'}
           </a>
         )}
 

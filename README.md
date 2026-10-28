@@ -10,6 +10,7 @@ Next.js + Supabase + Vercel.
 - **Clientes** con color, teléfono, notas y **varias direcciones** (con pin en el mapa, búsqueda y botón "Estoy acá"). En la ficha se ven los horarios acordados, los próximos turnos y el historial.
 - **Mapa del día**: los trabajos del día numerados en orden, botones para ir con Google Maps o Waze y "ruta del día". También un mapa con todos los clientes.
 - **Perfil**: nombre público, bio, WhatsApp, **zona de trabajo** (departamentos, barrios, km), **servicios y tarifas**, **días y horario de trabajo**.
+- **Relevamientos**: visitas para ver el trabajo que pide el cliente, con horario flexible (no bloquea la agenda) y una ficha con notas, medidas, materiales, fotos, horas y costo estimado. Pestaña **Relevar** con pendientes, relevados y presupuestados.
 - **Admin**: precio de la visita técnica (UYU 1.500) y comisión (UYU 200) editables, duración de la visita, verificar y suspender profesionales.
 - La función `horarios_disponibles` ya calcula los huecos libres de cada profesional (la usa la Fase 2 para las reservas).
 
@@ -18,7 +19,7 @@ Next.js + Supabase + Vercel.
 ### 1. Supabase (proyecto NUEVO, no el de Metabia)
 
 1. En supabase.com creá un proyecto nuevo llamado `talisto`.
-2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**.
+2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo con `supabase/02_relevamientos.sql`.
 3. **Authentication → URL Configuration**:
    - Site URL: `http://localhost:3000` (después cambiala por la URL de Vercel).
    - Redirect URLs: agregá `http://localhost:3000/**` y, cuando la tengas, `https://TU-APP.vercel.app/**`.

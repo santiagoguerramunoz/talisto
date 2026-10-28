@@ -111,6 +111,15 @@ export default function Agenda() {
               className="btn btn-sec shadow-xl"
               onClick={() => {
                 setMenuNuevo(false);
+                setModalTurno({ inicial: { fecha: fechaISO(fecha), hora: '09:00', tipo: 'relevamiento' } });
+              }}
+            >
+              <Icon name="relevamiento" className="h-5 w-5 text-marca-naranja" /> Relevamiento
+            </button>
+            <button
+              className="btn btn-sec shadow-xl"
+              onClick={() => {
+                setMenuNuevo(false);
                 setModalTurno({ inicial: { fecha: fechaISO(fecha), hora: '09:00' } });
               }}
             >
@@ -237,16 +246,20 @@ function VistaDia({ fecha, datos, indice, onEvento, onHora }) {
                 height: alto,
                 left: `calc(${GUTTER} + 0.25rem + ${ancho} * ${ev.col})`,
                 width: `calc(${ancho} - 4px)`,
-                background: `${ev.color}2e`,
-                borderLeft: `4px ${ev.clase === 'bloque' ? 'dashed' : 'solid'} ${ev.color}`,
+                background: ev.flexible
+                  ? `repeating-linear-gradient(135deg, ${ev.color}26 0 8px, ${ev.color}10 8px 16px)`
+                  : `${ev.color}2e`,
+                borderLeft: `4px ${ev.clase === 'bloque' || ev.flexible ? 'dashed' : 'solid'} ${ev.color}`,
               }}
             >
               <p className="flex items-center gap-1 truncate text-sm font-bold leading-tight text-tinta-100">
                 {ev.clase === 'bloque' && <Icon name="repetir" className="h-3.5 w-3.5 shrink-0 opacity-70" />}
+                {ev.tipo === 'relevamiento' && <Icon name="relevamiento" className="h-3.5 w-3.5 shrink-0 text-marca-naranja" />}
                 {ev.estado === 'pendiente' && <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />}
                 <span className="truncate">{ev.titulo}</span>
               </p>
               <p className="truncate text-xs text-tinta-300">
+                {ev.tipo === 'relevamiento' ? (ev.flexible ? 'Relevar entre ' : 'Relevar ') : ''}
                 {textoHora(ev.ini)}–{textoHora(Math.min(ev.fin, 1439))}
                 {ev.direccion ? ` · ${ev.direccion.etiqueta}` : ''}
                 {!compacto && ev.monto ? ` · ${monto(ev.monto)}` : ''}
@@ -291,9 +304,11 @@ function VistaSemana({ lunes, datos, indice, onEvento, onDia }) {
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5 truncate font-semibold">
                           {ev.clase === 'bloque' && <Icon name="repetir" className="h-3.5 w-3.5 shrink-0 text-tinta-400" />}
+                          {ev.tipo === 'relevamiento' && <Icon name="relevamiento" className="h-3.5 w-3.5 shrink-0 text-marca-naranja" />}
                           <span className="truncate">{ev.titulo}</span>
                         </span>
                         <span className="block truncate text-xs text-tinta-400">
+                          {ev.tipo === 'relevamiento' ? `Relevamiento${ev.flexible ? ' · horario flexible' : ''} · ` : ''}
                           {ev.direccion ? `${ev.direccion.etiqueta} · ${ev.direccion.direccion}` : ev.clase === 'bloque' ? 'Horario fijo' : ESTADOS[ev.estado]}
                         </span>
                       </span>

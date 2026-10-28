@@ -31,6 +31,8 @@ const PATHS = {
   auto: '<path d="M5 17h14M6 17v2M18 17v2M3.5 13l1.8-5.2A2 2 0 0 1 7.2 6.5h9.6a2 2 0 0 1 1.9 1.3l1.8 5.2v4H3.5z"/><circle cx="7.5" cy="13.5" r="1"/><circle cx="16.5" cy="13.5" r="1"/>',
   arriba: '<path d="m18 15-6-6-6 6"/>',
   abajo: '<path d="m6 9 6 6 6-6"/>',
+  relevamiento: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h4"/>',
+  camara: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3.5"/>',
 };
 
 export default function Icon({ name, className = 'h-5 w-5', strokeWidth = 2 }) {

@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 
 const NAV = [
   { href: '/panel', icono: 'agenda', texto: 'Agenda' },
+  { href: '/panel/relevamientos', icono: 'relevamiento', texto: 'Relevar' },
   { href: '/panel/clientes', icono: 'clientes', texto: 'Clientes' },
   { href: '/panel/mapa', icono: 'mapa', texto: 'Mapa' },
   { href: '/panel/perfil', icono: 'perfil', texto: 'Perfil' },
@@ -61,7 +62,7 @@ export default function PanelLayout({ children }) {
       <div className="mx-auto min-h-dvh max-w-2xl pb-[calc(5.5rem_+_env(safe-area-inset-bottom))]">{children}</div>
 
       <nav className="fixed inset-x-0 bottom-0 z-[1100] border-t border-navy-800 bg-navy-950/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto grid max-w-2xl grid-cols-4">
+        <div className="mx-auto grid max-w-2xl grid-cols-5">
           {NAV.map((item) => {
             const activo = item.href === '/panel' ? pathname === '/panel' : pathname.startsWith(item.href);
             return (
@@ -70,7 +71,7 @@ export default function PanelLayout({ children }) {
                 href={item.href}
                 className={`flex flex-col items-center gap-1 pt-2.5 pb-1.5 text-[11px] font-semibold ${activo ? 'text-menta-400' : 'text-tinta-400'}`}
               >
-                <span className={`grid h-8 w-14 place-items-center rounded-full ${activo ? 'bg-menta-500/15' : ''}`}>
+                <span className={`grid h-8 w-12 place-items-center rounded-full ${activo ? 'bg-menta-500/15' : ''}`}>
                   <Icon name={item.icono} className="h-[22px] w-[22px]" />
                 </span>
                 {item.texto}
