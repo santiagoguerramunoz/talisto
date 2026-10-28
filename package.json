@@ -1,0 +1,24 @@
+{
+  "name": "talisto",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "leaflet": "^1.9.4",
+    "next": "^16.0.10",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.0",
+    "tailwindcss": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}
