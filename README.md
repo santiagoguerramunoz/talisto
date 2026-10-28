@@ -48,10 +48,44 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
 
 ### 4. Publicar en Vercel
 
-1. Subí la carpeta a un repositorio de GitHub.
-2. En vercel.com → **Add New → Project** → elegí el repo.
-3. En **Environment Variables** cargá `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-4. **Deploy**. Después agregá la URL de Vercel en Supabase (paso 1.3).
+- Repositorio: `github.com/santiagoguerramunoz/talisto` (privado)
+- Proyecto Vercel: `talisto` (equipo gstudiosoft1) → https://talisto-ashen.vercel.app
+- Variables en Vercel (Settings → Environment Variables): `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+
+## Trabajar desde tu PC (Windows)
+
+Necesitás [Git](https://git-scm.com/download/win) y Node 20.9 o más nuevo. Conviene una carpeta fuera de OneDrive
+(por ejemplo `C:\proyectos`), para que OneDrive no sincronice `node_modules`.
+
+**Primera vez**
+
+```bash
+cd C:\proyectos
+git clone https://github.com/santiagoguerramunoz/talisto.git
+cd talisto
+npm install
+npx vercel login
+npx vercel link              # elegí el equipo gstudiosoft1 y el proyecto talisto
+npx vercel env pull .env.local
+npm run dev                  # http://localhost:3000
+```
+
+**Cada vez que trabajes**
+
+```bash
+git pull                     # trae los cambios que hizo Claude
+npm install                  # solo si cambió package.json
+npm run dev
+```
+
+**Guardar y publicar**
+
+```bash
+git add .
+git commit -m "qué cambiaste"
+git push                     # guarda el código en GitHub
+npx vercel --prod            # publica en https://talisto-ashen.vercel.app
+```
 
 ## Archivos
 
