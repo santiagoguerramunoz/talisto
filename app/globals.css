@@ -186,6 +186,43 @@ body {
   color: #06101f;
 }
 
+/* Relevamiento pendiente: cuadrado naranja con portapapeles (o número de parada) */
+.pin-relev {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--color-marca-naranja);
+  border: 3px solid #fff;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pin-relev::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -11px;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-bottom: 0;
+  border-top: 8px solid #fff;
+}
+.pin-relev svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: #06101f;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pin-relev span {
+  font: 800 13px/1 var(--font-jakarta), system-ui, sans-serif;
+  color: #06101f;
+}
+
 /* Tu ubicación: punto azul con pulso y cono de dirección (como Mapas) */
 .yo {
   position: relative;

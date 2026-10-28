@@ -189,8 +189,8 @@ export default function Agenda() {
 
 function VistaDia({ fecha, datos, indice, onEvento, onHora }) {
   const eventos = useMemo(
-    () => eventosDelDia({ fecha, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, indice }),
-    [fecha, datos.turnos, datos.bloques, datos.ordenes, indice]
+    () => eventosDelDia({ fecha, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, relevamientos: datos.relevamientos, indice }),
+    [fecha, datos.turnos, datos.bloques, datos.ordenes, datos.relevamientos, indice]
   );
   const conHora = eventos.filter((e) => !e.sinHora);
   const sinHora = eventos.filter((e) => e.sinHora);
@@ -327,7 +327,7 @@ function VistaSemana({ lunes, datos, indice, onEvento, onDia }) {
   return (
     <div className="space-y-3">
       {dias.map((d) => {
-        const eventos = eventosDelDia({ fecha: d, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, indice });
+        const eventos = eventosDelDia({ fecha: d, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, relevamientos: datos.relevamientos, indice });
         const esHoy = esMismoDia(d, hoy);
         return (
           <section key={fechaISO(d)} className={`tarjeta overflow-hidden ${esHoy ? 'border-menta-500/60' : ''}`}>

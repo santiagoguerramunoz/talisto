@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import Modal from './Modal';
 import Icon from './Icon';
+import DireccionRelevamiento, { UBICACION_VACIA, filaUbicacion, ubicacionMarcada } from './DireccionRelevamiento';
 import { supabase } from '@/lib/supabase';
+import { AVISO_SQL_UBICACION, consultarRelevamientos, guardarRelevamiento } from '@/lib/relevamientos';
 import { combinar, fechaISO, fechaLarga, horaHHMM, minutos, textoHora } from '@/lib/fechas';
 import { choquesConBloques } from '@/lib/agenda';
 import { ESTADOS, linkWhatsapp, mensajeError } from '@/lib/util';
@@ -47,6 +49,7 @@ export default function FormTurno({
         flexible: !!turno.flexible,
         pedido: '',
         relevamientoId: null,
+        ubic: { ...UBICACION_VACIA, direccion_id: turno.direccion_id || '' },
         cliente_id: turno.cliente_id || '',
         titulo: turno.titulo || '',
         direccion_id: turno.direccion_id || '',
@@ -58,14 +61,24 @@ export default function FormTurno({
         notas: turno.notas || '',
       });
       if (turno.tipo === 'relevamiento') {
-        supabase
-          .from('relevamientos')
-          .select('id, pedido')
-          .eq('turno_id', turno.id)
-          .maybeSingle()
-          .then(({ data }) => {
-            if (data) setForm((f) => (f ? { ...f, pedido: data.pedido || '', relevamientoId: data.id } : f));
-          });
+        consultarRelevamientos((campos) => supabase.from('relevamientos').select(campos).eq('turno_id', turno.id).maybeSingle()).then(
+          ({ data }) => {
+            if (!data) return;
+            const propia = !!data.direccion || (data.lat !== null && data.lat !== undefined);
+            setForm((f) =>
+              f
+                ? {
+                    ...f,
+                    pedido: data.pedido || '',
+                    relevamientoId: data.id,
+                    ubic: propia
+                      ? { otra: true, direccion_id: '', direccion: data.direccion || '', referencia: data.referencia || '', lat: data.lat ?? null, lng: data.lng ?? null }
+                      : { ...UBICACION_VACIA, direccion_id: data.direccion_id || f.direccion_id },
+                  }
+                : f
+            );
+          }
+        );
       }
     } else {
       const clienteId = inicial?.cliente_id || '';
@@ -77,6 +90,7 @@ export default function FormTurno({
         flexible: esRelevamiento,
         pedido: inicial?.pedido || '',
         relevamientoId: null,
+        ubic: { ...UBICACION_VACIA, direccion_id: cliente?.direcciones?.[0]?.id || '' },
         cliente_id: clienteId,
         titulo: '',
         direccion_id: cliente?.direcciones?.[0]?.id || '',
@@ -102,7 +116,8 @@ export default function FormTurno({
 
   function cambiarCliente(id) {
     const c = clientes.find((x) => x.id === id);
-    setForm((f) => ({ ...f, cliente_id: id, direccion_id: c?.direcciones?.[0]?.id || '' }));
+    const primera = c?.direcciones?.[0]?.id || '';
+    setForm((f) => ({ ...f, cliente_id: id, direccion_id: primera, ubic: { ...f.ubic, direccion_id: primera } }));
   }
 
   function cambiarDesde(valor) {
@@ -123,6 +138,13 @@ export default function FormTurno({
       setError('La hora de fin tiene que ser después de la de inicio.');
       return;
     }
+    if (
+      esRelevamiento &&
+      !ubicacionMarcada(form.ubic, direcciones) &&
+      !window.confirm('Este relevamiento no tiene la dirección marcada en el mapa, así que no se va a ver en el mapa. ¿Guardar igual?')
+    ) {
+      return;
+    }
     const activo = form.estado === 'pendiente' || form.estado === 'confirmado';
     if (activo && !(esRelevamiento && form.flexible)) {
       const choques = choquesConBloques({ fecha: form.fecha, desde: form.desde, hasta: form.hasta, bloques, indice });
@@ -131,10 +153,13 @@ export default function FormTurno({
       }
     }
     setGuardando(true);
+    const ubicacion = esRelevamiento ? filaUbicacion(form.ubic, direcciones) : null;
     const fila = {
       profesional_id: profesionalId,
       cliente_id: form.cliente_id || null,
-      direccion_id: form.cliente_id && form.direccion_id ? form.direccion_id : null,
+      direccion_id: esRelevamiento
+        ? form.cliente_id ? ubicacion.direccion_id : null
+        : form.cliente_id && form.direccion_id ? form.direccion_id : null,
       titulo: form.titulo.trim() || null,
       inicio: combinar(form.fecha, form.desde).toISOString(),
       fin: combinar(form.fecha, form.hasta).toISOString(),
@@ -161,19 +186,19 @@ export default function FormTurno({
     }
 
     if (esRelevamiento) {
-      const { error: errRel } = await supabase.from('relevamientos').upsert(
-        {
-          profesional_id: profesionalId,
-          turno_id: data.id,
-          cliente_id: fila.cliente_id,
-          direccion_id: fila.direccion_id,
-          pedido: form.pedido.trim() || null,
-        },
-        { onConflict: 'turno_id' }
-      );
-      if (errRel) {
+      const { error: errRel, sinUbicacion } = await guardarRelevamiento({
+        profesional_id: profesionalId,
+        turno_id: data.id,
+        cliente_id: fila.cliente_id,
+        pedido: form.pedido.trim() || null,
+        ...ubicacion,
+        direccion_id: fila.direccion_id,
+      });
+      if (errRel || sinUbicacion) {
         setGuardando(false);
-        setError(`El turno se guardó, pero no la ficha del relevamiento: ${mensajeError(errRel)}`);
+        setError(
+          errRel ? `El turno se guardó, pero no la ficha del relevamiento: ${mensajeError(errRel)}` : `El relevamiento se guardó sin la dirección. ${AVISO_SQL_UBICACION}`
+        );
         onGuardado?.();
         return;
       }
@@ -194,9 +219,11 @@ export default function FormTurno({
     }
   }
 
-  const direccionElegida = direcciones.find((d) => d.id === form.direccion_id);
+  const usaOtra = esRelevamiento && (form.ubic.otra || direcciones.length === 0);
+  const direccionElegida = direcciones.find((d) => d.id === (esRelevamiento ? form.ubic.direccion_id : form.direccion_id));
   const dia = fechaLarga(combinar(form.fecha, '00:00')).toLowerCase();
-  const lugar = direccionElegida ? ` en ${direccionElegida.direccion}` : '';
+  const textoLugar = usaOtra ? form.ubic.direccion?.trim() : direccionElegida?.direccion;
+  const lugar = textoLugar ? ` en ${textoLugar}` : '';
   const firma = nombreProfesional ? ` — ${nombreProfesional}` : '';
   let textoWhatsapp = '';
   if (cliente) {
@@ -234,11 +261,18 @@ export default function FormTurno({
                 key={valor}
                 type="button"
                 onClick={() =>
-                  setForm((f) => ({
-                    ...f,
-                    tipo: valor,
-                    flexible: valor === 'relevamiento' ? (turno ? f.flexible : true) : false,
-                  }))
+                  setForm((f) => {
+                    if (f.tipo === valor) return f;
+                    const aRelevamiento = valor === 'relevamiento';
+                    return {
+                      ...f,
+                      tipo: valor,
+                      flexible: aRelevamiento ? (turno ? f.flexible : true) : false,
+                      // la dirección elegida pasa de un tipo al otro
+                      ubic: aRelevamiento && !f.ubic.otra ? { ...f.ubic, direccion_id: f.direccion_id } : f.ubic,
+                      direccion_id: aRelevamiento ? f.direccion_id : f.ubic.otra ? '' : f.ubic.direccion_id,
+                    };
+                  })
                 }
                 className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold transition ${form.tipo === valor ? 'bg-navy-700 text-tinta-100' : 'text-tinta-400'}`}
               >
@@ -271,7 +305,19 @@ export default function FormTurno({
           </div>
         )}
 
-        {form.cliente_id && (
+        {esRelevamiento && (
+          <div>
+            <p className="etiqueta">Dirección del relevamiento</p>
+            <DireccionRelevamiento
+              direcciones={direcciones}
+              valor={form.ubic}
+              onChange={(ubic) => cambiar('ubic', ubic)}
+              nombreCliente={cliente?.nombre}
+            />
+          </div>
+        )}
+
+        {form.cliente_id && !esRelevamiento && (
           <div>
             <label className="etiqueta" htmlFor="t-dir">Dirección</label>
             {direcciones.length ? (

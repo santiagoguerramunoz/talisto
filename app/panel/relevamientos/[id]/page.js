@@ -5,13 +5,25 @@ import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
 import Modal from '@/components/Modal';
+import Mapa from '@/components/Mapa';
 import FormTurno from '@/components/FormTurno';
+import DireccionRelevamiento, { UBICACION_VACIA, filaUbicacion } from '@/components/DireccionRelevamiento';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
 import { indexarClientes } from '@/lib/agenda';
 import { fechaISO } from '@/lib/fechas';
 import { comprimirImagen } from '@/lib/imagenes';
-import { CAMPOS_RELEVAMIENTO, CARPETA_FOTOS, ESTADOS_RELEVAMIENTO, textoCuando } from '@/lib/relevamientos';
+import {
+  AVISO_SQL_UBICACION,
+  CARPETA_FOTOS,
+  COLOR_RELEVAMIENTO,
+  ESTADOS_RELEVAMIENTO,
+  consultarRelevamientos,
+  enElMapa,
+  guardarRelevamiento,
+  textoCuando,
+  ubicacionRelevamiento,
+} from '@/lib/relevamientos';
 import { linkGoogleMaps, linkWaze, linkWhatsapp, mensajeError, monto } from '@/lib/util';
 
 const CAMPOS_CLIENTE = 'id, nombre, color, telefono, direcciones(id, etiqueta, direccion, referencia, lat, lng)';
@@ -32,11 +44,13 @@ export default function FichaRelevamiento() {
   const [aviso, setAviso] = useState({});
   const [fotoGrande, setFotoGrande] = useState(null);
   const [modalTurno, setModalTurno] = useState(null);
+  const [ubic, setUbic] = useState(null); // editando la dirección
+  const [guardandoLugar, setGuardandoLugar] = useState(false);
   const inputFotos = useRef(null);
 
   const cargar = useCallback(async () => {
     const [{ data, error }, cl] = await Promise.all([
-      supabase.from('relevamientos').select(CAMPOS_RELEVAMIENTO).eq('id', id).maybeSingle(),
+      consultarRelevamientos((campos) => supabase.from('relevamientos').select(campos).eq('id', id).maybeSingle()),
       supabase.from('clientes').select(CAMPOS_CLIENTE).eq('profesional_id', profesional.id).order('nombre'),
     ]);
     setCargando(false);
@@ -101,7 +115,8 @@ export default function FichaRelevamiento() {
   }
 
   const cliente = rel.clientes;
-  const dir = rel.direcciones;
+  const lugar = ubicacionRelevamiento(rel);
+  const direccionesCliente = clientes.find((c) => c.id === rel.cliente_id)?.direcciones || [];
   const estado = ESTADOS_RELEVAMIENTO[form.estado] || ESTADOS_RELEVAMIENTO.pendiente;
   const cambiar = (campo, valor) => setForm((f) => ({ ...f, [campo]: valor }));
   const cambiarMaterial = (i, campo, valor) =>
@@ -140,6 +155,30 @@ export default function FichaRelevamiento() {
       return;
     }
     setAviso({ ok: nuevoEstado === 'relevado' ? 'Relevamiento terminado y guardado.' : 'Guardado.' });
+    cargar();
+  }
+
+  function editarLugar() {
+    setAviso({});
+    setUbic(
+      lugar?.propia
+        ? { otra: true, direccion_id: '', direccion: lugar.direccion, referencia: lugar.referencia, lat: lugar.lat, lng: lugar.lng }
+        : { ...UBICACION_VACIA, direccion_id: rel.direccion_id || direccionesCliente[0]?.id || '' }
+    );
+  }
+
+  async function guardarLugar() {
+    const fila = filaUbicacion(ubic, direccionesCliente);
+    if (!rel.cliente_id) fila.direccion_id = null;
+    setGuardandoLugar(true);
+    const { error, sinUbicacion } = await guardarRelevamiento(fila, { id: rel.id });
+    // La agenda usa la misma dirección
+    if (!error && rel.turno_id) await supabase.from('turnos').update({ direccion_id: fila.direccion_id }).eq('id', rel.turno_id);
+    setGuardandoLugar(false);
+    if (error) return setAviso({ error: mensajeError(error) });
+    if (sinUbicacion) return setAviso({ error: AVISO_SQL_UBICACION });
+    setUbic(null);
+    setAviso({ ok: 'Dirección guardada.' });
     cargar();
   }
 
@@ -212,23 +251,65 @@ export default function FichaRelevamiento() {
       <div className="space-y-6 px-4 pt-4">
         {/* Dónde y contacto */}
         <section className="tarjeta p-4">
-          {dir ? (
-            <div className="flex items-start gap-3">
-              <Icon name="pin" className="mt-0.5 h-5 w-5 shrink-0" />
-              <div className="min-w-0">
-                <p className="font-bold">{dir.etiqueta}</p>
-                <p className="text-sm text-tinta-300">{dir.direccion}</p>
-                {dir.referencia && <p className="text-xs text-tinta-400">{dir.referencia}</p>}
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-tinta-400">Dirección del relevamiento</p>
+            {!ubic && lugar && (
+              <button type="button" onClick={editarLugar} className="text-sm font-semibold text-menta-400">Cambiar</button>
+            )}
+          </div>
+          {ubic ? (
+            <div className="space-y-3">
+              <DireccionRelevamiento direcciones={direccionesCliente} valor={ubic} onChange={setUbic} nombreCliente={cliente?.nombre} />
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" className="btn btn-sec" onClick={() => setUbic(null)}>Cancelar</button>
+                <button type="button" className="btn btn-menta" onClick={guardarLugar} disabled={guardandoLugar}>
+                  {guardandoLugar ? 'Guardando…' : 'Guardar dirección'}
+                </button>
               </div>
             </div>
+          ) : lugar ? (
+            <>
+              <div className="flex items-start gap-3">
+                <Icon name="pin" className="mt-0.5 h-5 w-5 shrink-0 text-marca-naranja" />
+                <div className="min-w-0">
+                  {!lugar.propia && <p className="font-bold">{lugar.etiqueta}</p>}
+                  <p className="text-sm text-tinta-300">{lugar.direccion || 'Punto marcado en el mapa'}</p>
+                  {lugar.referencia && <p className="text-xs text-tinta-400">{lugar.referencia}</p>}
+                </div>
+              </div>
+              {enElMapa(lugar) ? (
+                <div className="mt-3">
+                  <Mapa
+                    alto={170}
+                    puntos={[{ lat: lugar.lat, lng: lugar.lng, forma: 'relevamiento', color: COLOR_RELEVAMIENTO, etiqueta: '' }]}
+                    encuadrarUbicacion={false}
+                  />
+                  <p className="mt-2 text-xs text-tinta-400">
+                    {rel.estado === 'pendiente'
+                      ? 'Se ve en el mapa hasta que lo marques como relevado.'
+                      : `Ya no aparece en el mapa general: está ${(ESTADOS_RELEVAMIENTO[rel.estado]?.texto || '').toLowerCase()}.`}
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-3 rounded-xl bg-amber-400/10 p-3 text-xs text-amber-200">
+                  No está marcada en el mapa, así que no aparece ahí. Tocá Cambiar para marcarla.
+                </p>
+              )}
+            </>
           ) : (
-            <p className="text-sm text-tinta-400">Sin dirección cargada.</p>
+            <button
+              type="button"
+              onClick={editarLugar}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-marca-naranja/60 p-4 text-sm font-semibold text-marca-naranja"
+            >
+              <Icon name="pin" className="h-5 w-5" /> Agregar la dirección del relevamiento
+            </button>
           )}
           <div className="mt-3 grid grid-cols-4 gap-2">
-            {dir && (
-              <a href={linkGoogleMaps(dir)} target="_blank" rel="noreferrer" className="btn btn-sec px-2 py-2 text-xs"><Icon name="ir" className="h-4 w-4" /> Ir</a>
+            {lugar && !ubic && (
+              <a href={linkGoogleMaps(lugar)} target="_blank" rel="noreferrer" className="btn btn-sec px-2 py-2 text-xs"><Icon name="ir" className="h-4 w-4" /> Ir</a>
             )}
-            {dir && <a href={linkWaze(dir)} target="_blank" rel="noreferrer" className="btn btn-sec px-2 py-2 text-xs">Waze</a>}
+            {lugar && !ubic && <a href={linkWaze(lugar)} target="_blank" rel="noreferrer" className="btn btn-sec px-2 py-2 text-xs">Waze</a>}
             {cliente?.telefono && (
               <a href={`tel:${cliente.telefono}`} className="btn btn-sec px-2 py-2 text-xs"><Icon name="telefono" className="h-4 w-4" /></a>
             )}

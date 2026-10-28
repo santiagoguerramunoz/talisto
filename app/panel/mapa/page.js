@@ -13,6 +13,7 @@ import { MODOS_ORDEN, metrosEntre, ordenar, useMatriz } from '@/lib/orden';
 import { eventosDelDia, indexarClientes } from '@/lib/agenda';
 import { esMismoDia, fechaISO, fechaLarga, horaHHMM, inicioDia, minutosDeFecha, sumarDias, textoHora } from '@/lib/fechas';
 import { linkGoogleMaps, linkRutaDelDia, linkWaze } from '@/lib/util';
+import { COLOR_RELEVAMIENTO, enElMapa, nombreRelevamiento, textoCuando, ubicacionRelevamiento } from '@/lib/relevamientos';
 
 const CLAVE_MODO = 'talisto-modo-orden';
 const claveManual = (iso) => `talisto-orden-${iso}`;
@@ -40,6 +41,21 @@ const AYUDA_ORDEN = {
 };
 
 const tieneUbicacion = (d) => d && d.lat !== null && d.lng !== null;
+// Un relevamiento ya relevado (o descartado) sale del mapa
+const relevamientoTerminado = (e) => e.tipo === 'relevamiento' && e.relevamiento && e.relevamiento.estado !== 'pendiente';
+
+// Insignia de cada parada: círculo del color del cliente, o cuadrado naranja si es un relevamiento
+function Insignia({ evento, children }) {
+  const esRelevamiento = evento.tipo === 'relevamiento';
+  return (
+    <span
+      className={`grid h-9 w-9 shrink-0 place-items-center text-sm font-extrabold text-navy-950 ${esRelevamiento ? 'rounded-xl ring-2 ring-white/80' : 'rounded-full'}`}
+      style={{ background: esRelevamiento ? COLOR_RELEVAMIENTO : evento.color }}
+    >
+      {children}
+    </span>
+  );
+}
 
 export default function MapaDelDia() {
   const { profesional } = usePanel();
@@ -64,11 +80,13 @@ export default function MapaDelDia() {
   const indice = useMemo(() => indexarClientes(datos.clientes), [datos.clientes]);
 
   const eventos = useMemo(
-    () => eventosDelDia({ fecha, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, indice }),
-    [fecha, datos.turnos, datos.bloques, datos.ordenes, indice]
+    () => eventosDelDia({ fecha, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, relevamientos: datos.relevamientos, indice }),
+    [fecha, datos.turnos, datos.bloques, datos.ordenes, datos.relevamientos, indice]
   );
-  const conUbicacion = eventos.filter((e) => tieneUbicacion(e.direccion));
-  const sinUbicacion = eventos.filter((e) => !tieneUbicacion(e.direccion));
+  const activos = eventos.filter((e) => !relevamientoTerminado(e));
+  const terminados = eventos.filter(relevamientoTerminado);
+  const conUbicacion = activos.filter((e) => tieneUbicacion(e.direccion));
+  const sinUbicacion = activos.filter((e) => !tieneUbicacion(e.direccion));
 
   // Tiempos reales entre vos y cada parada, y entre paradas
   const hayYo = !!ubicacion;
@@ -127,6 +145,7 @@ export default function MapaDelDia() {
     lat: p.direccion.lat,
     lng: p.direccion.lng,
     color: p.color,
+    forma: p.tipo === 'relevamiento' ? 'relevamiento' : undefined,
     etiqueta: String(pos + 1),
     popup: `${pos + 1}. ${p.titulo}\n${p.sinHora ? 'Sin hora' : `${textoHora(p.ini)}–${textoHora(Math.min(p.fin, 1439))}`}\n${p.direccion.direccion}`,
   }));
@@ -158,6 +177,35 @@ export default function MapaDelDia() {
         .sort((a, b) => a.metros - b.metros)
         .slice(0, 15)
     : [];
+
+  // Relevamientos pendientes: siempre en el mapa hasta que se marcan como relevados
+  const pendientes = datos.relevamientos
+    .filter((r) => r.estado === 'pendiente')
+    .map((rel) => {
+      const lugar = ubicacionRelevamiento(rel);
+      const metros = hayYo && enElMapa(lugar) ? metrosEntre(ubicacion, { lat: Number(lugar.lat), lng: Number(lugar.lng) }) : null;
+      return { rel, lugar, metros };
+    })
+    .sort((a, b) => {
+      if (hayYo) return (a.metros ?? Infinity) - (b.metros ?? Infinity);
+      const fa = a.rel.turnos?.inicio ? new Date(a.rel.turnos.inicio).getTime() : Infinity;
+      const fb = b.rel.turnos?.inicio ? new Date(b.rel.turnos.inicio).getTime() : Infinity;
+      return fa - fb;
+    });
+  const turnosEnRuta = new Set(conUbicacion.filter((e) => e.turno).map((e) => e.turno.id));
+  const puntoPendiente = ({ rel, lugar }) => ({
+    lat: lugar.lat,
+    lng: lugar.lng,
+    forma: 'relevamiento',
+    color: COLOR_RELEVAMIENTO,
+    etiqueta: '',
+    fueraDeRuta: true,
+    popup: `Relevamiento pendiente · ${nombreRelevamiento(rel)}\n${textoCuando(rel.turnos)}\n${lugar.direccion}`,
+  });
+  const pendientesEnMapa = pendientes.filter((x) => enElMapa(x.lugar));
+  // En "Del día" no se repiten los que ya son una parada numerada de la ruta
+  const puntosPendientesDia = pendientesEnMapa.filter((x) => !turnosEnRuta.has(x.rel.turno_id)).map(puntoPendiente);
+  const puntosPendientesTodos = pendientesEnMapa.map(puntoPendiente);
 
   const propsMapaYo = {
     ubicacion,
@@ -208,7 +256,12 @@ export default function MapaDelDia() {
 
         {modo === 'dia' ? (
           <>
-            <Mapa key="dia" alto={380} puntos={puntosDia} trazado={rutaCalles.trazado} ruta {...propsMapaYo} />
+            <Mapa key="dia" alto={380} puntos={[...puntosDia, ...puntosPendientesDia]} trazado={rutaCalles.trazado} ruta {...propsMapaYo} />
+            {puntosPendientesDia.length > 0 && (
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-tinta-400">
+                <span className="inline-block h-3 w-3 rounded-[4px] bg-marca-naranja ring-2 ring-white/80" /> Relevamientos pendientes de otros días (no entran en la ruta)
+              </p>
+            )}
 
             {conUbicacion.length > 0 && (
               <div className="tarjeta mt-3 p-4">
@@ -275,7 +328,7 @@ export default function MapaDelDia() {
             )}
 
             <h2 className="titulo-seccion mt-6 mb-2">Recorrido</h2>
-            {eventos.length === 0 ? (
+            {activos.length === 0 && terminados.length === 0 ? (
               <p className="tarjeta p-4 text-sm text-tinta-400">No hay trabajos agendados este día.</p>
             ) : (
               <ol className="space-y-2">
@@ -291,9 +344,7 @@ export default function MapaDelDia() {
                         </p>
                       )}
                       <div className="flex items-center gap-3">
-                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-extrabold text-navy-950" style={{ background: p.color }}>
-                          {pos + 1}
-                        </span>
+                        <Insignia evento={p}>{pos + 1}</Insignia>
                         <div className="min-w-0 flex-1">
                           <p className="flex items-center gap-1.5 truncate font-bold">
                             {p.tipo === 'relevamiento' && <Icon name="relevamiento" className="h-4 w-4 shrink-0 text-marca-naranja" />}
@@ -340,19 +391,33 @@ export default function MapaDelDia() {
                     </div>
                   </li>
                 ))}
+                {terminados.map((p) => (
+                  <li key={p.key}>
+                    <Link href={`/panel/relevamientos/${p.relevamiento.id}`} className="tarjeta flex items-center gap-3 p-3 opacity-60">
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-menta-500/15 text-menta-400">
+                        <Icon name="check" className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-bold">{p.titulo}</p>
+                        <p className="truncate text-xs text-tinta-400">Relevamiento ya hecho · fuera del mapa</p>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
               </ol>
             )}
             {sinUbicacion.length > 0 && (
               <p className="mt-3 text-xs text-tinta-400">
-                {sinUbicacion.length} sin ubicación en el mapa: no entran en la ruta. Marcalas desde la ficha del cliente.
+                {sinUbicacion.length} sin ubicación en el mapa: no entran en la ruta. Marcalas desde la ficha del cliente o del relevamiento.
               </p>
             )}
           </>
         ) : (
           <>
-            <Mapa key="todos" alto={420} puntos={puntosTodos} {...propsMapaYo} />
+            <Mapa key="todos" alto={420} puntos={[...puntosTodos, ...puntosPendientesTodos]} {...propsMapaYo} />
             <p className="mt-3 text-sm text-tinta-400">
-              {puntosTodos.length} {puntosTodos.length === 1 ? 'dirección' : 'direcciones'} de {datos.clientes.length} clientes.{' '}
+              {puntosTodos.length} {puntosTodos.length === 1 ? 'dirección' : 'direcciones'} de {datos.clientes.length} clientes
+              {puntosPendientesTodos.length > 0 ? ` y ${puntosPendientesTodos.length} ${puntosPendientesTodos.length === 1 ? 'relevamiento pendiente' : 'relevamientos pendientes'}` : ''}.{' '}
               <Link href="/panel/clientes" className="font-semibold text-menta-400">Ver clientes</Link>
             </p>
 
@@ -381,6 +446,47 @@ export default function MapaDelDia() {
                 <p className="mt-2 text-xs text-tinta-500">Distancia en línea recta desde donde estás.</p>
               </>
             )}
+          </>
+        )}
+
+        {pendientes.length > 0 && (
+          <>
+            <h2 className="titulo-seccion mt-6 mb-2 flex items-center gap-2">
+              <Icon name="relevamiento" className="h-4 w-4 text-marca-naranja" /> Relevamientos pendientes
+              <span className="text-tinta-500">({pendientes.length})</span>
+            </h2>
+            <ul className="tarjeta divide-y divide-navy-800 overflow-hidden">
+              {pendientes.map(({ rel, lugar, metros }) => {
+                const ubicado = enElMapa(lugar);
+                return (
+                  <li key={rel.id} className="flex items-center gap-3 px-4 py-3">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-marca-naranja text-navy-950 ring-2 ring-white/80">
+                      <Icon name="relevamiento" className="h-4 w-4" />
+                    </span>
+                    <Link href={`/panel/relevamientos/${rel.id}`} className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold">{nombreRelevamiento(rel)}</span>
+                      <span className="block truncate text-xs text-tinta-400">{textoCuando(rel.turnos)}</span>
+                      {ubicado ? (
+                        <span className="block truncate text-xs text-tinta-400">{lugar.direccion || 'Punto marcado en el mapa'}</span>
+                      ) : (
+                        <span className="block truncate text-xs font-semibold text-amber-300">
+                          {lugar?.direccion ? `${lugar.direccion} · sin marcar en el mapa` : 'Sin dirección: tocá para agregarla'}
+                        </span>
+                      )}
+                    </Link>
+                    {metros !== null && <span className="shrink-0 text-right text-xs font-semibold text-[#5aa9e6]">{textoDistancia(metros)}</span>}
+                    {lugar && (
+                      <a href={linkGoogleMaps(lugar)} target="_blank" rel="noreferrer" className="btn btn-sec shrink-0 px-2.5 py-2" aria-label="Ir con Google Maps">
+                        <Icon name="ir" className="h-4 w-4" />
+                      </a>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-2 text-xs text-tinta-500">
+              Se ven siempre en el mapa y salen cuando los marcás como relevados.{hayYo ? ' Ordenados por cercanía (en línea recta).' : ''}
+            </p>
           </>
         )}
       </div>

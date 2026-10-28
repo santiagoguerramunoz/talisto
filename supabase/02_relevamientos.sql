@@ -140,6 +140,15 @@ create policy relevamientos_propios on public.relevamientos for all
 grant select, insert, update, delete on public.relevamientos to authenticated, service_role;
 grant execute on function public.preparar_relevamiento() to authenticated, service_role;
 
+-- Dirección propia del relevamiento (puede ser una del cliente o un lugar nuevo).
+-- Mientras está pendiente se ve siempre en el mapa.
+alter table public.relevamientos add column if not exists direccion  text;
+alter table public.relevamientos add column if not exists referencia text;
+alter table public.relevamientos add column if not exists lat        double precision;
+alter table public.relevamientos add column if not exists lng        double precision;
+alter table public.relevamientos drop constraint if exists relevamientos_ubicacion_check;
+alter table public.relevamientos add constraint relevamientos_ubicacion_check check ((lat is null) = (lng is null));
+
 -- ---------------------------------------------------------------------
 -- 3. Fotos de los relevamientos (Storage privado)
 --    Cada profesional solo ve y sube fotos en su propia carpeta: <su id>/...

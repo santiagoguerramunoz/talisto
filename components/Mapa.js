@@ -6,9 +6,34 @@ import { CENTRO_MONTEVIDEO, escapar } from '@/lib/util';
 
 const valido = (p) => p && p.lat !== null && p.lng !== null && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng));
 
+const PORTAPAPELES =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h4"/></svg>';
+
+function iconoPin(L, p) {
+  if (p.forma === 'relevamiento') {
+    const contenido = p.etiqueta ? `<span>${escapar(p.etiqueta)}</span>` : PORTAPAPELES;
+    return L.divIcon({
+      className: '',
+      html: `<div class="pin-relev">${contenido}</div>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 40],
+      popupAnchor: [0, -36],
+    });
+  }
+  return L.divIcon({
+    className: '',
+    html: `<div class="pin-gota" style="background:${escapar(p.color || '#4fe0b6')}"><span>${escapar(p.etiqueta ?? '')}</span></div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 36],
+    popupAnchor: [0, -32],
+  });
+}
+
 /**
  * Mapa con OpenStreetMap (Leaflet).
- * puntos: [{ lat, lng, color, etiqueta, popup }]  → pines tipo gota (clientes / paradas)
+ * puntos: [{ lat, lng, color, etiqueta, popup, forma }]  → pines tipo gota (clientes / paradas)
+ *   forma: 'relevamiento' → pin cuadrado naranja con portapapeles (o el número de parada)
+ *   fueraDeRuta: no se une con la línea punteada de la ruta
  * onClickMapa(lat, lng): para elegir una ubicación tocando el mapa
  * trazado: [[lat, lng], ...] ruta real por calles
  * ruta: si no hay trazado, une los puntos en orden con línea punteada
@@ -47,7 +72,7 @@ export default function Mapa({
   ubicacionRef.current = ubicacion;
 
   const clave =
-    puntos.filter(valido).map((p) => `${p.lat},${p.lng},${p.color},${p.etiqueta},${p.popup}`).join('|') +
+    puntos.filter(valido).map((p) => `${p.lat},${p.lng},${p.color},${p.etiqueta},${p.popup},${p.forma || ''}`).join('|') +
     (ruta ? '|ruta' : '') +
     (trazado?.length ? `|t${trazado.length}:${trazado[0]}:${trazado[trazado.length - 1]}` : '');
   const hayUbicacion = valido(ubicacion);
@@ -102,19 +127,15 @@ export default function Mapa({
     if (linea) {
       L.polyline(linea, { color: '#0b1730', weight: 8, opacity: 0.55 }).addTo(capas.ruta);
       L.polyline(linea, { color: '#4fe0b6', weight: 5, opacity: 0.95 }).addTo(capas.ruta);
-    } else if (ruta && lista.length > 1) {
-      L.polyline(lista.map((p) => [p.lat, p.lng]), { color: '#4fe0b6', weight: 3, opacity: 0.85, dashArray: '6 8' }).addTo(capas.ruta);
+    } else if (ruta) {
+      const paradas = lista.filter((p) => !p.fueraDeRuta);
+      if (paradas.length > 1) {
+        L.polyline(paradas.map((p) => [p.lat, p.lng]), { color: '#4fe0b6', weight: 3, opacity: 0.85, dashArray: '6 8' }).addTo(capas.ruta);
+      }
     }
 
     lista.forEach((p) => {
-      const icon = L.divIcon({
-        className: '',
-        html: `<div class="pin-gota" style="background:${escapar(p.color || '#4fe0b6')}"><span>${escapar(p.etiqueta ?? '')}</span></div>`,
-        iconSize: [30, 30],
-        iconAnchor: [15, 36],
-        popupAnchor: [0, -32],
-      });
-      const marcador = L.marker([p.lat, p.lng], { icon }).addTo(capas.puntos);
+      const marcador = L.marker([p.lat, p.lng], { icon: iconoPin(L, p), zIndexOffset: p.forma === 'relevamiento' ? 200 : 0 }).addTo(capas.puntos);
       if (p.popup) marcador.bindPopup(escapar(p.popup).replace(/\n/g, '<br>'));
     });
 

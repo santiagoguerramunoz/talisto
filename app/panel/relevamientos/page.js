@@ -10,7 +10,7 @@ import { useAlVolver } from '@/lib/useAlVolver';
 import { useDatosAgenda } from '@/lib/useDatosAgenda';
 import { indexarClientes } from '@/lib/agenda';
 import { fechaISO, inicioDia, sumarDias } from '@/lib/fechas';
-import { CAMPOS_RELEVAMIENTO, ESTADOS_RELEVAMIENTO, textoCuando } from '@/lib/relevamientos';
+import { ESTADOS_RELEVAMIENTO, consultarRelevamientos, enElMapa, faltaTabla, textoCuando, ubicacionRelevamiento } from '@/lib/relevamientos';
 import { monto } from '@/lib/util';
 
 const FILTROS = [
@@ -34,17 +34,11 @@ export default function Relevamientos() {
   const indice = useMemo(() => indexarClientes(datos.clientes), [datos.clientes]);
 
   const cargar = useCallback(async () => {
-    const { data, error: err } = await supabase
-      .from('relevamientos')
-      .select(CAMPOS_RELEVAMIENTO)
-      .eq('profesional_id', profesional.id)
-      .order('creado_en', { ascending: false });
+    const { data, error: err } = await consultarRelevamientos((campos) =>
+      supabase.from('relevamientos').select(campos).eq('profesional_id', profesional.id).order('creado_en', { ascending: false })
+    );
     if (err) {
-      setError(
-        err.message?.includes('relevamientos')
-          ? 'Falta correr en Supabase el archivo 02_relevamientos.sql para activar los relevamientos.'
-          : err.message
-      );
+      setError(faltaTabla(err) ? 'Falta correr en Supabase el archivo 02_relevamientos.sql para activar los relevamientos.' : err.message);
     } else {
       setError('');
       setLista(data || []);
@@ -108,6 +102,8 @@ export default function Relevamientos() {
             {visibles.map((r) => {
               const estado = ESTADOS_RELEVAMIENTO[r.estado] || ESTADOS_RELEVAMIENTO.pendiente;
               const c = r.clientes;
+              const lugar = ubicacionRelevamiento(r);
+              const faltaMapa = r.estado === 'pendiente' && !enElMapa(lugar);
               return (
                 <li key={r.id}>
                   <Link href={`/panel/relevamientos/${r.id}`} className="tarjeta block p-4 hover:bg-navy-850">
@@ -124,9 +120,19 @@ export default function Relevamientos() {
                           <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${estado.clase}`}>{estado.texto}</span>
                         </div>
                         <p className="mt-0.5 line-clamp-2 text-sm text-tinta-300">{r.pedido || 'Sin detalle del pedido'}</p>
+                        {lugar?.direccion ? (
+                          <p className="mt-1 flex items-center gap-1 truncate text-xs text-tinta-300">
+                            <Icon name="pin" className="h-3.5 w-3.5 shrink-0 text-marca-naranja" />
+                            <span className="truncate">{lugar.direccion}</span>
+                          </p>
+                        ) : null}
+                        {faltaMapa && (
+                          <p className="mt-1 text-xs font-semibold text-amber-300">
+                            {lugar ? 'Sin marcar en el mapa' : 'Sin dirección'}: tocá para agregarla
+                          </p>
+                        )}
                         <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-tinta-400">
                           <span className="inline-flex items-center gap-1"><Icon name="reloj" className="h-3.5 w-3.5" /> {textoCuando(r.turnos)}</span>
-                          {r.direcciones && <span className="inline-flex items-center gap-1"><Icon name="pin" className="h-3.5 w-3.5" /> {r.direcciones.etiqueta}</span>}
                           {r.fotos?.length > 0 && <span className="inline-flex items-center gap-1"><Icon name="camara" className="h-3.5 w-3.5" /> {r.fotos.length}</span>}
                           {r.costo_estimado ? <span className="font-semibold text-tinta-300">{monto(r.costo_estimado)}</span> : null}
                         </p>

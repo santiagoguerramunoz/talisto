@@ -3,6 +3,7 @@
 --  Trabajos para los clientes de una empresa cliente: se guardan en la orden,
 --  NO en "mis clientes". Con número de cliente y de ticket de la empresa,
 --  acondicionamientos y MOE (mano de obra especial) para liquidar el mes.
+--  También suma la dirección propia de los relevamientos.
 --  Correr COMPLETO en Supabase > SQL Editor > New query > Run
 --  (después de 01 y 02). Es re-ejecutable.
 -- =====================================================================
@@ -91,6 +92,23 @@ create policy ordenes_propias on public.ordenes for all
 
 grant select, insert, update, delete on public.ordenes to authenticated, service_role;
 grant execute on function public.preparar_orden() to authenticated, service_role;
+
+-- ---------------------------------------------------------------------
+-- 3. Relevamientos con dirección propia (siempre en el mapa mientras están pendientes)
+-- ---------------------------------------------------------------------
+do $$
+begin
+  if to_regclass('public.relevamientos') is not null then
+    alter table public.relevamientos add column if not exists direccion  text;
+    alter table public.relevamientos add column if not exists referencia text;
+    alter table public.relevamientos add column if not exists lat        double precision;
+    alter table public.relevamientos add column if not exists lng        double precision;
+    alter table public.relevamientos drop constraint if exists relevamientos_ubicacion_check;
+    alter table public.relevamientos add constraint relevamientos_ubicacion_check check ((lat is null) = (lng is null));
+    -- Si el relevamiento es en una dirección del cliente se usa direccion_id (toma sus cambios);
+    -- estas columnas son para un lugar que no está entre las direcciones del cliente (obra nueva, etc.)
+  end if;
+end $$;
 
 -- =====================================================================
 -- LISTO.
