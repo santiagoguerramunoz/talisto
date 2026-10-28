@@ -189,16 +189,16 @@ body {
 /* Tu ubicación: punto azul con pulso y cono de dirección (como Mapas) */
 .yo {
   position: relative;
-  width: 64px;
-  height: 64px;
+  width: 96px;
+  height: 96px;
 }
 .yo-cono {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: conic-gradient(from -32deg, rgb(10 132 255 / 0.65) 0deg 64deg, transparent 64deg 360deg);
-  -webkit-mask-image: radial-gradient(circle, #000 18%, rgb(0 0 0 / 0.55) 40%, transparent 70%);
-  mask-image: radial-gradient(circle, #000 18%, rgb(0 0 0 / 0.55) 40%, transparent 70%);
+  background: conic-gradient(from -28deg, rgb(10 132 255 / 0.7) 0deg 56deg, transparent 56deg 360deg);
+  -webkit-mask-image: radial-gradient(closest-side, #000 22%, rgb(0 0 0 / 0.65) 55%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 22%, rgb(0 0 0 / 0.65) 55%, transparent 100%);
   transition: transform 0.25s ease-out;
   display: none;
 }

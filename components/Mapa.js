@@ -149,8 +149,8 @@ export default function Mapa({
       const icon = L.divIcon({
         className: '',
         html: '<div class="yo"><div class="yo-cono"></div><div class="yo-halo"></div><div class="yo-punto"></div></div>',
-        iconSize: [64, 64],
-        iconAnchor: [32, 32],
+        iconSize: [96, 96],
+        iconAnchor: [48, 48],
         popupAnchor: [0, -14],
       });
       actual.circulo = L.circle(centro, {
