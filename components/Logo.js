@@ -11,7 +11,7 @@ export default function Logo({ grande = false }) {
         style={{ width: tam, height: tam, borderRadius: tam * 0.22 }}
       />
       <span className={`${grande ? 'text-3xl' : 'text-lg'} font-extrabold tracking-tight text-tinta-100`}>
-        Ta<span className="text-[#ec8328]">Listo!</span>
+        Ta<span className="text-marca-naranja">Listo!</span>
       </span>
     </span>
   );

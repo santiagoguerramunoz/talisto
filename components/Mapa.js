@@ -8,13 +8,14 @@ const valido = (p) => p && p.lat !== null && p.lng !== null && Number.isFinite(N
 
 /**
  * Mapa con OpenStreetMap (Leaflet).
- * puntos: [{ lat, lng, color, etiqueta, popup }]  (popup es texto; \n = salto de línea)
+ * puntos: [{ lat, lng, color, etiqueta, popup }]  → pines tipo gota (clientes / paradas)
  * onClickMapa(lat, lng): para elegir una ubicación tocando el mapa
- * trazado: [[lat, lng], ...] ruta real por calles (línea continua)
- * ruta: si no hay trazado, une los puntos en orden con una línea punteada
- * ubicacion: { lat, lng, precision } → punto azul de "estás acá"
- * botonUbicacion: muestra el botón para centrar el mapa en tu ubicación
- * encuadrarUbicacion: incluye tu ubicación al ajustar el zoom a los puntos
+ * trazado: [[lat, lng], ...] ruta real por calles
+ * ruta: si no hay trazado, une los puntos en orden con línea punteada
+ * ubicacion: { lat, lng, precision } → tu punto azul
+ * rumbo: grados (0 = norte) → cono de dirección sobre tu punto
+ * botonUbicacion: botón para centrar en vos (y activar la brújula en iPhone)
+ * encuadrarUbicacion: el zoom incluye tu ubicación junto con los puntos
  */
 export default function Mapa({
   puntos = [],
@@ -23,19 +24,21 @@ export default function Mapa({
   ruta = false,
   trazado = null,
   ubicacion = null,
+  rumbo = null,
   botonUbicacion = false,
-  encuadrarUbicacion = false,
+  encuadrarUbicacion = true,
+  onActivarBrujula,
   zoomInicial = 12,
 }) {
   const divRef = useRef(null);
   const mapRef = useRef(null);
   const LRef = useRef(null);
   const capasRef = useRef({});
+  const yoRef = useRef({ marcador: null, circulo: null });
   const clickRef = useRef(onClickMapa);
   const puntosRef = useRef(puntos);
   const trazadoRef = useRef(trazado);
   const ubicacionRef = useRef(ubicacion);
-  const yaCentroEnMi = useRef(false);
   const [listo, setListo] = useState(false);
 
   clickRef.current = onClickMapa;
@@ -47,8 +50,8 @@ export default function Mapa({
     puntos.filter(valido).map((p) => `${p.lat},${p.lng},${p.color},${p.etiqueta},${p.popup}`).join('|') +
     (ruta ? '|ruta' : '') +
     (trazado?.length ? `|t${trazado.length}:${trazado[0]}:${trazado[trazado.length - 1]}` : '');
-  const claveUbicacion = valido(ubicacion) ? `${ubicacion.lat.toFixed(5)},${ubicacion.lng.toFixed(5)},${Math.round(ubicacion.precision || 0)}` : '';
-  const hayUbicacion = claveUbicacion !== '';
+  const hayUbicacion = valido(ubicacion);
+  const claveUbicacion = hayUbicacion ? `${Number(ubicacion.lat).toFixed(6)},${Number(ubicacion.lng).toFixed(6)},${Math.round(ubicacion.precision || 0)}` : '';
 
   // Crear el mapa una sola vez
   useEffect(() => {
@@ -67,7 +70,6 @@ export default function Mapa({
       capasRef.current = {
         ruta: L.layerGroup().addTo(map),
         puntos: L.layerGroup().addTo(map),
-        yo: L.layerGroup().addTo(map),
       };
       map.on('click', (e) => clickRef.current?.(e.latlng.lat, e.latlng.lng));
       mapRef.current = map;
@@ -79,12 +81,13 @@ export default function Mapa({
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
+        yoRef.current = { marcador: null, circulo: null };
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Puntos y ruta
+  // Puntos, ruta y encuadre (vos + clientes a la vista)
   useEffect(() => {
     const L = LRef.current;
     const map = mapRef.current;
@@ -106,10 +109,10 @@ export default function Mapa({
     lista.forEach((p) => {
       const icon = L.divIcon({
         className: '',
-        html: `<div class="pin-talisto" style="background:${escapar(p.color || '#4fe0b6')}">${escapar(p.etiqueta ?? '')}</div>`,
+        html: `<div class="pin-gota" style="background:${escapar(p.color || '#4fe0b6')}"><span>${escapar(p.etiqueta ?? '')}</span></div>`,
         iconSize: [30, 30],
-        iconAnchor: [15, 15],
-        popupAnchor: [0, -14],
+        iconAnchor: [15, 36],
+        popupAnchor: [0, -32],
       });
       const marcador = L.marker([p.lat, p.lng], { icon }).addTo(capas.puntos);
       if (p.popup) marcador.bindPopup(escapar(p.popup).replace(/\n/g, '<br>'));
@@ -117,42 +120,74 @@ export default function Mapa({
 
     const encuadre = linea ? [...linea] : lista.map((p) => [p.lat, p.lng]);
     const yo = ubicacionRef.current;
-    if (encuadrarUbicacion && valido(yo)) encuadre.push([yo.lat, yo.lng]);
+    if (encuadrarUbicacion && valido(yo)) encuadre.push([Number(yo.lat), Number(yo.lng)]);
 
     if (encuadre.length === 1) {
       map.setView(encuadre[0], Math.max(map.getZoom(), 15));
     } else if (encuadre.length > 1) {
-      map.fitBounds(L.latLngBounds(encuadre), { padding: [36, 36], maxZoom: 16 });
+      map.fitBounds(L.latLngBounds(encuadre), { padding: [40, 40], maxZoom: 16 });
     }
-  }, [listo, clave, ruta, encuadrarUbicacion]);
+    // hayUbicacion: cuando aparece tu ubicación por primera vez, se reencuadra para verte junto a los clientes
+  }, [listo, clave, ruta, encuadrarUbicacion, hayUbicacion]);
 
-  // Punto azul de tu ubicación
+  // Tu marcador: se crea una vez y después solo se mueve
   useEffect(() => {
     const L = LRef.current;
     const map = mapRef.current;
-    const capas = capasRef.current;
-    if (!listo || !L || !map || !capas.yo) return;
-    capas.yo.clearLayers();
+    if (!listo || !L || !map) return;
     const yo = ubicacionRef.current;
-    if (!valido(yo)) return;
-    const centro = [yo.lat, yo.lng];
-    if (yo.precision && yo.precision < 1500) {
-      L.circle(centro, { pane: 'yo', radius: yo.precision, color: '#3b82f6', weight: 1, opacity: 0.4, fillColor: '#3b82f6', fillOpacity: 0.12, interactive: false }).addTo(capas.yo);
+    const actual = yoRef.current;
+    if (!valido(yo)) {
+      actual.marcador?.remove();
+      actual.circulo?.remove();
+      yoRef.current = { marcador: null, circulo: null };
+      return;
     }
-    L.circleMarker(centro, { pane: 'yo', radius: 8, color: '#ffffff', weight: 3, fillColor: '#3b82f6', fillOpacity: 1 })
-      .bindPopup('Estás acá')
-      .addTo(capas.yo);
-
-    // Si el mapa no tiene otros puntos, la primera vez se centra en vos
-    if (!yaCentroEnMi.current && puntosRef.current.filter(valido).length === 0 && !trazadoRef.current) {
-      map.setView(centro, 15);
+    const centro = [Number(yo.lat), Number(yo.lng)];
+    const radio = yo.precision && yo.precision < 1500 ? yo.precision : 0;
+    if (!actual.marcador) {
+      const icon = L.divIcon({
+        className: '',
+        html: '<div class="yo"><div class="yo-cono"></div><div class="yo-halo"></div><div class="yo-punto"></div></div>',
+        iconSize: [64, 64],
+        iconAnchor: [32, 32],
+        popupAnchor: [0, -14],
+      });
+      actual.circulo = L.circle(centro, {
+        pane: 'yo',
+        radius: radio,
+        color: '#0a84ff',
+        weight: 1,
+        opacity: 0.35,
+        fillColor: '#0a84ff',
+        fillOpacity: 0.1,
+        interactive: false,
+      }).addTo(map);
+      actual.marcador = L.marker(centro, { icon, pane: 'yo', keyboard: false, zIndexOffset: 1000 }).bindPopup('Estás acá').addTo(map);
+    } else {
+      actual.marcador.setLatLng(centro);
+      actual.circulo.setLatLng(centro);
+      actual.circulo.setRadius(radio);
     }
-    yaCentroEnMi.current = true;
   }, [listo, claveUbicacion]);
 
+  // Dirección hacia donde apuntás
+  useEffect(() => {
+    const el = yoRef.current.marcador?.getElement?.();
+    const caja = el?.querySelector('.yo');
+    if (!caja) return;
+    if (Number.isFinite(rumbo)) {
+      caja.classList.add('yo-con-rumbo');
+      caja.querySelector('.yo-cono').style.transform = `rotate(${rumbo}deg)`;
+    } else {
+      caja.classList.remove('yo-con-rumbo');
+    }
+  }, [rumbo, claveUbicacion, listo]);
+
   function centrarEnMi() {
+    onActivarBrujula?.();
     const yo = ubicacionRef.current;
-    if (mapRef.current && valido(yo)) mapRef.current.setView([yo.lat, yo.lng], Math.max(mapRef.current.getZoom(), 16));
+    if (mapRef.current && valido(yo)) mapRef.current.setView([Number(yo.lat), Number(yo.lng)], Math.max(mapRef.current.getZoom(), 16));
   }
 
   return (
@@ -162,8 +197,7 @@ export default function Mapa({
         <button
           type="button"
           onClick={centrarEnMi}
-          disabled={!hayUbicacion}
-          className="absolute right-2.5 bottom-6 z-[1000] grid h-11 w-11 place-items-center rounded-full border border-navy-600 bg-navy-900 text-[#60a5fa] shadow-lg disabled:text-tinta-500"
+          className={`absolute right-2.5 bottom-6 z-[1000] grid h-11 w-11 place-items-center rounded-full border border-navy-600 bg-navy-900 shadow-lg ${hayUbicacion ? 'text-[#0a84ff]' : 'text-tinta-500'}`}
           aria-label="Centrar el mapa en mi ubicación"
           title={hayUbicacion ? 'Ir a mi ubicación' : 'Buscando tu ubicación…'}
         >

@@ -29,6 +29,8 @@ const PATHS = {
   celular: '<rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/>',
   ruta: '<circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H17a3.5 3.5 0 0 0 0-7H7a3.5 3.5 0 0 1 0-7h8.5"/>',
   auto: '<path d="M5 17h14M6 17v2M18 17v2M3.5 13l1.8-5.2A2 2 0 0 1 7.2 6.5h9.6a2 2 0 0 1 1.9 1.3l1.8 5.2v4H3.5z"/><circle cx="7.5" cy="13.5" r="1"/><circle cx="16.5" cy="13.5" r="1"/>',
+  arriba: '<path d="m18 15-6-6-6 6"/>',
+  abajo: '<path d="m6 9 6 6 6-6"/>',
 };
 
 export default function Icon({ name, className = 'h-5 w-5', strokeWidth = 2 }) {

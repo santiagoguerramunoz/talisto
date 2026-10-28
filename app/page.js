@@ -39,7 +39,7 @@ export default function Inicio() {
       <section className="mt-12 md:mt-20">
         <AvisoConfiguracion />
         <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-menta-500/40 bg-menta-500/10 px-3 py-1 text-xs font-semibold text-menta-300">
-          <span className="h-1.5 w-1.5 rounded-full bg-menta-400" /> Para oficios y profesionales de Uruguay
+          <span className="h-1.5 w-1.5 rounded-full bg-marca-naranja" /> Para oficios y profesionales de Uruguay
         </p>
         <h1 className="max-w-3xl text-4xl font-extrabold leading-[1.08] tracking-tight md:text-6xl">
           Tu trabajo, tus clientes y tu agenda.

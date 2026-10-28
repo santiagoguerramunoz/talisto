@@ -216,8 +216,8 @@ function VistaDia({ fecha, datos, indice, onEvento, onHora }) {
         {/* Línea de ahora */}
         {esHoy && minAhora >= inicioH * 60 && minAhora <= finH * 60 && (
           <div className="pointer-events-none absolute right-0 z-20 flex items-center" style={{ left: `calc(${GUTTER} - 5px)`, top: y(minAhora) - 5 }}>
-            <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
-            <span className="h-0.5 flex-1 bg-rose-400" />
+            <span className="h-2.5 w-2.5 rounded-full bg-marca-naranja" />
+            <span className="h-0.5 flex-1 bg-marca-naranja" />
           </div>
         )}
 

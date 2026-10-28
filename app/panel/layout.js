@@ -68,12 +68,13 @@ export default function PanelLayout({ children }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center gap-1 pt-2.5 pb-2 text-[11px] font-semibold ${activo ? 'text-menta-400' : 'text-tinta-400'}`}
+                className={`flex flex-col items-center gap-1 pt-2.5 pb-1.5 text-[11px] font-semibold ${activo ? 'text-menta-400' : 'text-tinta-400'}`}
               >
                 <span className={`grid h-8 w-14 place-items-center rounded-full ${activo ? 'bg-menta-500/15' : ''}`}>
                   <Icon name={item.icono} className="h-[22px] w-[22px]" />
                 </span>
                 {item.texto}
+                <span className={`h-1 w-1 rounded-full ${activo ? 'bg-marca-naranja' : 'bg-transparent'}`} />
               </Link>
             );
           })}
