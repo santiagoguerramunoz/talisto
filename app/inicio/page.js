@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Logo from '@/components/Logo';
 import Icon from '@/components/Icon';
+import BotonInstalar from '@/components/BotonInstalar';
 import { supabase } from '@/lib/supabase';
 import { monto, mensajeError } from '@/lib/util';
 
@@ -66,6 +67,9 @@ export default function InicioCliente() {
           Electricistas, sanitarios, jardineros y más, por zona y por servicio. Vas a ver sus horarios libres y reservar
           una visita técnica{config ? ` por ${monto(config.precio_visita, config.moneda)}` : ''}.
         </p>
+      </div>
+      <div className="mt-4">
+        <BotonInstalar variante="tarjeta" />
       </div>
       {perfil.es_admin && (
         <button onClick={() => router.push('/admin')} className="btn btn-sec mt-4 w-full">

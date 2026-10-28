@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import Icon from '@/components/Icon';
 import Modal from '@/components/Modal';
+import BotonInstalar from '@/components/BotonInstalar';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
 import { DIAS, SEMANA_ORDEN } from '@/lib/fechas';
@@ -33,6 +34,7 @@ export default function Perfil() {
       </header>
 
       <div className="space-y-8 px-4 pt-4">
+        <BotonInstalar variante="tarjeta" />
         <DatosPublicos profesional={profesional} onGuardado={recargar} />
         <Servicios profesionalId={profesional.id} />
         <HorarioTrabajo profesionalId={profesional.id} />

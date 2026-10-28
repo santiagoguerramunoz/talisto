@@ -8,6 +8,7 @@ import Modal from '@/components/Modal';
 import { usePanel } from '@/components/PanelContext';
 import SelectorColor from '@/components/SelectorColor';
 import { supabase } from '@/lib/supabase';
+import { useAlVolver } from '@/lib/useAlVolver';
 import { COLORES, mensajeError } from '@/lib/util';
 
 export default function Clientes() {
@@ -22,18 +23,20 @@ export default function Clientes() {
   const [guardando, setGuardando] = useState(false);
 
   const cargar = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error: err } = await supabase
       .from('clientes')
       .select('id, nombre, telefono, color, direcciones(id, etiqueta), bloques_fijos(id)')
       .eq('profesional_id', profesional.id)
       .order('nombre');
-    setClientes(data || []);
+    if (!err) setClientes(data || []);
     setCargando(false);
   }, [profesional.id]);
 
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  useAlVolver(cargar);
 
   async function crear() {
     setError('');

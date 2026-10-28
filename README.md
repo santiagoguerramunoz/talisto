@@ -108,6 +108,8 @@ lib/                            → conexión a Supabase, fechas, lógica de age
 ## Notas
 
 - Los montos de visita y comisión se "congelan" en cada visita al crearse: si el admin los cambia, las visitas ya agendadas no cambian.
+- La ruta por calles del mapa usa el servidor público de OSRM (gratis, sin clave). Con mucho uso conviene uno propio o un plan pago.
+- La app se instala desde el botón **Descargar app** (Perfil o portada) y se actualiza sola: al volver a abrirla, si hay una versión nueva publicada, se recarga.
 - Los mapas usan OpenStreetMap (gratis). Para producción con mucho uso conviene pasar a un proveedor de mapas con plan gratuito (MapTiler o Stadia): es cambiar una línea en `components/Mapa.js`.
 
 ## Próximas fases

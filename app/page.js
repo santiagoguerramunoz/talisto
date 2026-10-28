@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import Logo from '@/components/Logo';
 import Icon from '@/components/Icon';
 import AvisoConfiguracion from '@/components/AvisoConfiguracion';
+import BotonInstalar from '@/components/BotonInstalar';
 import { supabase } from '@/lib/supabase';
 import { rutaSegunPerfil } from '@/lib/sesion';
 
@@ -54,6 +55,9 @@ export default function Inicio() {
           <Link href="/registro?rol=cliente" className="btn btn-sec px-6 py-3.5 text-base">
             Busco un servicio
           </Link>
+        </div>
+        <div className="mt-6 max-w-md">
+          <BotonInstalar variante="tarjeta" />
         </div>
       </section>
 

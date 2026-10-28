@@ -12,6 +12,7 @@ import FormBloque from '@/components/FormBloque';
 import SelectorColor from '@/components/SelectorColor';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
+import { useAlVolver } from '@/lib/useAlVolver';
 import { indexarClientes } from '@/lib/agenda';
 import { fechaCorta, fechaISO, horaHHMM, textoDias } from '@/lib/fechas';
 import { ESTADOS, linkGoogleMaps, linkWaze, linkWhatsapp, mensajeError, monto } from '@/lib/util';
@@ -44,16 +45,20 @@ export default function DetalleCliente() {
       supabase.from('turnos').select('*').eq('cliente_id', id).gte('fin', ahora).neq('estado', 'cancelado').order('inicio').limit(20),
       supabase.from('turnos').select('*').eq('cliente_id', id).lt('fin', ahora).order('inicio', { ascending: false }).limit(10),
     ]);
-    setClientes(cl.data || []);
-    setBloques(bl.data || []);
-    setProximos(prox.data || []);
-    setPasados(pas.data || []);
+    if (!(cl.error || bl.error || prox.error || pas.error)) {
+      setClientes(cl.data || []);
+      setBloques(bl.data || []);
+      setProximos(prox.data || []);
+      setPasados(pas.data || []);
+    }
     setCargando(false);
   }, [id, profesional.id]);
 
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  useAlVolver(cargar);
 
   const cliente = clientes.find((c) => c.id === id);
   const indice = useMemo(() => indexarClientes(clientes), [clientes]);
