@@ -6,6 +6,8 @@ import Modal from '@/components/Modal';
 import FormGasto from '@/components/FormGasto';
 import FinanzasEncabezado from '@/components/FinanzasEncabezado';
 import { usePanel } from '@/components/PanelContext';
+import BloqueoPlan from '@/components/BloqueoPlan';
+import { esPro } from '@/lib/planes';
 import { supabase } from '@/lib/supabase';
 import { useAlVolver } from '@/lib/useAlVolver';
 import { useAjustes } from '@/lib/ajustes';
@@ -16,6 +18,27 @@ import { AVISO_SQL_04, faltaSql04, faltaTabla } from '@/lib/sql';
 import { mensajeError } from '@/lib/util';
 
 export default function MisGastos() {
+  const { plan } = usePanel();
+  if (esPro(plan?.plan)) return <MisGastosPro />;
+  return (
+    <>
+      <FinanzasEncabezado />
+      <div className="px-4 pt-4">
+        <BloqueoPlan
+          titulo="Mis gastos"
+          texto="Anotá lo que gastás para saber cuánto te queda de verdad."
+          puntos={[
+            'Movilidad: boletos de bus o tu vehículo, con el consumo de combustible',
+            'Insumos, viáticos, herramientas y categorías propias',
+            'Todo suma en Finanzas para ver tu ganancia del mes',
+          ]}
+        />
+      </div>
+    </>
+  );
+}
+
+function MisGastosPro() {
   const { profesional } = usePanel();
   const { ajustes, guardar: guardarAjustes, faltaSql: faltaAjustes } = useAjustes(profesional.id);
   const [periodo, setPeriodo] = useState(() => {

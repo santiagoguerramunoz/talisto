@@ -18,6 +18,8 @@ import { horasMinutos, minutosTrabajo, sesionAbierta, textoMinutos } from '@/lib
 import { ESTADOS_ABIERTOS, ESTADOS_TRABAJO, esFinalizado, estadoTrabajo } from '@/lib/trabajos';
 import { TIPO_XLSX } from '@/lib/xlsx';
 import { mensajeError, monto } from '@/lib/util';
+import { esPro, registrarExportacion } from '@/lib/planes';
+import { AvisoPlan } from '@/components/BloqueoPlan';
 
 const num = (n) => Number(n || 0).toLocaleString('es-UY', { maximumFractionDigits: 2 });
 
@@ -67,9 +69,11 @@ function TarjetaTrabajo({ o, onAbrir }) {
 
 function Trabajos() {
   const params = useSearchParams();
-  const { profesional } = usePanel();
+  const { profesional, plan, recargarPlan } = usePanel();
   const { ajustes } = useAjustes(profesional.id);
   const [empresas, setEmpresas] = useState(null);
+  const [errorPlan, setErrorPlan] = useState(null);
+  const [pendiente, setPendiente] = useState(null); // planilla ya contada, lista para compartir
   const [empresaId, setEmpresaId] = useState(params.get('empresa') || '');
   const [periodo, setPeriodo] = useState(() => {
     const h = new Date();
@@ -176,8 +180,24 @@ function Trabajos() {
     return new File([bytes], nombreArchivoLiquidacion(empresa, periodo.anio, periodo.mes), { type: TIPO_XLSX });
   }
 
-  function descargar() {
-    const archivo = armarPlanilla();
+  // Free: cada planilla cuenta para el límite del mes (lo controla la base)
+  async function contar() {
+    setErrorPlan(null);
+    const r = await registrarExportacion(empresa?.nombre);
+    if (!r.ok) {
+      setErrorPlan(r.error);
+      return false;
+    }
+    if (!esPro(plan?.plan)) recargarPlan();
+    return true;
+  }
+
+  async function descargar() {
+    if (!(await contar())) return;
+    bajar(armarPlanilla());
+  }
+
+  function bajar(archivo) {
     const url = URL.createObjectURL(archivo);
     const a = document.createElement('a');
     a.href = url;
@@ -190,16 +210,23 @@ function Trabajos() {
 
   const puedeCompartir = typeof navigator !== 'undefined' && typeof navigator.canShare === 'function';
   async function compartir() {
-    const archivo = armarPlanilla();
+    if (!(await contar())) return;
+    enviar(armarPlanilla());
+  }
+
+  async function enviar(archivo) {
+    setPendiente(null);
     try {
       if (navigator.canShare({ files: [archivo] })) {
         await navigator.share({ files: [archivo], title: archivo.name });
         return;
       }
-    } catch {
-      return; // el usuario cerró el menú
+    } catch (e) {
+      // Safari pide un toque directo para compartir: queda lista para el segundo toque
+      if (e?.name === 'NotAllowedError') setPendiente(archivo);
+      return; // o el usuario cerró el menú
     }
-    descargar();
+    bajar(archivo);
   }
 
   if (empresas === null) return <p className="p-4 text-tinta-400">Cargando…</p>;
@@ -318,7 +345,19 @@ function Trabajos() {
                   </button>
                 )}
               </div>
+              {pendiente && (
+                <button className="btn btn-menta mt-2 w-full" onClick={() => enviar(pendiente)}>
+                  <Icon name="compartir" /> Compartir planilla lista
+                </button>
+              )}
+              <AvisoPlan error={errorPlan} className="mt-3" />
               <p className="mt-2 text-xs text-tinta-500">Abre en Excel, Google Sheets y LibreOffice. Lleva solo precios finales: sin costos ni proveedores.</p>
+              {!esPro(plan?.plan) && plan?.limite_exportaciones != null && (
+                <p className="mt-1 text-xs text-tinta-500">
+                  Plan Free: usaste {plan.exportaciones_mes} de {plan.limite_exportaciones} planillas este mes.{' '}
+                  <Link href="/panel/planes" className="font-semibold text-marca-naranja">Sin límite con Pro</Link>
+                </p>
+              )}
             </section>
 
             {/* Precio por puesta */}

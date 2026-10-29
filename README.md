@@ -20,7 +20,7 @@ Next.js + Supabase + Vercel.
 ### 1. Supabase (proyecto NUEVO, no el de Metabia)
 
 1. En supabase.com creá un proyecto nuevo llamado `talisto`.
-2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql` y `supabase/04_trabajos_finanzas.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio). Todos se pueden volver a correr sin problema.
+2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql` y `supabase/05_planes.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites). Todos se pueden volver a correr sin problema.
 3. **Authentication → URL Configuration**:
    - Site URL: `http://localhost:3000` (después cambiala por la URL de Vercel).
    - Redirect URLs: agregá `http://localhost:3000/**` y, cuando la tengas, `https://TU-APP.vercel.app/**`.
@@ -53,6 +53,18 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
 - Repositorio: `github.com/santiagoguerramunoz/talisto` (privado)
 - Proyecto Vercel: `talisto` (equipo gstudiosoft1) → https://talisto-ashen.vercel.app
 - Variables en Vercel (Settings → Environment Variables): `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+
+### 5. Planes y Mercado Pago
+
+- **Free**: agenda, relevamientos, clientes B2B y B2C, mapa y rutas; trabajos B2B de hasta 2 empresas y 6 planillas Excel por mes. Sin presupuestos, Mis gastos ni logo / datos del negocio.
+- **Pro**: todo. **Business**: Pro + empresa con cuentas (en camino).
+- Al correr `05_planes.sql` las cuentas admin quedan en Business sin vencimiento. A los demás les regalás el plan desde **/admin → Plan** (sin vencimiento o hasta una fecha). Los precios y los límites de Free también se editan en /admin.
+- Para cobrar la suscripción mensual con Mercado Pago, cargá en Vercel (las pegás vos, no las compartas):
+  - `MP_ACCESS_TOKEN`: Mercado Pago → Tus integraciones → tu aplicación → Credenciales de producción → Access Token.
+  - `SUPABASE_SERVICE_ROLE_KEY`: Supabase → Project Settings → API Keys → `service_role` (secreta: solo en Vercel).
+  - `MP_WEBHOOK_SECRET` (recomendada): la clave secreta que te da Mercado Pago al configurar el webhook.
+  - En Mercado Pago → Tus integraciones → Webhooks, URL de producción `https://talisto-ashen.vercel.app/api/mercadopago/webhook` con el evento **Planes y suscripciones**.
+  - Después de cargar las variables, hacé **Redeploy** en Vercel. Hasta entonces el botón de suscribirse dice "Muy pronto".
 
 ## Trabajar desde tu PC (Windows)
 

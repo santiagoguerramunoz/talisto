@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/Icon';
 import { PanelContext } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
+import { cargarPlan } from '@/lib/planes';
 
 const NAV = [
   { href: '/panel', icono: 'agenda', texto: 'Agenda' },
@@ -19,7 +20,7 @@ const NAV = [
 export default function PanelLayout({ children }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [estado, setEstado] = useState({ cargando: true, user: null, perfil: null, profesional: null });
+  const [estado, setEstado] = useState({ cargando: true, user: null, perfil: null, profesional: null, plan: null });
 
   const cargar = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -29,15 +30,16 @@ export default function PanelLayout({ children }) {
       return;
     }
     const uid = session.user.id;
-    const [{ data: perfil }, { data: profesional }] = await Promise.all([
+    const [{ data: perfil }, { data: profesional }, plan] = await Promise.all([
       supabase.from('perfiles').select('*').eq('id', uid).maybeSingle(),
       supabase.from('profesionales').select('*').eq('id', uid).maybeSingle(),
+      cargarPlan(),
     ]);
     if (!perfil || perfil.rol !== 'profesional' || !profesional) {
       router.replace(perfil?.es_admin ? '/admin' : '/inicio');
       return;
     }
-    setEstado({ cargando: false, user: session.user, perfil, profesional });
+    setEstado({ cargando: false, user: session.user, perfil, profesional, plan });
   }, [router]);
 
   useEffect(() => {
@@ -48,7 +50,13 @@ export default function PanelLayout({ children }) {
     return () => sub.subscription.unsubscribe();
   }, [cargar, router]);
 
-  const valor = useMemo(() => ({ ...estado, recargar: cargar }), [estado, cargar]);
+  const recargarPlan = useCallback(async () => {
+    const plan = await cargarPlan();
+    setEstado((e) => ({ ...e, plan }));
+    return plan;
+  }, []);
+
+  const valor = useMemo(() => ({ ...estado, recargar: cargar, recargarPlan }), [estado, cargar, recargarPlan]);
 
   if (estado.cargando) {
     return (
@@ -68,7 +76,9 @@ export default function PanelLayout({ children }) {
             const activo =
               item.href === '/panel'
                 ? pathname === '/panel'
-                : pathname.startsWith(item.href) || (item.href === '/panel/finanzas' && pathname.startsWith('/panel/ordenes'));
+                : pathname.startsWith(item.href) ||
+                  (item.href === '/panel/finanzas' && pathname.startsWith('/panel/ordenes')) ||
+                  (item.href === '/panel/perfil' && pathname.startsWith('/panel/planes'));
             return (
               <Link
                 key={item.href}

@@ -17,6 +17,8 @@ import { ESTADOS_PRESUPUESTO, fechaUY, numeroPresupuesto, sumarDiasISO } from '@
 import { crearPdfPresupuesto, nombreArchivoPresupuesto } from '@/lib/presupuestoPdf';
 import { AVISO_SQL_04, faltaSql04 } from '@/lib/sql';
 import { linkWhatsapp, mensajeError } from '@/lib/util';
+import { esPro } from '@/lib/planes';
+import BloqueoPlan from '@/components/BloqueoPlan';
 
 const texto = (v) => (v === null || v === undefined ? '' : String(v));
 
@@ -64,6 +66,19 @@ async function bajarLogo(url) {
 }
 
 export default function EditorPresupuesto() {
+  const { plan } = usePanel();
+  if (esPro(plan?.plan)) return <EditorPresupuestoPro />;
+  return (
+    <div className="px-4 pt-[max(1rem,env(safe-area-inset-top))]">
+      <Link href="/panel/finanzas/presupuestos" className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-tinta-400">
+        <Icon name="izq" className="h-4 w-4" /> Presupuestos
+      </Link>
+      <BloqueoPlan titulo="Presupuestos profesionales" texto="Ver y editar presupuestos es parte del plan Pro." />
+    </div>
+  );
+}
+
+function EditorPresupuestoPro() {
   const { id } = useParams();
   const router = useRouter();
   const { profesional, user } = usePanel();

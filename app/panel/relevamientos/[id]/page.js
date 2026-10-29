@@ -17,6 +17,7 @@ import { comprimirImagen } from '@/lib/imagenes';
 import { useAjustes } from '@/lib/ajustes';
 import { limpiarMateriales, materialesParaEditar, numero, pesos, totalesPresupuesto } from '@/lib/precios';
 import { ESTADOS_PRESUPUESTO, numeroPresupuesto, presupuestoNuevo } from '@/lib/presupuestos';
+import { esPro } from '@/lib/planes';
 import { AVISO_SQL_04, faltaColumna as faltaCol, faltaSql04 } from '@/lib/sql';
 import {
   AVISO_SQL_UBICACION,
@@ -36,7 +37,7 @@ const CAMPOS_CLIENTE = 'id, nombre, color, telefono, direcciones(id, etiqueta, d
 export default function FichaRelevamiento() {
   const { id } = useParams();
   const router = useRouter();
-  const { profesional } = usePanel();
+  const { profesional, plan } = usePanel();
   const { ajustes } = useAjustes(profesional.id);
 
   const [rel, setRel] = useState(null);
@@ -465,9 +466,15 @@ export default function FichaRelevamiento() {
             </ul>
           )}
           <p className="text-xs text-tinta-400">Le llega solo con los precios finales de cada ítem, el subtotal, el IVA y el total. Tus costos y márgenes no salen.</p>
-          <button type="button" className="btn btn-menta w-full" onClick={crearPresupuesto} disabled={guardando}>
-            <Icon name="documento" /> {presupuestos.length ? 'Hacer otro presupuesto' : 'Crear presupuesto'}
-          </button>
+          {esPro(plan?.plan) ? (
+            <button type="button" className="btn btn-menta w-full" onClick={crearPresupuesto} disabled={guardando}>
+              <Icon name="documento" /> {presupuestos.length ? 'Hacer otro presupuesto' : 'Crear presupuesto'}
+            </button>
+          ) : (
+            <Link href="/panel/planes" className="btn btn-sec w-full">
+              <Icon name="candado" className="h-[18px] w-[18px] text-marca-naranja" /> Crear presupuesto · Pro
+            </Link>
+          )}
         </section>
 
         {/* Estado */}

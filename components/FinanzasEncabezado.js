@@ -4,16 +4,20 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon from './Icon';
 import { MESES } from '@/lib/fechas';
+import { esPro } from '@/lib/planes';
+import { usePanel } from './PanelContext';
 
 const TABS = [
   { href: '/panel/finanzas', texto: 'Resumen' },
-  { href: '/panel/finanzas/presupuestos', texto: 'Presupuestos' },
-  { href: '/panel/finanzas/gastos', texto: 'Mis gastos' },
+  { href: '/panel/finanzas/presupuestos', texto: 'Presupuestos', pro: true },
+  { href: '/panel/finanzas/gastos', texto: 'Mis gastos', pro: true },
 ];
 
 // Encabezado de Finanzas: pestañas y, si corresponde, el mes
 export default function FinanzasEncabezado({ periodo, onMover, accion }) {
   const pathname = usePathname();
+  const panel = usePanel();
+  const pro = esPro(panel?.plan?.plan);
   return (
     <header className="sticky top-0 z-30 border-b border-navy-800 bg-navy-950/95 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur">
       <div className="flex items-center justify-between gap-3">
@@ -24,8 +28,9 @@ export default function FinanzasEncabezado({ periodo, onMover, accion }) {
         {TABS.map((t) => {
           const activo = t.href === '/panel/finanzas' ? pathname === t.href : pathname.startsWith(t.href);
           return (
-            <Link key={t.href} href={t.href} className={`rounded-lg px-2 py-1.5 text-center ${activo ? 'bg-navy-700 text-tinta-100' : 'text-tinta-400'}`}>
+            <Link key={t.href} href={t.href} className={`flex min-w-0 items-center justify-center gap-0.5 whitespace-nowrap rounded-lg px-1 py-1.5 text-center text-[13px] sm:text-sm ${activo ? 'bg-navy-700 text-tinta-100' : 'text-tinta-400'}`}>
               {t.texto}
+              {t.pro && !pro && <Icon name="candado" className="h-3.5 w-3.5 text-marca-naranja" />}
             </Link>
           );
         })}

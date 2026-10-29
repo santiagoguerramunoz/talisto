@@ -13,6 +13,8 @@ import { pesos } from '@/lib/precios';
 import { ESTADOS_PRESUPUESTO, fechaUY, numeroPresupuesto, presupuestoNuevo } from '@/lib/presupuestos';
 import { AVISO_SQL_04, faltaSql04, faltaTabla } from '@/lib/sql';
 import { mensajeError } from '@/lib/util';
+import { esPro } from '@/lib/planes';
+import BloqueoPlan from '@/components/BloqueoPlan';
 
 const FILTROS = [
   ['todos', 'Todos'],
@@ -24,6 +26,28 @@ const FILTROS = [
 ];
 
 export default function Presupuestos() {
+  const { plan } = usePanel();
+  if (esPro(plan?.plan)) return <PresupuestosPro />;
+  return (
+    <>
+      <FinanzasEncabezado />
+      <div className="px-4 pt-4">
+        <BloqueoPlan
+          titulo="Presupuestos profesionales"
+          texto="Armá el presupuesto desde el relevamiento y mandalo en PDF por WhatsApp."
+          puntos={[
+            'Materiales con precio de costo, proveedor y margen por ítem',
+            'Mano de obra, subtotal, IVA y total con IVA incluido',
+            'PDF con tu logo y los datos de tu negocio',
+            'Estados: enviado, aceptado y cobrado, y agendar el trabajo',
+          ]}
+        />
+      </div>
+    </>
+  );
+}
+
+function PresupuestosPro() {
   const router = useRouter();
   const { profesional } = usePanel();
   const { ajustes } = useAjustes(profesional.id);

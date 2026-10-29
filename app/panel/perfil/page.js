@@ -6,13 +6,15 @@ import Icon from '@/components/Icon';
 import Modal from '@/components/Modal';
 import BotonInstalar from '@/components/BotonInstalar';
 import AjustesNegocio from '@/components/AjustesNegocio';
+import BloqueoPlan from '@/components/BloqueoPlan';
+import { NOMBRE_PLAN, esPro, textoVencimiento } from '@/lib/planes';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
 import { DIAS, SEMANA_ORDEN } from '@/lib/fechas';
 import { DEPARTAMENTOS, SUFIJO_TARIFA, TIPOS_TARIFA, mensajeError, monto } from '@/lib/util';
 
 export default function Perfil() {
-  const { profesional, perfil, user, recargar } = usePanel();
+  const { profesional, perfil, user, recargar, plan } = usePanel();
 
   return (
     <>
@@ -35,15 +37,50 @@ export default function Perfil() {
       </header>
 
       <div className="space-y-8 px-4 pt-4">
+        <MiPlan plan={plan} />
         <BotonInstalar variante="tarjeta" />
         <DatosPublicos profesional={profesional} onGuardado={recargar} />
-        <AjustesNegocio profesional={profesional} email={user.email} />
+        {esPro(plan?.plan) ? (
+          <AjustesNegocio profesional={profesional} email={user.email} />
+        ) : (
+          <section>
+            <h2 className="titulo-seccion mb-2">Presupuestos y datos del negocio</h2>
+            <BloqueoPlan compacto titulo="Logo y datos de tu negocio" texto="Razón social, RUT, teléfono y logo en tus presupuestos" />
+          </section>
+        )}
         <Servicios profesionalId={profesional.id} />
         <HorarioTrabajo profesionalId={profesional.id} />
         <VisitaTecnica />
         <Cuenta email={user.email} />
       </div>
     </>
+  );
+}
+
+function MiPlan({ plan }) {
+  if (!plan || plan.sinSql) return null;
+  const cual = plan.plan || 'free';
+  const vence = textoVencimiento(plan);
+  const detalle =
+    cual === 'free'
+      ? 'Agenda, relevamientos, clientes y mapa. Pasate a Pro para presupuestos y finanzas.'
+      : plan.origen === 'regalo'
+        ? vence ? `Regalo de TaListo! hasta el ${vence}` : 'Regalo de TaListo! sin vencimiento'
+        : plan.mp_estado === 'cancelled'
+          ? `Suscripción cancelada: sigue activa hasta el ${vence}`
+          : vence ? `Suscripción con Mercado Pago · próxima renovación ${vence}` : 'Suscripción con Mercado Pago';
+  return (
+    <Link href="/panel/planes" className="tarjeta flex items-center gap-3 p-4 hover:bg-navy-850">
+      <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${cual === 'free' ? 'bg-navy-800 text-tinta-300' : 'bg-marca-naranja/15 text-marca-naranja'}`}>
+        <Icon name={cual === 'business' ? 'empresa' : 'estrella'} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-xs font-semibold uppercase tracking-wide text-tinta-400">Mi plan</span>
+        <span className="block text-lg font-extrabold">TaListo! {NOMBRE_PLAN[cual]}</span>
+        <span className="block text-xs text-tinta-400">{detalle}</span>
+      </span>
+      <Icon name="der" className="h-4 w-4 shrink-0 text-tinta-500" />
+    </Link>
   );
 }
 

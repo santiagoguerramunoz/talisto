@@ -14,6 +14,8 @@ import { COLOR_GASTOS, COLOR_INGRESOS, claveMes, movimientos, resumenMes, serieM
 import { categoriasDe, infoCategoria } from '@/lib/gastos';
 import { pesos } from '@/lib/precios';
 import { faltaTabla } from '@/lib/sql';
+import { esPro } from '@/lib/planes';
+import BloqueoPlan from '@/components/BloqueoPlan';
 
 const MESES_GRAFICO = 6;
 const corto = (mes) => MESES[mes - 1].slice(0, 3);
@@ -115,6 +117,79 @@ function BarrasMeses({ serie, seleccionado, onElegir }) {
 }
 
 export default function Finanzas() {
+  const { plan } = usePanel();
+  return esPro(plan?.plan) ? <FinanzasPro /> : <FinanzasFree />;
+}
+
+// Plan Free: solo los trabajos B2B (hasta N empresas) y sus planillas
+function FinanzasFree() {
+  const { profesional, plan } = usePanel();
+  const [empresas, setEmpresas] = useState(null);
+  const [enUso, setEnUso] = useState(new Set());
+
+  const cargar = useCallback(async () => {
+    const [cl, or] = await Promise.all([
+      cargarClientes(profesional.id),
+      supabase.from('ordenes').select('empresa_id').eq('profesional_id', profesional.id),
+    ]);
+    setEmpresas((cl.data || []).filter((c) => c.es_empresa));
+    setEnUso(new Set((or.data || []).map((o) => o.empresa_id)));
+  }, [profesional.id]);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+  useAlVolver(cargar);
+
+  const lim = plan?.limite_empresas_b2b ?? 2;
+  const limExp = plan?.limite_exportaciones ?? 6;
+  const lleno = enUso.size >= lim;
+
+  return (
+    <>
+      <FinanzasEncabezado />
+      <div className="space-y-6 px-4 pt-4">
+        <section>
+          <h2 className="titulo-seccion mb-2">Trabajos B2B</h2>
+          {!empresas ? (
+            <p className="text-tinta-400">Cargando…</p>
+          ) : empresas.length === 0 ? (
+            <p className="tarjeta p-4 text-sm text-tinta-400">
+              Marcá un cliente como <b>Cliente B2B</b> (empresa) en Clientes para cargarle trabajos y liquidar el mes.
+            </p>
+          ) : (
+            <div className="tarjeta divide-y divide-navy-800 overflow-hidden">
+              {empresas.map((e) => {
+                const habilitada = enUso.has(e.id) || !lleno;
+                return habilitada ? (
+                  <Fila key={e.id} icono="maletin" color={e.color || '#5aa9e6'} titulo={e.nombre} detalle={enUso.has(e.id) ? 'Trabajos y planilla del mes' : 'Todavía sin trabajos'} href={`/panel/ordenes?empresa=${e.id}`} />
+                ) : (
+                  <Fila key={e.id} icono="candado" color="#ec8328" titulo={e.nombre} detalle={`En Free, hasta ${lim} empresas con trabajos`} href="/panel/planes" />
+                );
+              })}
+            </div>
+          )}
+          <p className="mt-2 text-xs text-tinta-500">
+            Plan Free: {enUso.size} de {lim} empresas B2B en uso · {plan?.exportaciones_mes ?? 0} de {limExp} planillas Excel este mes.
+          </p>
+        </section>
+
+        <BloqueoPlan
+          titulo="Tus finanzas, claras"
+          texto="Con Pro ves cuánto ganás cada mes y manejás presupuestos y gastos."
+          puntos={[
+            'Ingresos, gastos y ganancia del mes, con gráfico de 6 meses',
+            'Presupuestos en PDF con tu logo, margen e IVA',
+            'Mis gastos: movilidad, combustible, insumos, viáticos y herramientas',
+            'Trabajos B2B y planillas sin límite',
+          ]}
+        />
+      </div>
+    </>
+  );
+}
+
+function FinanzasPro() {
   const { profesional } = usePanel();
   const { ajustes } = useAjustes(profesional.id);
   const [periodo, setPeriodo] = useState(() => {
