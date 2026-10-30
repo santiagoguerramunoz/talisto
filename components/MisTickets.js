@@ -416,7 +416,7 @@ export default function MisTickets({ onVerAgenda }) {
             <p className="mt-1 text-sm text-tinta-400">Cuando te asignen un ticket, un trabajo o un relevamiento, te llega un aviso y aparece acá con la dirección.</p>
           </section>
         ) : (
-          <ol className="space-y-2.5">
+          <ol className="lista-pc space-y-2.5">
             {visibles.map((item) => (
               <Tarjeta
                 key={item.key}

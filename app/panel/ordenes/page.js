@@ -290,7 +290,7 @@ function Trabajos() {
             {abiertosFuera.length > 0 && (
               <section>
                 <h2 className="titulo-seccion mb-2">Sin terminar de otros meses</h2>
-                <ul className="space-y-2">
+                <ul className="lista-pc space-y-2">
                   {abiertosFuera.map((o) => (
                     <li key={o.id}><TarjetaTrabajo o={o} onAbrir={(x) => setModal({ orden: x })} /></li>
                   ))}
@@ -381,7 +381,7 @@ function Trabajos() {
               {ordenes.length === 0 ? (
                 <p className="tarjeta p-4 text-sm text-tinta-400">No hay trabajos cargados este mes.</p>
               ) : (
-                <ul className="space-y-2">
+                <ul className="lista-pc space-y-2">
                   {ordenes.map((o) => (
                     <li key={o.id}><TarjetaTrabajo o={o} onAbrir={(x) => setModal({ orden: x })} /></li>
                   ))}

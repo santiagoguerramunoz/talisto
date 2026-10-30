@@ -103,7 +103,7 @@ export default function MiStock() {
             {(datos.recibir || []).length > 0 && (
               <section>
                 <h2 className="titulo-seccion mb-2">Para confirmar</h2>
-                <ul className="space-y-2">
+                <ul className="lista-pc space-y-2">
                   {datos.recibir.map((m) => (
                     <li key={m.id} className="tarjeta border-amber-400/50 p-3">
                       <p className="flex items-center justify-between gap-2 text-sm">
@@ -176,7 +176,7 @@ export default function MiStock() {
             {(datos.enviados || []).length > 0 && (
               <section>
                 <h2 className="titulo-seccion mb-2">Enviado, sin confirmar</h2>
-                <ul className="space-y-2">
+                <ul className="lista-pc space-y-2">
                   {datos.enviados.map((m) => (
                     <li key={m.id}>
                       <button type="button" onClick={() => setDetalle(m)} className="tarjeta w-full p-3 text-left hover:bg-navy-850">
@@ -196,7 +196,7 @@ export default function MiStock() {
             {movs.length > 0 && (
               <section>
                 <h2 className="titulo-seccion mb-2">Últimos movimientos</h2>
-                <ul className="space-y-2">
+                <ul className="lista-pc space-y-2">
                   {movs.map((m) => (
                     <FilaMovimiento key={m.id} m={m} onAbrir={() => setDetalle(m)} />
                   ))}

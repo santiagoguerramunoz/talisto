@@ -117,6 +117,8 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
 - **Notificaciones al celular** (aunque la app esté cerrada): se activan una sola vez. En **/admin → Avisos al celular** tocá *Generar claves*, copiá las dos en Vercel (**Settings → Environment Variables**: `NEXT_PUBLIC_VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY`) y volvé a publicar. Después cada persona toca *Activar* en su celular (en iPhone, primero instalar la app). Sin las claves, los avisos quedan igual en la campanita.
 - **Remitos**: cada entrega, material a un trabajo y devolución tiene su **Remito Nº** (numeración propia de la empresa, sin huecos) en PDF con los datos y el logo del negocio, los materiales y lugar para las firmas: **Descargar**, **Imprimir**, **Compartir** (WhatsApp, mail con el PDF adjunto) o **Por mail** con el detalle escrito.
 
+- **Vista para PC** (Pro, Business y admin): barra lateral con las secciones, el equipo y los avisos; agenda semanal en columnas, Equipo en ruta con el mapa al lado y las listas en dos columnas. Se elige en **Perfil → Vista**: *Automática* (PC en pantallas grandes), *PC* o *Celular*. Queda guardada en cada navegador.
+
 ### 10. Seguridad
 
 - La base controla todo (no la pantalla): cada cuenta solo ve y cambia lo suyo o lo que su rol permite, nadie puede pasar datos de una cuenta a otra, sin sesión solo se ve lo público, y las funciones internas no se pueden llamar desde afuera.

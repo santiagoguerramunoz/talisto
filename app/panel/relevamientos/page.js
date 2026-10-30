@@ -98,7 +98,7 @@ export default function Relevamientos() {
             </p>
           </div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="lista-pc space-y-2">
             {visibles.map((r) => {
               const estado = ESTADOS_RELEVAMIENTO[r.estado] || ESTADOS_RELEVAMIENTO.pendiente;
               const c = r.clientes;

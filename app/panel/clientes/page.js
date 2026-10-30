@@ -88,7 +88,7 @@ export default function Clientes() {
             {!q && <p className="mt-1 text-sm text-tinta-400">Agregá tus clientes con sus direcciones para tenerlos a mano en la agenda.</p>}
           </div>
         ) : (
-          <ul className="tarjeta divide-y divide-navy-800 overflow-hidden">
+          <ul className="tarjeta divide-y divide-navy-800 overflow-hidden pc:grid pc:grid-cols-2 pc:divide-y-0 pc:[&>li]:border-b pc:[&>li]:border-navy-800 pc:[&>li:nth-child(odd)]:border-r">
             {filtrados.map((c) => (
               <li key={c.id}>
                 <Link href={`/panel/clientes/${c.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-navy-850">

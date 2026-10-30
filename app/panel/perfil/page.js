@@ -8,6 +8,7 @@ import BotonInstalar from '@/components/BotonInstalar';
 import AjustesNegocio from '@/components/AjustesNegocio';
 import BloqueoPlan from '@/components/BloqueoPlan';
 import EspacioTrabajo from '@/components/EspacioTrabajo';
+import ElegirVista from '@/components/ElegirVista';
 import { NOMBRE_PLAN, esPro, textoVencimiento } from '@/lib/planes';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
@@ -44,6 +45,7 @@ export default function Perfil() {
       <div className="space-y-8 px-4 pt-4">
         <MiPlan plan={plan} />
         <EspacioTrabajo />
+        <ElegirVista />
         <BotonInstalar variante="tarjeta" />
         <DatosPublicos profesional={profesional} onGuardado={recargar} />
         {empresa ? null : esPro(plan?.plan) ? (

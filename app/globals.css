@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Vista PC (Pro, Business y admin): el panel marca <html data-vista="pc"> y las clases pc: se aplican */
+@custom-variant pc (&:where([data-vista="pc"], [data-vista="pc"] *));
+
 @theme {
   --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
 
@@ -299,4 +302,15 @@ body {
   color: #0a1428;
   font-size: 13px;
   line-height: 1.4;
+}
+
+/* Vista PC: las listas de tarjetas pasan a dos columnas (fuera de las capas para ganarle al espaciado) */
+[data-vista="pc"] .lista-pc {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
+[data-vista="pc"] .lista-pc > * {
+  margin: 0;
 }

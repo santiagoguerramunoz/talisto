@@ -122,7 +122,7 @@ function Ordenes() {
           <p className="mt-1">Se arman desde un presupuesto (Compra de materiales) o con Nueva.</p>
         </section>
       ) : (
-        <ul className="space-y-2">
+        <ul className="lista-pc space-y-2">
           {lista.map((o) => (
             <li key={o.id}>
               <Link href={`/panel/finanzas/compras/${o.id}`} className="tarjeta flex items-center gap-3 p-3 hover:bg-navy-850">

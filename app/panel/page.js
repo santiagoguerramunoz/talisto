@@ -136,7 +136,7 @@ function AgendaCompleta({ onVerMios }) {
       </div>
 
       {/* Botón + */}
-      <div className={`fixed right-4 ${empresa ? 'bottom-[calc(7.25rem_+_env(safe-area-inset-bottom))]' : 'bottom-[calc(5.75rem_+_env(safe-area-inset-bottom))]'} z-[1050] flex flex-col items-end gap-2 sm:right-[max(1rem,calc(50%_-_20rem))]`}>
+      <div className={`fixed right-4 ${empresa ? 'bottom-[calc(7.25rem_+_env(safe-area-inset-bottom))]' : 'bottom-[calc(5.75rem_+_env(safe-area-inset-bottom))]'} z-[1050] flex flex-col items-end gap-2 sm:right-[max(1rem,calc(50%_-_20rem))] pc:bottom-8 pc:right-8`}>
         {menuNuevo && (
           <>
             <button
@@ -375,7 +375,7 @@ function VistaSemana({ lunes, datos, indice, onEvento, onDia }) {
   const hoy = new Date();
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 pc:grid pc:grid-cols-2 pc:items-start pc:gap-3 pc:space-y-0 xl:pc:grid-cols-3">
       {dias.map((d) => {
         const eventos = eventosDelDia({ fecha: d, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, relevamientos: datos.relevamientos, indice });
         const esHoy = esMismoDia(d, hoy);

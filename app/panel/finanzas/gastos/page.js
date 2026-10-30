@@ -245,7 +245,7 @@ function MisGastosPro() {
       />
 
       <Modal abierto={editarCategorias} onCerrar={() => setEditarCategorias(false)} titulo="Categorías de gastos">
-        <ul className="space-y-2">
+        <ul className="lista-pc space-y-2">
           {categorias.map((c) => (
             <li key={c.nombre} className="flex items-center gap-3 rounded-xl bg-navy-850 px-3 py-2.5">
               <span className="grid h-8 w-8 place-items-center rounded-lg" style={{ background: `${c.color}26`, color: c.color }}>

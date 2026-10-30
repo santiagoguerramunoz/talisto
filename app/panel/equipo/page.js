@@ -87,7 +87,7 @@ function armar(ordenes, turnos, relevamientos, empresas) {
 }
 
 export default function EquipoEnRuta() {
-  const { profesional, empresa, permisos } = usePanel();
+  const { profesional, empresa, permisos, vistaPc } = usePanel();
   const equipo = useEquipoAsignable();
   const cuenta = profesional.id;
   const lista = permisos || [];
@@ -267,6 +267,16 @@ export default function EquipoEnRuta() {
   }
 
   const puede = (item) => (item.tabla === 'ordenes' ? editaTickets : editaTurnos);
+  const mapa = (alto) => (
+    <>
+      <div className="overflow-hidden rounded-2xl border border-navy-800">
+        <Mapa puntos={puntos} alto={alto} encuadrarSiempre={false} />
+      </div>
+      <p className="text-xs text-tinta-500">
+        Los círculos con iniciales son la última ubicación de cada uno (si la comparte). Se actualiza solo cada 20 segundos.
+      </p>
+    </>
+  );
   const total = datos.items.length;
   const terminados = datos.items.filter((i) => i.estado === 'finalizado').length;
   const enCurso = datos.items.filter((i) => i.estado === 'en_curso').length;
@@ -306,7 +316,8 @@ export default function EquipoEnRuta() {
         </div>
       </header>
 
-      <div className="space-y-3 px-4 pt-4">
+      <div className={vistaPc ? 'grid grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] items-start gap-5 px-4 pt-4' : 'px-4 pt-4'}>
+      <div className="space-y-3">
         {datos.error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{datos.error}</p>}
         {aviso && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{aviso}</p>}
 
@@ -340,12 +351,7 @@ export default function EquipoEnRuta() {
           )}
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-navy-800">
-          <Mapa puntos={puntos} alto={280} encuadrarSiempre={false} />
-        </div>
-        <p className="text-xs text-tinta-500">
-          Los círculos con iniciales son la última ubicación de cada uno (si la comparte). Se actualiza solo cada 20 segundos.
-        </p>
+        {!vistaPc && mapa(280)}
 
         {grupos.sin.length > 0 && (!filtro || filtro === SIN) && (
           <section className="tarjeta overflow-hidden border-amber-400/40">
@@ -502,6 +508,8 @@ export default function EquipoEnRuta() {
           <p className="tarjeta p-5 text-center text-sm text-tinta-400">No hay trabajos agendados este día. Creá tickets o turnos desde la Agenda y asignalos a alguien del equipo.</p>
         )}
         <div className="h-4" />
+      </div>
+      {vistaPc && <aside className="sticky top-32 space-y-2">{mapa(560)}</aside>}
       </div>
     </>
   );

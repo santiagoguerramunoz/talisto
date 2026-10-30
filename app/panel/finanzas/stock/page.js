@@ -262,7 +262,7 @@ function Stock() {
       {pendientes.length > 0 && (
         <section>
           <h2 className="titulo-seccion mb-2">Por confirmar ({pendientes.length})</h2>
-          <ul className="space-y-2">
+          <ul className="lista-pc space-y-2">
             {pendientes.map((m) => {
               const meToca = m.destino_tipo === 'deposito' ? gestiona : m.destino_usuario === miId;
               return (
@@ -382,7 +382,7 @@ function Stock() {
               </p>
             </div>
           ) : (
-            <ul className="space-y-2">
+            <ul className="lista-pc space-y-2">
               {listaExistencias.map((m) => {
                 const desg = desglose(m.enLugar, m);
                 const bajo = bajoMinimo(m);
@@ -434,7 +434,7 @@ function Stock() {
           {movs.lista.length === 0 && !movs.cargando ? (
             <p className="py-6 text-center text-sm text-tinta-400">Sin movimientos.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="lista-pc space-y-2">
               {movs.lista.map((m) => (
                 <FilaMovimiento key={m.id} m={m} onAbrir={() => setDetalle(m)} />
               ))}
@@ -462,7 +462,7 @@ function Stock() {
           <label className="flex items-center gap-2 text-sm text-tinta-300">
             <input type="checkbox" className="h-4 w-4 accent-[#2cc79b]" checked={archivados} onChange={(e) => setArchivados(e.target.checked)} /> Ver archivados
           </label>
-          <ul className="space-y-2">
+          <ul className="lista-pc space-y-2">
             {materiales
               .filter((m) => archivados || m.activo !== false)
               .filter((m) => !q.trim() || norm(`${m.nombre} ${m.codigo || ''} ${m.marca || ''} ${m.categoria || ''}`).includes(norm(q.trim())))

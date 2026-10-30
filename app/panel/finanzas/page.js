@@ -285,19 +285,19 @@ function FinanzasPro() {
     <>
       <FinanzasEncabezado periodo={periodo} onMover={(n) => setPeriodo((p) => sumarMeses(p, n))} />
 
-      <div className="space-y-6 px-4 pt-4">
+      <div className="space-y-6 px-4 pt-4 pc:grid pc:grid-cols-2 pc:items-start pc:gap-5 pc:space-y-0">
         {faltaSql && (
-          <p className="rounded-xl bg-amber-400/10 p-3 text-sm text-amber-200">
+          <p className="rounded-xl bg-amber-400/10 p-3 text-sm text-amber-200 pc:col-span-2">
             Falta correr en Supabase el archivo <b>04_trabajos_finanzas.sql</b> para ver presupuestos y gastos acá.
           </p>
         )}
 
         {!datos ? (
-          <p className="text-tinta-400">Cargando…</p>
+          <p className="text-tinta-400 pc:col-span-2">Cargando…</p>
         ) : (
           <>
             {/* Resultado */}
-            <section className="tarjeta p-4">
+            <section className="tarjeta p-4 pc:col-span-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-tinta-400">Resultado de {MESES[periodo.mes - 1]}</p>
               <p className={`mt-1 text-4xl font-extrabold ${gano ? 'text-menta-300' : 'text-red-300'}`}>
                 {gano ? '' : '− '}
@@ -320,7 +320,7 @@ function FinanzasPro() {
             </section>
 
             {porCobrar.total > 0 && (
-              <Link href="/panel/finanzas/presupuestos" className="tarjeta flex items-center gap-3 border-amber-400/40 p-4 hover:bg-navy-850">
+              <Link href="/panel/finanzas/presupuestos" className="tarjeta flex items-center gap-3 border-amber-400/40 p-4 hover:bg-navy-850 pc:col-span-2">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-400/15 text-amber-300">
                   <Icon name="billetera" />
                 </span>
@@ -398,12 +398,12 @@ function FinanzasPro() {
             </section>
 
             {/* Últimos meses */}
-            <section className="tarjeta p-4">
+            <section className="tarjeta p-4 pc:col-span-2">
               <h2 className="titulo-seccion mb-3">Últimos {MESES_GRAFICO} meses</h2>
               <BarrasMeses serie={serie} seleccionado={claveMes(periodo)} onElegir={setPeriodo} />
             </section>
 
-            <p className="text-xs text-tinta-500">
+            <p className="text-xs text-tinta-500 pc:col-span-2">
               Cuenta los presupuestos en el mes en que se aceptan, los trabajos B2B finalizados, los turnos que marcaste como realizados y tus gastos. Si un
               trabajo ya está en un presupuesto aceptado, no le pongas precio al turno para no contarlo dos veces.
             </p>

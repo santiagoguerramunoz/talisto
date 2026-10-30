@@ -8,6 +8,11 @@ import { PanelContext } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
 import { cargarPlan } from '@/lib/planes';
 import { SECCIONES, cargarEspacios, espacioGuardado, guardarEspacio, invitacionPendiente, tiene, usable } from '@/lib/empresa';
+import BarraLateral from '@/components/BarraLateral';
+import { useVistaPc, vistaPcHabilitada } from '@/lib/vista';
+
+// En la vista PC estas pantallas quedan angostas (formularios); el resto va a lo ancho
+const ANGOSTAS = ['/panel/perfil', '/panel/planes', '/panel/empresa', '/panel/avisos'];
 
 const NAV = [
   { href: '/panel', icono: 'agenda', texto: 'Agenda' },
@@ -105,7 +110,11 @@ export default function PanelLayout({ children }) {
     [cargar, router]
   );
 
-  const valor = useMemo(() => ({ ...estado, recargar: cargar, recargarPlan, cambiarEspacio }), [estado, cargar, recargarPlan, cambiarEspacio]);
+  const vista = useVistaPc(!estado.cargando && vistaPcHabilitada(estado));
+  const valor = useMemo(
+    () => ({ ...estado, recargar: cargar, recargarPlan, cambiarEspacio, vistaPc: vista.pc, vistaPreferida: vista.preferencia, elegirVista: vista.elegir }),
+    [estado, cargar, recargarPlan, cambiarEspacio, vista.pc, vista.preferencia, vista.elegir]
+  );
 
   // En una empresa, cada uno ve solo las secciones de sus permisos
   const nav = estado.empresa
@@ -130,12 +139,26 @@ export default function PanelLayout({ children }) {
 
   const invitacion = estado.espacios?.invitaciones?.[0]?.codigo || invitacionPendiente();
   const mostrarInvitacion = invitacion && (pathname === '/panel' || pathname === '/panel/perfil');
+  const activo = seccion === '/panel/equipo' ? '/panel' : seccion;
+  const angosta = ANGOSTAS.some((r) => pathname.startsWith(r));
 
   return (
     <PanelContext.Provider value={valor}>
+      {vista.pc && (
+        <BarraLateral
+          nav={nav}
+          activo={['/panel/equipo', '/panel/avisos', '/panel/mi-stock'].some((r) => pathname.startsWith(r)) ? '' : seccion}
+          pathname={pathname}
+        />
+      )}
+      <div className={vista.pc ? 'min-h-dvh pl-64' : ''}>
       <div
         key={estado.empresa?.id || 'personal'}
-        className={`mx-auto min-h-dvh max-w-2xl ${estado.empresa ? 'pb-[calc(7rem_+_env(safe-area-inset-bottom))]' : 'pb-[calc(5.5rem_+_env(safe-area-inset-bottom))]'}`}
+        className={
+          vista.pc
+            ? `mx-auto min-h-dvh px-4 pb-12 ${angosta ? 'max-w-3xl' : 'max-w-6xl'}`
+            : `mx-auto min-h-dvh max-w-2xl ${estado.empresa ? 'pb-[calc(7rem_+_env(safe-area-inset-bottom))]' : 'pb-[calc(5.5rem_+_env(safe-area-inset-bottom))]'}`
+        }
       >
         {mostrarInvitacion && (
           <Link
@@ -154,7 +177,9 @@ export default function PanelLayout({ children }) {
         )}
         {permitida ? children : null}
       </div>
+      </div>
 
+      {!vista.pc && (
       <nav className="fixed inset-x-0 bottom-0 z-[1100] border-t border-navy-800 bg-navy-950/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
         {estado.empresa && (
           <button
@@ -167,23 +192,24 @@ export default function PanelLayout({ children }) {
         )}
         <div className="mx-auto grid max-w-2xl" style={{ gridTemplateColumns: `repeat(${nav.length}, minmax(0, 1fr))` }}>
           {nav.map((item) => {
-            const activo = item.href === (seccion === '/panel/equipo' ? '/panel' : seccion);
+            const esActivo = item.href === activo;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex min-w-0 flex-col items-center gap-1 pt-2.5 pb-1.5 text-[10.5px] font-semibold ${activo ? 'text-menta-400' : 'text-tinta-400'}`}
+                className={`flex min-w-0 flex-col items-center gap-1 pt-2.5 pb-1.5 text-[10.5px] font-semibold ${esActivo ? 'text-menta-400' : 'text-tinta-400'}`}
               >
-                <span className={`grid h-8 w-11 place-items-center rounded-full ${activo ? 'bg-menta-500/15' : ''}`}>
+                <span className={`grid h-8 w-11 place-items-center rounded-full ${esActivo ? 'bg-menta-500/15' : ''}`}>
                   <Icon name={item.icono} className="h-[22px] w-[22px]" />
                 </span>
                 {item.texto}
-                <span className={`h-1 w-1 rounded-full ${activo ? 'bg-marca-naranja' : 'bg-transparent'}`} />
+                <span className={`h-1 w-1 rounded-full ${esActivo ? 'bg-marca-naranja' : 'bg-transparent'}`} />
               </Link>
             );
           })}
         </div>
       </nav>
+      )}
     </PanelContext.Provider>
   );
 }

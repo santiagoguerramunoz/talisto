@@ -141,7 +141,7 @@ function PresupuestosPro() {
             <Link href="/panel/relevamientos" className="btn btn-sec mt-4">Ir a relevamientos</Link>
           </div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="lista-pc space-y-2">
             {visibles.map((p) => {
               const estado = ESTADOS_PRESUPUESTO[p.estado] || ESTADOS_PRESUPUESTO.borrador;
               const nombre = p.cliente_nombre || p.clientes?.nombre || 'Sin cliente';

@@ -23,7 +23,7 @@ export default function Modal({ abierto, onCerrar, titulo, children, pie }) {
   return (
     <div className="fixed inset-0 z-[1500] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
       <button type="button" aria-label="Cerrar" className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={onCerrar} />
-      <div className="relative flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-3xl border border-navy-700 bg-navy-900 shadow-2xl sm:rounded-3xl">
+      <div className="relative flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-3xl border border-navy-700 bg-navy-900 shadow-2xl sm:rounded-3xl pc:max-w-2xl">
         <div className="flex items-center justify-between gap-3 border-b border-navy-800 px-5 py-4">
           <h2 className="text-lg font-bold">{titulo}</h2>
           <button type="button" onClick={onCerrar} className="rounded-full p-2 text-tinta-400 hover:bg-navy-800 hover:text-tinta-100" aria-label="Cerrar">
