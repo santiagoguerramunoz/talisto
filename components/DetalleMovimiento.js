@@ -10,6 +10,9 @@ import {
   textoComprobante, textoError, textoRenglon, tituloMov,
 } from '@/lib/stock';
 import { numeroOrden } from '@/lib/proveedores';
+import { TIENE_REMITO, bajarLogo, crearPdfRemito, nombreArchivoRemito, numeroRemito } from '@/lib/remitoPdf';
+import { supabase } from '@/lib/supabase';
+import { usePanel } from './PanelContext';
 
 /**
  * Comprobante de stock con lo que se puede hacer según quién lo mira:
@@ -21,6 +24,9 @@ export default function DetalleMovimiento({ mov: movimiento, onCerrar, onCambio,
   const [recibido, setRecibido] = useState({});
   const [nota, setNota] = useState('');
   const [estado, setEstado] = useState({ ocupado: false, error: '', ok: '' });
+  const [armando, setArmando] = useState('');
+  const panel = usePanel();
+  const cuenta = panel?.profesional?.id;
 
   useEffect(() => {
     setMov(movimiento);
@@ -95,6 +101,76 @@ export default function DetalleMovimiento({ mov: movimiento, onCerrar, onCambio,
     }
   }
 
+  // Remito en PDF: número único, datos del negocio y lugar para firmas
+  const conRemito = !!mov.remito && TIENE_REMITO.includes(mov.tipo);
+  async function armarRemito() {
+    let negocio = { nombre: empresa };
+    if (cuenta) {
+      const { data } = await supabase.rpc('negocio_para_documentos', { p_cuenta: cuenta });
+      if (data) negocio = data;
+    }
+    const logo = await bajarLogo(negocio.logo_url);
+    const bytes = await crearPdfRemito({ mov: { ...mov, motivoTexto: MOTIVOS_DEVOLUCION[mov.motivo] }, negocio, logo });
+    return new File([bytes], nombreArchivoRemito(mov), { type: 'application/pdf' });
+  }
+  function bajar(archivo) {
+    const url = URL.createObjectURL(archivo);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = archivo.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+  async function remito(accion) {
+    setEstado((e) => ({ ...e, error: '', ok: '' }));
+    const movil = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    // En el celular se abre el PDF en otra pestaña (desde ahí se imprime); la pestaña se abre ya para que no la bloqueen
+    const ventana = accion === 'imprimir' && movil ? window.open('', '_blank') : null;
+    setArmando(accion);
+    try {
+      const archivo = await armarRemito();
+      if (accion === 'descargar') bajar(archivo);
+      else if (accion === 'compartir') {
+        if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [archivo] })) {
+          await navigator.share({ files: [archivo], title: archivo.name, text: `Remito Nº ${numeroRemito(mov.remito)}${empresa ? ` · ${empresa}` : ''}` });
+        } else {
+          bajar(archivo);
+          setEstado((e) => ({ ...e, ok: 'Se bajó el PDF: adjuntalo donde quieras mandarlo.' }));
+        }
+      } else if (accion === 'imprimir') {
+        const url = URL.createObjectURL(archivo);
+        if (ventana) ventana.location.href = url;
+        else {
+          const marco = document.createElement('iframe');
+          marco.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+          marco.src = url;
+          marco.onload = () => {
+            try {
+              marco.contentWindow.focus();
+              marco.contentWindow.print();
+            } catch {
+              window.open(url, '_blank');
+            }
+          };
+          document.body.appendChild(marco);
+          setTimeout(() => {
+            marco.remove();
+            URL.revokeObjectURL(url);
+          }, 120000);
+        }
+      }
+    } catch (e) {
+      ventana?.close();
+      if (e?.name !== 'AbortError' && e?.name !== 'NotAllowedError') setEstado((x) => ({ ...x, error: `No se pudo armar el remito: ${e?.message || e}` }));
+    }
+    setArmando('');
+  }
+  const linkMail = conRemito
+    ? `mailto:?subject=${encodeURIComponent(`Remito Nº ${numeroRemito(mov.remito)}${empresa ? ` · ${empresa}` : ''}`)}&body=${encodeURIComponent(textoComprobante(mov, empresa))}`
+    : '';
+
   const items = mov.items || [];
   return (
     <Modal
@@ -133,6 +209,7 @@ export default function DetalleMovimiento({ mov: movimiento, onCerrar, onCambio,
             <Icon name={tipo.icono} />
           </span>
           <div className="min-w-0 flex-1">
+            {conRemito && <p className="text-xs font-extrabold uppercase tracking-wide text-marca-naranja">Remito Nº {numeroRemito(mov.remito)}</p>}
             <p className="flex flex-wrap items-center gap-2">
               <b>{numeroMov(mov.numero)}</b>
               <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${est.clase}`}>{est.texto}</span>
@@ -250,10 +327,34 @@ export default function DetalleMovimiento({ mov: movimiento, onCerrar, onCambio,
         {estado.error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{estado.error}</p>}
         {estado.ok && <p className="rounded-xl bg-menta-500/10 p-3 text-sm text-menta-300">{estado.ok}</p>}
 
+        {!modo && conRemito && (
+          <section className="rounded-xl border border-navy-700 p-3">
+            <p className="flex items-center gap-2 text-sm font-bold">
+              <Icon name="documento" className="h-4 w-4 text-marca-naranja" /> Remito Nº {numeroRemito(mov.remito)}
+            </p>
+            <p className="mt-0.5 text-xs text-tinta-400">Con los datos de la empresa, los materiales y lugar para las firmas.</p>
+            <div className="mt-2.5 grid grid-cols-2 gap-2 min-[420px]:grid-cols-4">
+              <button type="button" className="btn btn-sec px-2 py-2 text-sm" onClick={() => remito('descargar')} disabled={!!armando}>
+                <Icon name="descargar" className="h-4 w-4" /> {armando === 'descargar' ? 'Armando…' : 'Descargar'}
+              </button>
+              <button type="button" className="btn btn-sec px-2 py-2 text-sm" onClick={() => remito('imprimir')} disabled={!!armando}>
+                <Icon name="imprimir" className="h-4 w-4" /> {armando === 'imprimir' ? 'Armando…' : 'Imprimir'}
+              </button>
+              <button type="button" className="btn btn-sec px-2 py-2 text-sm" onClick={() => remito('compartir')} disabled={!!armando}>
+                <Icon name="compartir" className="h-4 w-4" /> {armando === 'compartir' ? 'Armando…' : 'Compartir'}
+              </button>
+              <a href={linkMail} className="btn btn-sec px-2 py-2 text-sm">
+                <Icon name="mail" className="h-4 w-4" /> Por mail
+              </a>
+            </div>
+            <p className="mt-1.5 text-[11px] text-tinta-500">Por mail va el detalle escrito. Para mandar el PDF adjunto usá Compartir o Descargar.</p>
+          </section>
+        )}
+
         {!modo && (
           <div className="flex flex-wrap gap-2">
             <button type="button" className="chip" onClick={compartir}>
-              <Icon name="compartir" className="h-3.5 w-3.5" /> Compartir
+              <Icon name="compartir" className="h-3.5 w-3.5" /> {conRemito ? 'Compartir texto' : 'Compartir'}
             </button>
             {puedeCancelar && (
               <button type="button" className="chip" onClick={() => setModo('cancelar')}>

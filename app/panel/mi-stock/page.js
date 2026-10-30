@@ -20,6 +20,7 @@ export default function MiStock() {
   const [accion, setAccion] = useState('');
   const [detalle, setDetalle] = useState(null);
   const [aviso, setAviso] = useState('');
+  const [ultimoMov, setUltimoMov] = useState(null);
   const [ocupado, setOcupado] = useState('');
 
   const cargar = useCallback(async () => {
@@ -76,7 +77,26 @@ export default function MiStock() {
       <div className="space-y-5 px-4 pt-4">
         {d.cargando && <p className="py-6 text-center text-tinta-400">Cargando…</p>}
         {d.error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{d.error}</p>}
-        {aviso && <p className="rounded-xl bg-menta-500/10 p-3 text-sm text-menta-300">{aviso}</p>}
+        {aviso && (
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-menta-500/10 p-3 text-sm text-menta-300">
+            <span className="min-w-0 flex-1">{aviso}</span>
+            {ultimoMov && (
+              <button
+                type="button"
+                className="font-bold text-menta-200 underline"
+                onClick={async () => {
+                  try {
+                    setDetalle(await rpcStock('stock_comprobante', { p_id: ultimoMov }));
+                  } catch (e) {
+                    setAviso(textoError(e));
+                  }
+                }}
+              >
+                Ver comprobante y remito
+              </button>
+            )}
+          </p>
+        )}
 
         {datos && (
           <>
@@ -194,6 +214,7 @@ export default function MiStock() {
           onCerrar={() => setAccion('')}
           onListo={(r) => {
             setAviso(r.mensaje);
+            setUltimoMov(r.id || null);
             cargar();
           }}
           cuenta={cuenta}

@@ -80,6 +80,7 @@ function Stock() {
   const [accion, setAccion] = useState('');
   const [preset, setPreset] = useState({});
   const [aviso, setAviso] = useState('');
+  const [ultimoMov, setUltimoMov] = useState(null);
   const [detalle, setDetalle] = useState(null);
   const [editando, setEditando] = useState(null);
   const [deposito, setDeposito] = useState(null);
@@ -221,7 +222,26 @@ function Stock() {
         <p className="rounded-xl bg-navy-850 p-3 text-sm text-tinta-300">Ves el stock de la empresa. Para moverlo hace falta el permiso Stock.</p>
       )}
 
-      {aviso && <p className="rounded-xl bg-menta-500/10 p-3 text-sm text-menta-300">{aviso}</p>}
+      {aviso && (
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-menta-500/10 p-3 text-sm text-menta-300">
+            <span className="min-w-0 flex-1">{aviso}</span>
+            {ultimoMov && (
+              <button
+                type="button"
+                className="font-bold text-menta-200 underline"
+                onClick={async () => {
+                  try {
+                    setDetalle(await rpcStock('stock_comprobante', { p_id: ultimoMov }));
+                  } catch (e) {
+                    setAviso(textoError(e));
+                  }
+                }}
+              >
+                Ver comprobante y remito
+              </button>
+            )}
+          </p>
+        )}
 
       {/* Verificación */}
       {verif && (
@@ -559,6 +579,7 @@ function Stock() {
           onCerrar={() => setAccion('')}
           onListo={(r) => {
             setAviso(r.mensaje);
+            setUltimoMov(r.id || null);
             cargar();
             if (tab === 'movimientos') cargarMovs(movs.tipo);
           }}

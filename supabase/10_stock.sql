@@ -795,6 +795,10 @@ returns json language sql stable security definer set search_path = public as $$
     'anula_a', m.anula_a, 'anula_numero', (select a.numero from public.movimientos_stock a where a.id = m.anula_a),
     'anulado_por', m.anulado_por, 'anulado_numero', (select a.numero from public.movimientos_stock a where a.id = m.anulado_por),
     'huella', m.huella,
+    -- remito: numeración propia (sin huecos) de entregas, materiales a trabajos y devoluciones
+    'remito', case when m.tipo in ('transferencia', 'a_trabajo', 'devolucion', 'devolucion_proveedor') then
+                (select count(*) from public.movimientos_stock x where x.profesional_id = m.profesional_id
+                    and x.tipo in ('transferencia', 'a_trabajo', 'devolucion', 'devolucion_proveedor') and x.numero <= m.numero) end,
     'items', (select coalesce(json_agg(json_build_object(
                  'n', i.n, 'material_id', i.material_id, 'nombre', mt.nombre, 'codigo', mt.codigo, 'marca', mt.marca,
                  'unidad', mt.unidad, 'decimales', mt.decimales, 'presentaciones', mt.presentaciones,

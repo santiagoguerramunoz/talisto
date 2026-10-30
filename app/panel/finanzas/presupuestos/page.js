@@ -15,6 +15,7 @@ import { AVISO_SQL_04, faltaSql04, faltaTabla } from '@/lib/sql';
 import { mensajeError } from '@/lib/util';
 import { esPro } from '@/lib/planes';
 import BloqueoPlan from '@/components/BloqueoPlan';
+import PedidosCotizacion from '@/components/PedidosCotizacion';
 
 const FILTROS = [
   ['todos', 'Todos'],
@@ -113,6 +114,8 @@ function PresupuestosPro() {
           </p>
         )}
         {error && <p className="mb-3 rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
+
+        {!faltaSql && <PedidosCotizacion cuenta={profesional.id} ajustes={ajustes} onCambio={cargar} />}
 
         <div className="mb-3 flex gap-1.5 overflow-x-auto pb-0.5">
           {FILTROS.map(([valor, texto]) => {

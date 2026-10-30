@@ -20,7 +20,7 @@ Next.js + Supabase + Vercel.
 ### 1. Supabase (proyecto NUEVO, no el de Metabia)
 
 1. En supabase.com creá un proyecto nuevo llamado `talisto`.
-2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql`, `supabase/08_tickets.sql`, `supabase/09_proveedores.sql` y `supabase/10_stock.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo; el 09 los proveedores, sus listas de precios y las órdenes de compra; el 10 el stock de la empresa, del equipo y de cada trabajo). Todos se pueden volver a correr sin problema.
+2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql`, `supabase/08_tickets.sql`, `supabase/09_proveedores.sql`, `supabase/10_stock.sql` y `supabase/11_operacion.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo; el 09 los proveedores, sus listas de precios y las órdenes de compra; el 10 el stock de la empresa, del equipo y de cada trabajo; el 11 los avisos, el cierre de los trabajos en el lugar, los pedidos de cotización y los remitos). Todos se pueden volver a correr sin problema.
 3. **Authentication → URL Configuration**:
    - Site URL: `https://talisto-ashen.vercel.app` (para probar en tu PC podés usar `http://localhost:3000`).
    - Redirect URLs: solo `https://talisto-ashen.vercel.app/**` (y `http://localhost:3000/**` mientras pruebes en tu PC; después sacalo).
@@ -107,12 +107,23 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
 - Avisos: materiales por debajo del mínimo, personas que salieron del equipo con materiales a su cargo y trabajos cancelados con materiales. Planilla Excel con el stock por lugar.
 - En una empresa, el permiso nuevo **Stock y depósito** mueve el stock (Administración ya lo tiene). **Compras** lo ve y recibe las compras. Los costos los ven la cuenta principal, Importes y Compras.
 
-### 9. Seguridad
+### 9. Trabajo en el lugar, avisos y remitos
+
+- **Mis tickets** separa los clientes **B2B (empresas)** de los **B2C (particulares)**, con su etiqueta y filtro. Tocando un trabajo se abre todo el detalle: qué hay que hacer, dónde (Ir / Waze), llamar o avisarle al cliente por WhatsApp, materiales y **Cotizar**.
+- Con el trabajo en curso hay tres botones: **Finalizar** (terminado, o *cancelado* con el detalle: "No hay gente en el sitio"…), **Suspender** (vuelve a coordinación sin asignar, para reagendarlo o pasárselo a otro) y **Multi día** (se elige el día y la hora en la grilla de la semana, viendo lo que ya tiene; después ofrece avisarle al cliente por WhatsApp con un toque).
+- **Cotizar**: desde el lugar se anotan materiales y tareas; a Ventas/Administración le llega el aviso y en **Finanzas → Presupuestos** lo pasa a un presupuesto (ya con los renglones) o lo descarta con el motivo. Quien lo pidió recibe la respuesta.
+- **Equipo en ruta** muestra arriba los trabajos **Para reagendar** (los suspendidos): día, hora y a quién, y el recordatorio por WhatsApp al cliente.
+- **Avisos** (campanita): trabajo asignado (con la dirección), cambio de horario, trabajo terminado, cancelado o suspendido, "quedó libre" cuando alguien termina lo del día, entregas de stock para confirmar y sus respuestas, pedidos de cotización y su respuesta.
+- **Notificaciones al celular** (aunque la app esté cerrada): se activan una sola vez. En **/admin → Avisos al celular** tocá *Generar claves*, copiá las dos en Vercel (**Settings → Environment Variables**: `NEXT_PUBLIC_VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY`) y volvé a publicar. Después cada persona toca *Activar* en su celular (en iPhone, primero instalar la app). Sin las claves, los avisos quedan igual en la campanita.
+- **Remitos**: cada entrega, material a un trabajo y devolución tiene su **Remito Nº** (numeración propia de la empresa, sin huecos) en PDF con los datos y el logo del negocio, los materiales y lugar para las firmas: **Descargar**, **Imprimir**, **Compartir** (WhatsApp, mail con el PDF adjunto) o **Por mail** con el detalle escrito.
+
+### 10. Seguridad
 
 - La base controla todo (no la pantalla): cada cuenta solo ve y cambia lo suyo o lo que su rol permite, nadie puede pasar datos de una cuenta a otra, sin sesión solo se ve lo público, y las funciones internas no se pueden llamar desde afuera.
 - La app manda encabezados de seguridad (no se puede meter dentro de otra página, solo carga scripts propios, conexiones solo a Supabase y los mapas).
 - El permiso **Equipo** de un rol permite invitar y cambiar roles: dáselo solo a gente de confianza.
-- Las claves (`SUPABASE_SERVICE_ROLE_KEY`, `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`) van solo en Vercel; nunca en el código ni en mensajes.
+- Las claves (`SUPABASE_SERVICE_ROLE_KEY`, `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, `VAPID_PRIVATE_KEY`) van solo en Vercel; nunca en el código ni en mensajes.
+- Los avisos los arma la base (cada uno le llega solo a quien corresponde) y el servidor solo los entrega a los servicios de notificaciones de Google, Apple, Mozilla y Microsoft, cifrados de punta a punta.
 - Los links de los proveedores solo se consultan desde el servidor, con https, nunca a direcciones internas y con tiempo y tamaño máximos. Las claves de sus API quedan en una tabla que la app no puede leer.
 - El stock solo se mueve con las funciones de la base, de a una operación por empresa, y nunca queda en negativo. Los comprobantes y asientos no se pueden modificar ni borrar desde la app (solo se borran si se borra la cuenta entera).
 
@@ -154,7 +165,7 @@ npx vercel --prod            # publica en https://talisto-ashen.vercel.app
 ## Archivos
 
 ```
-supabase/01 … 10                → base de datos (correr en orden en Supabase)
+supabase/01 … 11                → base de datos (correr en orden en Supabase)
 app/page.js                     → portada
 app/login, app/registro, app/nueva-clave
 app/inicio/page.js              → pantalla del cliente (buscador en Fase 3)
@@ -165,6 +176,8 @@ app/panel/finanzas/compras      → órdenes de compra y proveedores
 app/panel/finanzas/proveedores  → ficha del proveedor y su lista de precios
 app/panel/finanzas/stock        → stock: existencias, movimientos, materiales, lugares y ficha con kardex
 app/panel/mi-stock/page.js      → Mi stock (cada persona del equipo)
+app/panel/avisos/page.js        → Avisos (campanita) y notificaciones en el celular
+app/api/avisos                  → manda las notificaciones push (servidor, sin servicios pagos)
 app/api/proveedores             → actualizar listas, stock al momento y mandar órdenes (servidor)
 app/panel/empresa/page.js       → Mi empresa: cuentas, roles e invitaciones
 app/panel/clientes/page.js      → lista de clientes

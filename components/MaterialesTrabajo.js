@@ -106,7 +106,7 @@ export default function MaterialesTrabajo({ cuenta, tipo, id, modo = 'operario',
       setAccion('');
       setRenglones([]);
       setCtx(null);
-      setEstado({ guardando: false, error: '', ok: `${numeroMov(r.numero)}: ${accion === 'usar' ? 'materiales cargados en el trabajo' : 'devolución registrada'}.` });
+      setEstado({ guardando: false, error: '', ok: `${numeroMov(r.numero)}: ${accion === 'usar' ? 'materiales cargados en el trabajo' : 'devolución registrada'}.`, id: r.id });
       await cargar();
       onCambio?.();
     } catch (e) {
@@ -173,7 +173,26 @@ export default function MaterialesTrabajo({ cuenta, tipo, id, modo = 'operario',
         </div>
       )}
 
-      {estado.ok && <p className="rounded-xl bg-menta-500/10 p-3 text-sm text-menta-300">{estado.ok}</p>}
+      {estado.ok && (
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-menta-500/10 p-3 text-sm text-menta-300">
+          <span className="min-w-0 flex-1">{estado.ok}</span>
+          {estado.id && (
+            <button
+              type="button"
+              className="font-bold text-menta-200 underline"
+              onClick={async () => {
+                try {
+                  setDetalle(await rpcStock('stock_comprobante', { p_id: estado.id }));
+                } catch (e) {
+                  setEstado((x) => ({ ...x, error: textoError(e) }));
+                }
+              }}
+            >
+              Ver remito
+            </button>
+          )}
+        </p>
+      )}
 
       {!puede && modo === 'operario' && (
         <p className="rounded-xl bg-amber-400/10 p-3 text-sm text-amber-200">Este trabajo se cerró hace más de 2 días: para corregir materiales, avisale a quien maneja el stock.</p>

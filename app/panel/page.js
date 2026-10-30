@@ -7,6 +7,7 @@ import FormBloque from '@/components/FormBloque';
 import FormTrabajoB2B from '@/components/FormTrabajoB2B';
 import TrabajosEnCurso from '@/components/TrabajosEnCurso';
 import MisTickets from '@/components/MisTickets';
+import Campanita from '@/components/Campanita';
 import Link from 'next/link';
 import { useEquipoAsignable } from '@/lib/equipo';
 import { usePanel } from '@/components/PanelContext';
@@ -75,6 +76,7 @@ function AgendaCompleta({ onVerMios }) {
             {empresa && <p className="truncate text-xs font-semibold text-menta-300">{empresa.nombre}</p>}
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
+          {(empresa || equipo.hayEquipo) && <Campanita />}
           {onVerMios && (
             <button type="button" onClick={onVerMios} className="btn btn-sec px-2.5 py-2 text-sm" aria-label="Mis tickets">
               <Icon name="maletin" className="h-4 w-4" />

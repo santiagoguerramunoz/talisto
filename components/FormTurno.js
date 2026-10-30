@@ -13,6 +13,7 @@ import { combinar, fechaISO, fechaLarga, horaHHMM, minutos, textoHora } from '@/
 import { choquesConBloques } from '@/lib/agenda';
 import { ESTADOS, linkWhatsapp, mensajeError } from '@/lib/util';
 import { hhmm, useEquipoAsignable } from '@/lib/equipo';
+import { avisar } from '@/lib/avisos';
 import { esBusiness } from '@/lib/planes';
 
 function sumarMinutos(hora, n) {
@@ -200,6 +201,7 @@ export default function FormTurno({
       setError(mensajeError(err));
       return;
     }
+    avisar();
 
     if (esRelevamiento) {
       const { error: errRel, sinUbicacion } = await guardarRelevamiento({

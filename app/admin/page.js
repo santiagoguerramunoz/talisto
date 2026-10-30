@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Logo from '@/components/Logo';
 import Icon from '@/components/Icon';
 import Modal from '@/components/Modal';
+import ClavesAvisos from '@/components/ClavesAvisos';
 import { NOMBRE_PLAN } from '@/lib/planes';
 import { supabase } from '@/lib/supabase';
 import { mensajeError, monto } from '@/lib/util';
@@ -186,6 +187,11 @@ export default function Admin() {
         ) : (
           <p className="tarjeta p-4 text-sm text-amber-200">Falta correr en Supabase el archivo <b>05_planes.sql</b> para manejar los planes.</p>
         )}
+      </section>
+
+      <section className="mt-8">
+        <h2 className="titulo-seccion mb-2">Avisos</h2>
+        <ClavesAvisos />
       </section>
 
       <section className="mt-8">

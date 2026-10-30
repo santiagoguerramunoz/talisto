@@ -14,8 +14,10 @@ import { limpiarMateriales, materialesParaEditar, numero, pesos, totalesMaterial
 import { cerrarTiempos, iniciarTiempos, sesionAbierta } from '@/lib/tiempos';
 import { ESTADOS_TRABAJO, estadoTrabajo } from '@/lib/trabajos';
 import { AVISO_SQL_04, faltaSql04 } from '@/lib/sql';
-import { linkGoogleMaps, linkWaze, mensajeError } from '@/lib/util';
+import { linkGoogleMaps, linkWaze, linkWhatsapp, mensajeError } from '@/lib/util';
 import { hhmm, useEquipoAsignable } from '@/lib/equipo';
+import { avisar } from '@/lib/avisos';
+import { textoRecordatorio } from '@/lib/trabajos';
 import { usePanel } from './PanelContext';
 import { esBusiness, esPro } from '@/lib/planes';
 import { Reloj } from './ControlTiempo';
@@ -50,6 +52,7 @@ function formDesde(orden, empresas, inicial) {
       desde: orden.hora_inicio ? String(orden.hora_inicio).slice(0, 5) : '09:00',
       hasta: orden.hora_fin ? String(orden.hora_fin).slice(0, 5) : '',
       cliente_final: orden.cliente_final || '',
+      telefono_contacto: orden.telefono_contacto || '',
       ubicacion: { direccion: orden.direccion || '', lat: orden.lat, lng: orden.lng },
       referencia: orden.referencia || '',
       pedido: orden.pedido || '',
@@ -82,6 +85,7 @@ function formDesde(orden, empresas, inicial) {
     desde: '09:00',
     hasta: '',
     cliente_final: '',
+    telefono_contacto: '',
     ubicacion: { direccion: '', lat: null, lng: null },
     referencia: '',
     pedido: '',
@@ -240,6 +244,8 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
       minutos_manual: f.minutos_manual,
       nota_estado: f.estado === 'suspendido' ? f.nota_estado?.trim() || null : null,
     };
+    // Teléfono del cliente final (SQL 11): solo se manda si hay algo que guardar
+    if ((f.telefono_contacto || '').trim() || orden?.telefono_contacto) fila.telefono_contacto = (f.telefono_contacto || '').trim().slice(0, 40) || null;
     if (conEquipo) fila.asignado_a = f.asignado_a || null;
     if (tiempoDelEquipo) {
       // El cronómetro lo maneja quien hace el trabajo. Lo que esa persona completa al cerrar
@@ -267,6 +273,7 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
       setError(faltaSql04(err) ? AVISO_SQL_04 : mensajeError(err));
       return false;
     }
+    avisar();
     onGuardado?.();
     if (cerrar) onCerrar();
     else setForm({ ...f, id: data.id, tiempos, ticketOriginal: ticket });
@@ -407,6 +414,33 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
         <div>
           <label className="etiqueta" htmlFor="o-final">Cliente final (nombre o detalle)</label>
           <input id="o-final" className="campo" value={form.cliente_final} onChange={(e) => cambiar('cliente_final', e.target.value)} placeholder="Opcional · no se guarda en tus clientes" />
+        </div>
+
+        <div>
+          <label className="etiqueta" htmlFor="o-tel">Teléfono del cliente final</label>
+          <input
+            id="o-tel"
+            type="tel"
+            inputMode="tel"
+            className="campo"
+            value={form.telefono_contacto}
+            onChange={(e) => cambiar('telefono_contacto', e.target.value)}
+            maxLength={40}
+            placeholder="Opcional · para avisarle por WhatsApp"
+          />
+          {linkWhatsapp(form.telefono_contacto) && form.fecha && (
+            <a
+              href={linkWhatsapp(
+                form.telefono_contacto,
+                textoRecordatorio({ negocio: panel?.empresa?.nombre || panel?.profesional?.nombre_publico, cliente: form.cliente_final, fechaIso: form.fecha, hora: form.conHorario ? form.desde : '' })
+              )}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-bold text-[#5be38e]"
+            >
+              <Icon name="whatsapp" className="h-4 w-4" /> Mandarle un recordatorio por WhatsApp
+            </a>
+          )}
         </div>
 
         <div>

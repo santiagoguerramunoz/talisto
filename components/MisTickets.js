@@ -1,25 +1,32 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
 import Modal from './Modal';
+import Campanita from './Campanita';
+import ActivarAvisos from './ActivarAvisos';
+import CierreTrabajo, { BotonesCierre } from './CierreTrabajo';
+import DetalleTrabajo, { EtiquetaCliente } from './DetalleTrabajo';
+import PedirCotizacion from './PedirCotizacion';
 import MaterialesTrabajo from './MaterialesTrabajo';
 import { Reloj } from './ControlTiempo';
 import { usePanel } from './PanelContext';
 import { supabase } from '@/lib/supabase';
-import { esMismoDia, fechaISO, fechaLarga, inicioDia, sumarDias } from '@/lib/fechas';
+import { avisar } from '@/lib/avisos';
+import { desdeISO, esMismoDia, fechaISO, fechaLarga, inicioDia, sumarDias } from '@/lib/fechas';
 import { ESTADOS_TRABAJO } from '@/lib/trabajos';
 import { sesionAbierta } from '@/lib/tiempos';
-import { linkGoogleMaps, linkRutaDelDia, linkWaze, mensajeError } from '@/lib/util';
+import { linkGoogleMaps, linkRutaDelDia, mensajeError } from '@/lib/util';
 import { hhmm, ubicacionActual } from '@/lib/equipo';
 
 const TIPO = {
-  ticket: { texto: 'Ticket B2B', icono: 'maletin' },
+  ticket: { texto: 'Ticket', icono: 'maletin' },
   trabajo: { texto: 'Trabajo', icono: 'herramienta' },
   visita: { texto: 'Visita técnica', icono: 'herramienta' },
   relevamiento: { texto: 'Relevamiento', icono: 'relevamiento' },
 };
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
 const claveCompartir = (cuenta) => `talisto_compartir_${cuenta}`;
 function leerCompartir(cuenta) {
@@ -38,27 +45,35 @@ function guardarCompartir(cuenta, v) {
 }
 
 const sinFuncion = (e) => !!e && (e.code === 'PGRST202' || e.code === '42883');
-const minutosDelDia = (iso) => {
-  const d = new Date(iso);
-  return d.getHours() * 60 + d.getMinutes();
-};
 const hora = (t) => (t ? String(t).slice(0, 5) : '');
+const aMin = (t) => Number(hora(t).slice(0, 2)) * 60 + Number(hora(t).slice(3, 5));
+const textoDia = (iso) => {
+  const f = desdeISO(iso);
+  return `${DIAS[f.getDay()]} ${f.getDate()}/${f.getMonth() + 1}`;
+};
 
-// Une tickets B2B y turnos en una sola lista, en el orden de la ruta
+// Une tickets B2B y trabajos de la agenda en una sola lista, en el orden de la ruta
 function armarLista(datos, fechaIso) {
   const tickets = (datos?.tickets || []).map((o) => {
     const corriendo = !!sesionAbierta(o.tiempos);
+    const desde = o.hora_inicio ? aMin(o.hora_inicio) : null;
     return {
       key: `t-${o.id}`,
       rpc: 'ticket',
       id: o.id,
       tipo: 'ticket',
+      b2b: true,
       titulo: [o.empresa, o.numero_ticket ? `Tk ${o.numero_ticket}` : o.numero_cliente ? `Cliente ${o.numero_cliente}` : null].filter(Boolean).join(' · '),
+      contacto: o.cliente_final,
+      telefono: o.telefono,
       color: o.color || '#94a3b8',
       cuando: o.hora_inicio ? `${hora(o.hora_inicio)}${o.hora_fin ? `–${hora(o.hora_fin)}` : ''}` : 'Sin horario',
-      minuto: o.hora_inicio ? Number(hora(o.hora_inicio).slice(0, 2)) * 60 + Number(hora(o.hora_inicio).slice(3, 5)) : 24 * 60,
+      horaTexto: hora(o.hora_inicio),
+      minuto: desde ?? 24 * 60,
+      duracion: desde !== null && o.hora_fin ? aMin(o.hora_fin) - desde : 60,
+      fechaIso: o.fecha,
+      fechaTexto: textoDia(o.fecha),
       deOtroDia: o.fecha !== fechaIso,
-      clienteFinal: o.cliente_final,
       lugar: o.direccion || o.lat != null ? { direccion: o.direccion || '', referencia: o.referencia, lat: o.lat, lng: o.lng } : null,
       pedido: o.pedido,
       materiales: o.materiales || [],
@@ -69,50 +84,41 @@ function armarLista(datos, fechaIso) {
       puestas: Number(o.acondicionamientos || 0),
       moes: Number(o.moes || 0),
       orden: o.orden_ruta,
-      fechaSigue: o.fecha,
     };
   });
   const turnos = (datos?.turnos || []).map((t) => {
     const corriendo = !!sesionAbierta(t.tiempos);
-    const fin = (t.tiempos || []).length && !corriendo;
+    const ini = new Date(t.inicio);
+    const k = fechaISO(ini);
     return {
       key: `u-${t.id}`,
       rpc: 'turno',
       id: t.id,
       tipo: t.tipo || 'trabajo',
+      b2b: !!t.cliente_empresa,
       titulo: t.cliente || t.titulo || 'Trabajo',
+      contacto: t.cliente,
+      telefono: t.telefono,
       color: t.color || '#2dd4bf',
       cuando: `${hhmm(t.inicio)}–${hhmm(t.fin)}`,
-      minuto: minutosDelDia(t.inicio),
+      horaTexto: hhmm(t.inicio),
+      minuto: ini.getHours() * 60 + ini.getMinutes(),
+      duracion: Math.round((new Date(t.fin) - ini) / 60000),
+      fechaIso: k,
+      fechaTexto: textoDia(k),
       lugar: t.direccion || t.lat != null ? { direccion: t.direccion || '', referencia: t.referencia, lat: t.lat, lng: t.lng } : null,
-      telefono: t.telefono,
       pedido: t.pedido || t.notas,
       notas: t.pedido ? t.notas : null,
       materiales: [],
-      estado: t.estado === 'realizado' ? 'finalizado' : corriendo ? 'en_curso' : fin && t.resolucion ? 'suspendido' : 'pendiente',
+      estado: t.estado === 'realizado' ? 'finalizado' : corriendo ? 'en_curso' : t.inicio_original ? 'multidia' : 'pendiente',
       tiempos: t.tiempos || [],
       resolucion: t.estado === 'realizado' ? t.resolucion : null,
-      nota: t.estado !== 'realizado' ? t.resolucion : null,
+      nota: t.estado !== 'realizado' ? t.nota_estado : null,
       orden: t.orden_ruta,
     };
   });
   return [...tickets, ...turnos].sort(
     (a, b) => (a.orden ?? 9999) - (b.orden ?? 9999) || a.minuto - b.minuto || a.titulo.localeCompare(b.titulo)
-  );
-}
-
-function Contador({ etiqueta, valor, onChange }) {
-  const v = Number(valor) || 0;
-  const fijar = (n) => onChange(Math.max(0, Math.round(n * 2) / 2));
-  return (
-    <div className="rounded-xl border border-navy-700 bg-navy-850 p-3">
-      <p className="text-sm font-bold">{etiqueta}</p>
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <button type="button" onClick={() => fijar(v - 0.5)} className="grid h-10 w-10 place-items-center rounded-xl bg-navy-700 text-xl font-bold" aria-label={`Restar media ${etiqueta}`}>−</button>
-        <span className="min-w-10 text-center text-2xl font-extrabold tabular-nums">{v.toLocaleString('es-UY', { minimumFractionDigits: v % 1 ? 1 : 0 })}</span>
-        <button type="button" onClick={() => fijar(v + 0.5)} className="grid h-10 w-10 place-items-center rounded-xl bg-menta-500 text-xl font-bold text-navy-950" aria-label={`Sumar media ${etiqueta}`}>+</button>
-      </div>
-    </div>
   );
 }
 
@@ -143,17 +149,27 @@ function useCompartirUbicacion(cuenta, activo) {
   return estado;
 }
 
+const FILTROS = [
+  ['todos', 'Todos'],
+  ['b2b', 'Empresas B2B'],
+  ['b2c', 'Particulares B2C'],
+];
+
 export default function MisTickets({ onVerAgenda }) {
   const { profesional, empresa } = usePanel();
   const cuenta = profesional.id;
   const [fecha, setFecha] = useState(() => inicioDia(new Date()));
   const [datos, setDatos] = useState({ cargando: true, lista: [], error: '' });
+  const [filtro, setFiltro] = useState('todos');
   const [ocupado, setOcupado] = useState('');
   const [aviso, setAviso] = useState('');
-  const [cerrando, setCerrando] = useState(null);
+  const [listo, setListo] = useState('');
   const [compartir, setCompartir] = useState(() => leerCompartir(cuenta));
   const [avisos, setAvisos] = useState(null);
-  const [materiales, setMateriales] = useState(null);
+  // pantallas encima: detalle · cierre · materiales · cotizar (una a la vez)
+  const [abierto, setAbierto] = useState(null);
+  const [recargaCot, setRecargaCot] = useState(0);
+  const [buscado, setBuscado] = useState('');
   const pedido = useRef(0);
   const fechaIso = fechaISO(fecha);
 
@@ -192,6 +208,50 @@ export default function MisTickets({ onVerAgenda }) {
     };
   }, [cargar, cargarAvisos]);
 
+  // Vengo de una notificación: /panel?trabajo=ticket:<id> → voy al día de ese trabajo y lo abro
+  useEffect(() => {
+    let q = '';
+    try {
+      q = new URLSearchParams(window.location.search).get('trabajo') || '';
+    } catch {
+      q = '';
+    }
+    if (!/^(ticket|turno):[0-9a-f-]{36}$/i.test(q)) return;
+    setBuscado(q);
+    window.history.replaceState(null, '', window.location.pathname);
+    (async () => {
+      const hoy = inicioDia(new Date());
+      const { data } = await supabase.rpc('mis_trabajos', { p_cuenta: cuenta, p_desde: fechaISO(sumarDias(hoy, -14)), p_hasta: fechaISO(sumarDias(hoy, 45)) });
+      const [tipo, id] = q.split(':');
+      const t = tipo === 'ticket' ? data?.tickets?.find((o) => o.id === id) : data?.turnos?.find((x) => x.id === id);
+      if (!t) {
+        setBuscado('');
+        setAviso('Ese trabajo ya no está a tu nombre (lo pueden haber reasignado o cerrado).');
+        return;
+      }
+      const dia = tipo === 'ticket' ? (t.estado === 'multidia' || t.estado === 'en_curso' ? hoy : desdeISO(t.fecha)) : inicioDia(new Date(t.inicio));
+      setFecha(dia < hoy && tipo === 'ticket' ? hoy : dia);
+    })();
+  }, [cuenta]);
+  useEffect(() => {
+    if (!buscado || datos.cargando) return;
+    const [tipo, id] = buscado.split(':');
+    const item = datos.lista.find((i) => i.rpc === tipo && i.id === id);
+    if (item) {
+      setAbierto({ que: 'detalle', item });
+      setBuscado('');
+    }
+  }, [buscado, datos]);
+
+  // Si el trabajo abierto cambió (se inició, se recargó), muestro lo último
+  useEffect(() => {
+    setAbierto((a) => {
+      if (!a?.item) return a;
+      const nuevo = datos.lista.find((i) => i.key === a.item.key);
+      return nuevo && nuevo !== a.item ? { ...a, item: nuevo } : a;
+    });
+  }, [datos.lista]);
+
   const ubicacionEstado = useCompartirUbicacion(cuenta, compartir === 'si');
 
   function elegirCompartir(v) {
@@ -202,33 +262,43 @@ export default function MisTickets({ onVerAgenda }) {
 
   async function iniciar(item) {
     setAviso('');
+    setListo('');
     setOcupado(item.key);
     const pos = await ubicacionActual();
     const { error } = await supabase.rpc('iniciar_trabajo', { p_tipo: item.rpc, p_id: item.id, p_lat: pos?.lat ?? null, p_lng: pos?.lng ?? null });
     setOcupado('');
     if (error) return setAviso(mensajeError(error));
+    avisar();
     cargar();
   }
 
   const lista = datos.lista;
+  const cantB2b = lista.filter((i) => i.b2b).length;
+  const cantB2c = lista.length - cantB2b;
+  const filtroReal = cantB2b > 0 && cantB2c > 0 ? filtro : 'todos';
+  const visibles = filtroReal === 'todos' ? lista : lista.filter((i) => (filtroReal === 'b2b' ? i.b2b : !i.b2b));
   const hechos = lista.filter((i) => i.estado === 'finalizado').length;
-  const pendientes = lista.filter((i) => i.estado !== 'finalizado' && i.lugar);
+  const pendientes = visibles.filter((i) => i.estado !== 'finalizado' && i.lugar);
   const ruta = linkRutaDelDia(pendientes.map((i) => i.lugar));
   const enCurso = lista.find((i) => i.estado === 'en_curso');
   const esHoy = esMismoDia(fecha, new Date());
+  const conMateriales = (item) => (usaStock && item?.tipo !== 'relevamiento' ? () => setAbierto({ que: 'materiales', item }) : null);
+  const conCotizar = (item) => (item && item.estado !== 'finalizado' ? () => setAbierto({ que: 'cotizar', item }) : null);
+  const it = abierto?.item;
 
   return (
     <>
       <header className="sticky top-0 z-30 border-b border-navy-800 bg-navy-950/95 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-2xl font-extrabold">Mis tickets</h1>
             <p className="truncate text-xs font-semibold text-menta-300">{empresa?.nombre}</p>
           </div>
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Campanita />
             {usaStock && (
-              <Link href="/panel/mi-stock" className="btn btn-sec relative px-3 py-2 text-sm">
-                <Icon name="caja" className="h-4 w-4" /> Mi stock
+              <Link href="/panel/mi-stock" className="btn btn-sec relative px-2.5 py-2 text-sm" aria-label="Mi stock">
+                <Icon name="caja" className="h-4 w-4" /> <span className="hidden min-[400px]:inline">Mi stock</span>
                 {avisos.recibir > 0 && (
                   <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-marca-naranja px-1 text-[11px] font-extrabold text-navy-950">
                     {avisos.recibir}
@@ -237,8 +307,8 @@ export default function MisTickets({ onVerAgenda }) {
               </Link>
             )}
             {onVerAgenda && (
-              <button type="button" className="btn btn-sec px-3 py-2 text-sm" onClick={onVerAgenda}>
-                <Icon name="agenda" className="h-4 w-4" /> Agenda
+              <button type="button" className="btn btn-sec px-2.5 py-2 text-sm" onClick={onVerAgenda} aria-label="Agenda de la empresa">
+                <Icon name="agenda" className="h-4 w-4" /> <span className="hidden min-[400px]:inline">Agenda</span>
               </button>
             )}
           </div>
@@ -249,6 +319,22 @@ export default function MisTickets({ onVerAgenda }) {
           <p className="flex-1 truncate px-1 font-bold">{fechaLarga(fecha)}</p>
           {!esHoy && <button onClick={() => setFecha(inicioDia(new Date()))} className="chip chip-activo">Hoy</button>}
         </div>
+        {lista.length > 0 && cantB2b > 0 && cantB2c > 0 && (
+          <div className="mt-2.5 flex gap-1.5 overflow-x-auto" role="tablist" aria-label="Tipo de cliente">
+            {FILTROS.map(([v, t]) => (
+              <button
+                key={v}
+                type="button"
+                role="tab"
+                aria-selected={filtro === v}
+                onClick={() => setFiltro(v)}
+                className={`chip shrink-0 text-xs ${filtro === v ? 'chip-activo' : ''}`}
+              >
+                {t} <span className="opacity-70">{v === 'todos' ? lista.length : v === 'b2b' ? cantB2b : cantB2c}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
       <div className="space-y-3 px-4 pt-4">
@@ -284,6 +370,8 @@ export default function MisTickets({ onVerAgenda }) {
           </label>
         )}
 
+        {compartir && <ActivarAvisos compacto />}
+
         {avisos?.recibir > 0 && (
           <Link href="/panel/mi-stock" className="flex items-center gap-3 rounded-2xl border border-amber-400/50 bg-amber-400/10 p-3 text-sm">
             <Icon name="caja" className="h-5 w-5 shrink-0 text-amber-300" />
@@ -299,11 +387,16 @@ export default function MisTickets({ onVerAgenda }) {
 
         {datos.error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{datos.error}</p>}
         {aviso && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{aviso}</p>}
+        {listo && (
+          <p className="flex items-center gap-2 rounded-xl bg-menta-500/10 p-3 text-sm text-menta-200">
+            <Icon name="check" className="h-4 w-4 shrink-0" /> {listo}
+          </p>
+        )}
 
         {lista.length > 0 && (
           <div className="flex items-center gap-2 text-sm text-tinta-300">
-            <span className="font-semibold text-tinta-100">{lista.length} {lista.length === 1 ? 'trabajo' : 'trabajos'}</span>
-            <span>· {hechos} {hechos === 1 ? 'terminado' : 'terminados'}</span>
+            <span className="font-semibold text-tinta-100">{visibles.length} {visibles.length === 1 ? 'trabajo' : 'trabajos'}</span>
+            {filtroReal === 'todos' && <span>· {hechos} {hechos === 1 ? 'terminado' : 'terminados'}</span>}
             {ruta && pendientes.length > 1 && (
               <a href={ruta} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 font-bold text-menta-300">
                 <Icon name="ruta" className="h-4 w-4" /> Ruta del día
@@ -320,42 +413,95 @@ export default function MisTickets({ onVerAgenda }) {
               <Icon name="check" />
             </span>
             <h2 className="mt-3 text-lg font-extrabold">{esHoy ? 'No tenés trabajos para hoy' : 'Sin trabajos ese día'}</h2>
-            <p className="mt-1 text-sm text-tinta-400">Cuando te asignen un ticket, un trabajo o un relevamiento, aparece acá con la dirección.</p>
+            <p className="mt-1 text-sm text-tinta-400">Cuando te asignen un ticket, un trabajo o un relevamiento, te llega un aviso y aparece acá con la dirección.</p>
           </section>
         ) : (
-          <ol className="space-y-3">
-            {lista.map((item, n) => (
+          <ol className="space-y-2.5">
+            {visibles.map((item) => (
               <Tarjeta
                 key={item.key}
                 item={item}
-                numero={n + 1}
+                numero={lista.indexOf(item) + 1}
                 ocupado={ocupado === item.key}
                 bloqueado={!!enCurso && enCurso.key !== item.key}
+                onVer={() => setAbierto({ que: 'detalle', item })}
                 onIniciar={() => iniciar(item)}
-                onFinalizar={() => setCerrando(item)}
-                onMateriales={usaStock && item.tipo !== 'relevamiento' ? () => setMateriales(item) : null}
+                onCerrarCon={(opcion) => setAbierto({ que: 'cierre', item, opcion })}
               />
             ))}
           </ol>
         )}
-        <p className="pb-4 pt-1 text-center text-xs text-tinta-500">Se actualiza solo. Los importes los ve la administración.</p>
+        <p className="pb-4 pt-1 text-center text-xs text-tinta-500">Se actualiza solo. Tocá un trabajo para ver todo el detalle.</p>
       </div>
 
-      <Cierre
-        item={cerrando}
-        onCerrar={() => setCerrando(null)}
-        onListo={() => {
-          setCerrando(null);
-          cargar();
+      {abierto?.que === 'detalle' && (
+        <DetalleTrabajo
+          item={it}
+          cuenta={cuenta}
+          recarga={recargaCot}
+          ocupado={ocupado === it.key}
+          bloqueado={!!enCurso && enCurso.key !== it.key}
+          onCerrar={() => setAbierto(null)}
+          onIniciar={() => iniciar(it)}
+          onCerrarCon={(opcion) => setAbierto({ que: 'cierre', item: it, opcion })}
+          onMateriales={conMateriales(it)}
+          onCotizar={conCotizar(it)}
+        />
+      )}
+
+      {abierto?.que === 'cierre' && (
+        <CierreTrabajo
+          item={it}
+          cuenta={cuenta}
+          opcionInicial={abierto.opcion}
+          onCerrar={() => setAbierto(null)}
+          onListo={(resultado) => {
+            setAbierto(null);
+            setListo(
+              resultado === 'finalizado'
+                ? 'Trabajo cerrado. Coordinación ya tiene el aviso.'
+                : resultado === 'cancelado'
+                  ? 'Quedó como cancelado, con el detalle para coordinación.'
+                  : resultado === 'suspendido'
+                    ? 'Suspendido: volvió a coordinación para reagendar.'
+                    : 'Pasado al otro día. Te aparece ese día en tu lista.'
+            );
+            cargar();
+          }}
+          onMateriales={conMateriales(it) ? () => setAbierto({ que: 'materiales', item: it, volver: abierto.opcion || 'finalizar' }) : null}
+        />
+      )}
+
+      <PedirCotizacion
+        abierto={abierto?.que === 'cotizar'}
+        cuenta={cuenta}
+        item={it}
+        onCerrar={() => setAbierto({ que: 'detalle', item: it })}
+        onListo={(r) => {
+          setRecargaCot((n) => n + 1);
+          setAbierto({ que: 'detalle', item: it });
+          setListo(`Pedido de cotización Nº ${r?.numero ?? ''} enviado a Ventas. Te avisamos cuando esté.`);
         }}
-        onMateriales={usaStock && cerrando?.tipo !== 'relevamiento' ? () => setMateriales(cerrando) : null}
       />
 
-      <Modal abierto={!!materiales} onCerrar={() => setMateriales(null)} titulo="Materiales del trabajo">
-        {materiales && (
+      <Modal
+        abierto={abierto?.que === 'materiales'}
+        onCerrar={() => setAbierto(abierto?.volver ? { que: 'cierre', item: it, opcion: abierto.volver } : { que: 'detalle', item: it })}
+        titulo="Materiales del trabajo"
+      >
+        {abierto?.que === 'materiales' && (
           <div className="space-y-3">
-            <p className="text-sm font-semibold text-tinta-200">{materiales.titulo}</p>
-            <MaterialesTrabajo cuenta={cuenta} tipo={materiales.rpc} id={materiales.id} modo="operario" onCambio={cargarAvisos} />
+            <p className="text-sm font-semibold text-tinta-200">{it.titulo}</p>
+            <MaterialesTrabajo
+              cuenta={cuenta}
+              tipo={it.rpc}
+              id={it.id}
+              modo="operario"
+              onCambio={() => {
+                cargarAvisos();
+                avisar();
+              }}
+            />
           </div>
         )}
       </Modal>
@@ -363,257 +509,72 @@ export default function MisTickets({ onVerAgenda }) {
   );
 }
 
-function Tarjeta({ item, numero, ocupado, bloqueado, onIniciar, onFinalizar, onMateriales }) {
+function Tarjeta({ item, numero, ocupado, bloqueado, onVer, onIniciar, onCerrarCon }) {
   const info = ESTADOS_TRABAJO[item.estado] || ESTADOS_TRABAJO.pendiente;
   const tipo = TIPO[item.tipo] || TIPO.trabajo;
   const terminado = item.estado === 'finalizado';
   const corriendo = item.estado === 'en_curso';
-  const sesiones = item.tiempos.filter((t) => t?.inicio);
-  const primera = sesiones[0];
-  const ultima = sesiones[sesiones.length - 1];
+  const empezado = item.tiempos.some((t) => t?.inicio);
   return (
-    <li className={`tarjeta overflow-hidden ${corriendo ? 'border-[#0a84ff]/60' : ''} ${terminado ? 'opacity-70' : ''}`}>
-      <div className="flex gap-3 p-4">
+    <li
+      className={`tarjeta overflow-hidden border-l-4 ${item.b2b ? 'border-l-[#0a84ff]' : 'border-l-violet-400'} ${corriendo ? 'ring-1 ring-[#0a84ff]/60' : ''} ${terminado ? 'opacity-65' : ''}`}
+    >
+      <button type="button" onClick={onVer} className="flex w-full gap-3 p-3.5 text-left hover:bg-navy-850/60">
         <span
-          className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-extrabold ${item.tipo === 'relevamiento' ? 'rounded-lg bg-marca-naranja text-navy-950' : 'text-navy-950'}`}
+          className={`grid h-8 w-8 shrink-0 place-items-center text-sm font-extrabold text-navy-950 ${item.tipo === 'relevamiento' ? 'rounded-lg bg-marca-naranja' : 'rounded-full'}`}
           style={item.tipo === 'relevamiento' ? undefined : { background: item.color }}
         >
           {terminado ? <Icon name="check" className="h-4 w-4" /> : numero}
         </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <p className="min-w-0 font-bold leading-tight">{item.titulo}</p>
+        <span className="block min-w-0 flex-1">
+          <span className="flex items-center justify-between gap-2">
+            <EtiquetaCliente b2b={item.b2b} />
             <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${info.clase}`}>
               {corriendo && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#0a84ff]" />}
               {info.texto}
             </span>
-          </div>
-          <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-tinta-400">
-            <Icon name={tipo.icono} className="h-3.5 w-3.5" /> {tipo.texto} · {item.cuando}
+          </span>
+          <span className="mt-1 block truncate font-bold leading-tight">{item.titulo}</span>
+          <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-tinta-400">
+            <Icon name={tipo.icono} className="h-3.5 w-3.5" /> {tipo.texto} · <b className="text-tinta-200">{item.cuando}</b>
             {item.deOtroDia && <span className="rounded bg-[#176ba8]/30 px-1.5 text-[#8cc4ee]">Viene de otro día</span>}
-          </p>
-          {item.clienteFinal && <p className="mt-1 text-sm text-tinta-200">{item.clienteFinal}</p>}
+            {corriendo && (
+              <>
+                · <Reloj tiempos={item.tiempos} className="font-bold text-[#8cc8ff]" />
+              </>
+            )}
+          </span>
           {item.lugar && (
-            <p className="mt-1 flex gap-1.5 text-sm text-tinta-200">
-              <Icon name="pin" className="mt-0.5 h-4 w-4 shrink-0 text-tinta-400" />
-              <span>
-                {item.lugar.direccion || 'Ubicación marcada en el mapa'}
-                {item.lugar.referencia && <span className="block text-xs text-tinta-400">{item.lugar.referencia}</span>}
-              </span>
-            </p>
+            <span className="mt-1 flex items-center gap-1.5 text-sm text-tinta-200">
+              <Icon name="pin" className="h-3.5 w-3.5 shrink-0 text-tinta-400" />
+              <span className="truncate">{item.lugar.direccion || 'Ubicación marcada en el mapa'}</span>
+            </span>
           )}
-          {item.pedido && (
-            <p className="mt-2 whitespace-pre-line rounded-xl bg-navy-850 p-2.5 text-sm text-tinta-200">
-              <b className="block text-xs uppercase tracking-wide text-tinta-400">{item.tipo === 'relevamiento' ? 'Qué pide el cliente' : 'Qué hay que hacer'}</b>
-              {item.pedido}
-            </p>
+          {item.pedido && <span className="mt-1 line-clamp-2 text-[13px] leading-snug text-tinta-300">{item.pedido}</span>}
+          {item.nota && !terminado && (
+            <span className="mt-1 block truncate text-xs text-red-300">
+              {item.estado === 'multidia' ? 'Avance' : 'Motivo'}: {item.nota}
+            </span>
           )}
-          {item.notas && <p className="mt-1.5 text-xs text-tinta-400">Notas: {item.notas}</p>}
-          {item.materiales?.length > 0 && (
-            <p className="mt-1.5 text-xs text-tinta-300">
-              <b className="text-tinta-200">Materiales:</b>{' '}
-              {item.materiales.map((m) => [m.item, m.cantidad ? `${m.cantidad}${m.unidad ? ` ${m.unidad}` : ''}` : ''].filter(Boolean).join(' ')).join(' · ')}
-            </p>
-          )}
-          {item.nota && item.estado !== 'finalizado' && <p className="mt-1.5 text-xs text-red-300">{item.estado === 'multidia' ? 'Avance' : 'Motivo'}: {item.nota}</p>}
-          {item.estado === 'multidia' && item.fechaSigue && <p className="mt-1 text-xs text-[#8cc4ee]">Sigue el {item.fechaSigue.split('-').reverse().join('/')}</p>}
-          {terminado && item.resolucion && (
-            <p className="mt-2 rounded-xl bg-menta-500/10 p-2.5 text-sm text-menta-200">
-              <b className="block text-xs uppercase tracking-wide text-menta-300">Cómo quedó</b>
-              {item.resolucion}
-            </p>
-          )}
-          {primera && (
-            <p className="mt-1.5 text-xs text-tinta-400">
-              Inicio {hhmm(primera.inicio)}
-              {ultima?.fin ? ` · Fin ${hhmm(ultima.fin)}` : ''}
-              {sesiones.length > 1 ? ` · ${sesiones.length} tramos` : ''} ·{' '}
-              <Reloj tiempos={item.tiempos} className={corriendo ? 'font-bold text-[#8cc8ff]' : ''} />
-            </p>
-          )}
-        </div>
-      </div>
+        </span>
+      </button>
 
-      {!terminado && (
-        <div className="space-y-2 border-t border-navy-800 p-3">
-          {corriendo ? (
-            <button type="button" className="btn w-full bg-red-500 py-3 text-base font-extrabold text-white hover:bg-red-400" onClick={onFinalizar}>
-              <Icon name="parar" /> Finalizar
-            </button>
-          ) : (
-            <button type="button" className="btn btn-menta w-full py-3 text-base font-extrabold" onClick={onIniciar} disabled={ocupado || bloqueado}>
-              <Icon name="play" /> {ocupado ? 'Iniciando…' : sesiones.length ? 'Retomar' : 'Iniciar'}
-            </button>
+      {corriendo && <BotonesCierre onCerrarCon={onCerrarCon} className="border-t border-navy-800 p-2.5" />}
+      {!terminado && !corriendo && (
+        <div className="flex gap-2 border-t border-navy-800 p-2.5">
+          <button type="button" className="btn btn-menta flex-1 py-2.5 font-extrabold" onClick={onIniciar} disabled={ocupado || bloqueado} title={bloqueado ? 'Primero cerrá el trabajo en curso' : undefined}>
+            <Icon name="play" className="h-5 w-5" /> {ocupado ? 'Iniciando…' : empezado ? 'Retomar' : 'Iniciar'}
+          </button>
+          {item.lugar && (
+            <a href={linkGoogleMaps(item.lugar)} target="_blank" rel="noreferrer" className="btn btn-sec px-3.5 py-2.5 text-sm" aria-label="Cómo llegar">
+              <Icon name="ir" className="h-4 w-4" /> Ir
+            </a>
           )}
-          {bloqueado && !corriendo && <p className="text-center text-xs text-tinta-500">Primero finalizá el trabajo que tenés en curso.</p>}
-          {(item.lugar || item.telefono) && (
-            <div className="grid grid-flow-col gap-2">
-              {item.lugar && (
-                <a href={linkGoogleMaps(item.lugar)} target="_blank" rel="noreferrer" className="btn btn-sec py-2 text-sm">
-                  <Icon name="ir" className="h-4 w-4" /> Ir
-                </a>
-              )}
-              {item.lugar && (
-                <a href={linkWaze(item.lugar)} target="_blank" rel="noreferrer" className="btn btn-sec py-2 text-sm">Waze</a>
-              )}
-              {item.telefono && (
-                <a href={`tel:${String(item.telefono).replace(/[^\d+]/g, '')}`} className="btn btn-sec py-2 text-sm">
-                  <Icon name="telefono" className="h-4 w-4" /> Llamar
-                </a>
-              )}
-            </div>
-          )}
-          {onMateriales && (
-            <button type="button" className="btn btn-sec w-full py-2 text-sm" onClick={onMateriales}>
-              <Icon name="caja" className="h-4 w-4" /> Materiales
-            </button>
-          )}
-        </div>
-      )}
-      {terminado && onMateriales && (
-        <div className="border-t border-navy-800 p-3">
-          <button type="button" className="btn btn-sec w-full py-2 text-sm" onClick={onMateriales}>
-            <Icon name="caja" className="h-4 w-4" /> Materiales
+          <button type="button" className="btn btn-sec px-3.5 py-2.5 text-sm" onClick={onVer}>
+            <Icon name="ojo" className="h-4 w-4" /> Ver
           </button>
         </div>
       )}
     </li>
-  );
-}
-
-// ¿Cómo queda el trabajo? Terminado (con la resolución) · Suspendido · Sigue otro día
-function Cierre({ item, onCerrar, onListo, onMateriales }) {
-  const [paso, setPaso] = useState('finalizado');
-  const [texto, setTexto] = useState('');
-  const [motivo, setMotivo] = useState('');
-  const [puestas, setPuestas] = useState(0);
-  const [moes, setMoes] = useState(0);
-  const [otroDia, setOtroDia] = useState('');
-  const [error, setError] = useState('');
-  const [guardando, setGuardando] = useState(false);
-
-  useEffect(() => {
-    if (!item) return;
-    setPaso('finalizado');
-    setTexto(item.resolucion || '');
-    setMotivo('');
-    setPuestas(item.puestas || (item.tipo === 'ticket' ? 1 : 0));
-    setMoes(item.moes || 0);
-    setOtroDia(fechaISO(sumarDias(new Date(), 1)));
-    setError('');
-  }, [item]);
-
-  const opciones = useMemo(
-    () => [
-      ['finalizado', 'Terminado'],
-      ['suspendido', item?.tipo === 'ticket' ? 'Suspendido' : 'No se pudo'],
-      ...(item?.tipo === 'ticket' ? [['multidia', 'Sigue otro día']] : []),
-    ],
-    [item]
-  );
-
-  if (!item) return null;
-
-  async function guardar() {
-    setError('');
-    if (paso === 'finalizado' && !texto.trim()) return setError('Contá qué hiciste y cómo quedó.');
-    if (paso === 'suspendido' && !motivo.trim()) return setError('Poné el motivo.');
-    setGuardando(true);
-    const pos = await ubicacionActual();
-    const { error: err } = await supabase.rpc('terminar_trabajo', {
-      p_tipo: item.rpc,
-      p_id: item.id,
-      p_resultado: paso,
-      p_resolucion: paso === 'suspendido' ? null : texto.trim() || null,
-      p_puestas: item.tipo === 'ticket' && paso === 'finalizado' ? puestas : null,
-      p_moes: item.tipo === 'ticket' && paso === 'finalizado' ? moes : null,
-      p_nota: paso === 'suspendido' ? motivo.trim() : null,
-      p_lat: pos?.lat ?? null,
-      p_lng: pos?.lng ?? null,
-      p_fecha: paso === 'multidia' ? otroDia : null,
-    });
-    setGuardando(false);
-    if (err) return setError(mensajeError(err));
-    onListo();
-  }
-
-  return (
-    <Modal
-      abierto={!!item}
-      onCerrar={() => !guardando && onCerrar()}
-      titulo="¿Cómo queda el trabajo?"
-      pie={
-        <button type="button" className="btn btn-menta w-full" onClick={guardar} disabled={guardando}>
-          {guardando ? 'Guardando…' : paso === 'finalizado' ? 'Cerrar el trabajo' : paso === 'multidia' ? 'Pasar a ese día' : 'Guardar'}
-        </button>
-      }
-    >
-      <div className="space-y-4">
-        <p className="text-sm font-semibold text-tinta-200">{item.titulo}</p>
-        <div className={`grid gap-1.5 rounded-2xl bg-navy-850 p-1.5 ${opciones.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-          {opciones.map(([v, t]) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setPaso(v)}
-              className={`rounded-xl px-1 py-2.5 text-sm font-bold ${paso === v ? 'bg-navy-700 text-tinta-100' : 'text-tinta-400'}`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-
-        {paso !== 'suspendido' && (
-          <div>
-            <label className="etiqueta" htmlFor="mt-res">{paso === 'multidia' ? '¿Qué avanzaste? (opcional)' : '¿Qué hiciste y cómo quedó?'}</label>
-            <textarea
-              id="mt-res"
-              rows={4}
-              className="campo"
-              value={texto}
-              onChange={(e) => setTexto(e.target.value)}
-              maxLength={2000}
-              placeholder={item.tipo === 'relevamiento' ? 'Medidas, qué hay que hacer, materiales que van a hacer falta…' : 'Ej. Se cambió el router y se probó la conexión: anda bien.'}
-            />
-          </div>
-        )}
-
-        {paso === 'finalizado' && item.tipo === 'ticket' && (
-          <div className="grid grid-cols-2 gap-2">
-            <Contador etiqueta="Puestas" valor={puestas} onChange={setPuestas} />
-            <Contador etiqueta="MOE" valor={moes} onChange={setMoes} />
-          </div>
-        )}
-
-        {paso === 'suspendido' && (
-          <div>
-            <label className="etiqueta" htmlFor="mt-mot">{item.tipo === 'ticket' ? '¿Por qué se suspende?' : '¿Por qué no se pudo hacer?'}</label>
-            <input id="mt-mot" className="campo" value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={500} placeholder="Ej. Falta material, no estaba el cliente…" />
-          </div>
-        )}
-
-        {paso === 'multidia' && (
-          <div>
-            <label className="etiqueta" htmlFor="mt-dia">¿Qué día seguís?</label>
-            <input id="mt-dia" type="date" className="campo" value={otroDia} min={fechaISO(sumarDias(new Date(), 1))} onChange={(e) => e.target.value && setOtroDia(e.target.value)} />
-            <p className="mt-1 text-xs text-tinta-400">El tiempo se va sumando. El ticket te aparece ese día.</p>
-          </div>
-        )}
-
-        {onMateriales && paso !== 'suspendido' && (
-          <button type="button" onClick={onMateriales} className="flex w-full items-center gap-3 rounded-xl border border-navy-700 bg-navy-850 p-3 text-left text-sm hover:bg-navy-800">
-            <Icon name="caja" className="h-5 w-5 shrink-0 text-menta-300" />
-            <span className="min-w-0 flex-1">
-              <b className="block">¿Usaste materiales?</b>
-              <span className="text-xs text-tinta-400">Cargá lo que usaste de tu stock y devolvé lo que sobró.</span>
-            </span>
-            <Icon name="der" className="h-4 w-4 shrink-0 text-tinta-400" />
-          </button>
-        )}
-
-        <p className="text-xs text-tinta-500">Se guarda la hora y el lugar donde estás.</p>
-        {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
-      </div>
-    </Modal>
   );
 }
