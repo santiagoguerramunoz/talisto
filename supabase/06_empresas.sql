@@ -24,7 +24,7 @@ end $$;
 create or replace function public.permisos_validos()
 returns text[] language sql immutable as $$
   select array['agenda','clientes','relevamientos','tickets_asignar','tickets_trabajar',
-               'presupuestos','importes','gastos','equipo','compras','stock']::text[];
+               'presupuestos','importes','gastos','equipo','compras','stock','comisiones']::text[];
 $$;
 
 create or replace function public.uuid_o_null(t text)

@@ -13,12 +13,15 @@ import { cargarClientes } from '@/lib/clientes';
 import { useAjustes } from '@/lib/ajustes';
 import { indexarClientes } from '@/lib/agenda';
 import { fechaISO } from '@/lib/fechas';
-import { importeLinea, limpiarMateriales, materialesParaEditar, numero, pesos, totalesPresupuesto } from '@/lib/precios';
+import {
+  MONEDAS_PRESUPUESTO, dinero, importeLinea, limpiarMateriales, materialesParaEditar, monedaLinea, numero, textoTotales, totalesMonedas,
+} from '@/lib/precios';
 import { ESTADOS_PRESUPUESTO, fechaUY, numeroPresupuesto, sumarDiasISO } from '@/lib/presupuestos';
 import { crearPdfPresupuesto, nombreArchivoPresupuesto } from '@/lib/presupuestoPdf';
 import { AVISO_SQL_04, faltaSql04 } from '@/lib/sql';
 import { linkWhatsapp, mensajeError } from '@/lib/util';
-import { esPro } from '@/lib/planes';
+import { esBusiness, esPro } from '@/lib/planes';
+import { avisar } from '@/lib/avisos';
 import BloqueoPlan from '@/components/BloqueoPlan';
 
 const texto = (v) => (v === null || v === undefined ? '' : String(v));
@@ -36,10 +39,14 @@ function formDesde(p) {
     mano_obra_texto: p.mano_obra_texto || 'Mano de obra',
     iva_porcentaje: texto(p.iva_porcentaje ?? 22),
     notas: p.notas || '',
+    moneda: p.moneda || 'UYU',
+    cotizacion: texto(p.cotizacion),
+    mano_obra_moneda: p.mano_obra_moneda || 'UYU',
+    vendedor_id: p.vendedor_id || '',
   };
 }
 
-function filaDesde(f) {
+function filaDesde(f, conMonedas = false) {
   return {
     cliente_id: f.cliente_id || null,
     cliente_nombre: f.cliente_nombre.trim() || null,
@@ -52,6 +59,15 @@ function filaDesde(f) {
     mano_obra_texto: f.mano_obra_texto.trim() || 'Mano de obra',
     iva_porcentaje: Math.min(100, Math.max(0, numero(f.iva_porcentaje) ?? 22)),
     notas: f.notas.trim() || null,
+    // Moneda (SQL 12): solo se manda si se usa, así sigue andando sin el SQL
+    ...(conMonedas || f.moneda !== 'UYU'
+      ? {
+          moneda: f.moneda,
+          cotizacion: numero(f.cotizacion) > 0 ? numero(f.cotizacion) : null,
+          mano_obra_moneda: f.moneda === 'mixto' ? f.mano_obra_moneda : f.moneda === 'USD' ? 'USD' : 'UYU',
+          ...(f.vendedor_id ? { vendedor_id: f.vendedor_id } : {}),
+        }
+      : {}),
   };
 }
 
@@ -95,6 +111,9 @@ function EditorPresupuestoPro() {
   const [cambios, setCambios] = useState(false);
   const [modalTurno, setModalTurno] = useState(null);
   const [pdfListo, setPdfListo] = useState(null); // si el celular pide tocar de nuevo para compartir
+  const [vendedores, setVendedores] = useState(null); // quien maneja comisiones puede elegir el vendedor
+  const [comision, setComision] = useState(null);
+  const business = esBusiness(usePanel().plan?.plan);
 
   const cargar = useCallback(async () => {
     const [{ data, error }, cl] = await Promise.all([
@@ -109,9 +128,21 @@ function EditorPresupuestoPro() {
     setCambios(false);
   }, [id, profesional.id]);
 
+  const cargarComision = useCallback(async () => {
+    const { data } = await supabase.from('comisiones').select('*').eq('presupuesto_id', id).maybeSingle();
+    setComision(data || null);
+  }, [id]);
+
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  // Comisiones (SQL 12, Business): vendedores y la comisión de este presupuesto
+  useEffect(() => {
+    if (!business) return;
+    supabase.rpc('vendedores_comision', { p_cuenta: profesional.id }).then(({ data, error }) => setVendedores(error ? null : data || []));
+    cargarComision();
+  }, [business, profesional.id, cargarComision]);
 
   const indice = useMemo(() => indexarClientes(clientes), [clientes]);
 
@@ -129,7 +160,11 @@ function EditorPresupuestoPro() {
     setForm((f) => ({ ...f, [campo]: v }));
     setCambios(true);
   };
-  const t = totalesPresupuesto(form);
+  const tm = totalesMonedas(form);
+  const dosMonedas = tm.usaUSD && tm.usaUYU;
+  const usaDolares = form.moneda !== 'UYU';
+  const faltaCotizacion = usaDolares && !(numero(form.cotizacion) > 0);
+  const monedaMO = form.moneda === 'mixto' ? form.mano_obra_moneda : form.moneda === 'USD' ? 'USD' : 'UYU';
   const estado = ESTADOS_PRESUPUESTO[p.estado] || ESTADOS_PRESUPUESTO.borrador;
   const cliente = clientes.find((c) => c.id === form.cliente_id);
   const negocio = {
@@ -140,6 +175,42 @@ function EditorPresupuestoPro() {
     email: ajustes.email || user.email,
     direccion: ajustes.direccion,
   };
+
+  // Al pasar todo a pesos o a dólares, los precios se convierten con la cotización
+  function elegirMoneda(m) {
+    if (m === form.moneda) return;
+    const cotTexto = m !== 'UYU' && !numero(form.cotizacion) && ajustes.cotizacion_dolar ? String(ajustes.cotizacion_dolar) : form.cotizacion;
+    const cot = numero(cotTexto);
+    let convertidos = 0;
+    const convertir = (valor, de) => {
+      const v = numero(valor);
+      if (v === null || de === m || !(cot > 0)) return valor;
+      convertidos += 1;
+      return String(Math.round((m === 'USD' ? v / cot : v * cot) * 100) / 100);
+    };
+    const items =
+      m === 'mixto'
+        ? form.items.map((x) => ({ ...x, moneda: monedaLinea(x, form.moneda) }))
+        : form.items.map((x) => {
+            const de = monedaLinea(x, form.moneda);
+            return { ...x, costo: convertir(x.costo, de), precio: convertir(x.precio, de), moneda: m };
+          });
+    const moDe = form.moneda === 'mixto' ? form.mano_obra_moneda : form.moneda === 'USD' ? 'USD' : 'UYU';
+    const manoObra = m === 'mixto' ? form.mano_obra : convertir(form.mano_obra, moDe);
+    setForm((f) => ({ ...f, moneda: m, cotizacion: cotTexto, items, mano_obra: manoObra, mano_obra_moneda: m === 'mixto' ? moDe : m === 'USD' ? 'USD' : 'UYU' }));
+    setCambios(true);
+    if (convertidos > 0) setAviso({ ok: `Pasé los precios a ${m === 'USD' ? 'dólares' : 'pesos'} con el dólar a ${dinero(cot, 'UYU')}. Revisalos y guardá.` });
+    else if (m !== 'mixto' && !(cot > 0) && form.items.some((x) => numero(x.precio))) setAviso({ error: 'Poné la cotización del dólar y revisá los precios: quedaron como estaban.' });
+  }
+
+  async function calcularComision() {
+    setAviso({});
+    const { error } = await supabase.rpc('calcular_comision', { p_presupuesto: p.id });
+    if (error) return setAviso({ error: mensajeError(error) });
+    avisar();
+    cargarComision();
+    setAviso({ ok: 'Comisión calculada.' });
+  }
 
   function elegirCliente(clienteId) {
     const c = clientes.find((x) => x.id === clienteId);
@@ -158,7 +229,7 @@ function EditorPresupuestoPro() {
     setOcupado(true);
     const { data, error } = await supabase
       .from('presupuestos')
-      .update({ ...filaDesde(form), ...extra })
+      .update({ ...filaDesde(form, 'moneda' in p), ...extra })
       .eq('id', p.id)
       .select('*')
       .single();
@@ -171,6 +242,10 @@ function EditorPresupuestoPro() {
     setForm(formDesde(data));
     setCambios(false);
     if (mensaje) setAviso({ ok: mensaje });
+    if ('cobrado_en' in extra || 'vendedor_id' in extra) {
+      avisar();
+      cargarComision();
+    }
     return data;
   }
 
@@ -246,13 +321,18 @@ function EditorPresupuestoPro() {
 
   const hasta = sumarDiasISO(form.fecha, numero(form.validez_dias) || 15);
   const telefono = cliente?.telefono;
-  const textoWhatsapp = `Hola ${form.cliente_nombre || ''}! Te paso el presupuesto Nº ${numeroPresupuesto(p.numero)} por ${pesos(t.total)} (IVA incluido). Cualquier consulta me decís.${
+  const textoWhatsapp = `Hola ${form.cliente_nombre || ''}! Te paso el presupuesto Nº ${numeroPresupuesto(p.numero)} por ${textoTotales(tm)} (IVA incluido). Cualquier consulta me decís.${
     negocio.nombre ? ` — ${negocio.nombre}` : ''
   }`;
   const filasCliente = [
-    ...form.items.filter((m) => String(m.item || '').trim()).map((m) => ({ desc: m.item, cant: numero(m.cantidad) ?? 0, unit: numero(m.precio) ?? 0, imp: importeLinea(m) })),
-    ...(t.manoObra > 0 ? [{ desc: form.mano_obra_texto || 'Mano de obra', cant: 1, unit: t.manoObra, imp: t.manoObra }] : []),
+    ...form.items
+      .filter((m) => String(m.item || '').trim())
+      .map((m) => ({ desc: m.item, cant: numero(m.cantidad) ?? 0, unit: numero(m.precio) ?? 0, imp: importeLinea(m), mon: monedaLinea(m, form.moneda) })),
+    ...(tm[monedaMO].manoObra > 0
+      ? [{ desc: form.mano_obra_texto || 'Mano de obra', cant: 1, unit: tm[monedaMO].manoObra, imp: tm[monedaMO].manoObra, mon: monedaMO }]
+      : []),
   ];
+  const monedasCliente = dosMonedas ? ['USD', 'UYU'] : [tm.usaUSD ? 'USD' : 'UYU'];
 
   return (
     <>
@@ -311,8 +391,53 @@ function EditorPresupuestoPro() {
           <p className="text-xs text-tinta-400">Válido hasta el {fechaUY(hasta)}.</p>
         </section>
 
+        {/* Moneda */}
+        <section className="tarjeta space-y-3 p-4">
+          <div>
+            <p className="etiqueta">¿En qué moneda se cobra?</p>
+            <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-navy-850 p-1.5">
+              {MONEDAS_PRESUPUESTO.map(([v, t, simbolo]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => elegirMoneda(v)}
+                  aria-pressed={form.moneda === v}
+                  className={`rounded-xl px-1 py-2 text-sm font-bold ${form.moneda === v ? 'bg-navy-700 text-tinta-100' : 'text-tinta-400'}`}
+                >
+                  {t}
+                  <span className="block text-[11px] font-semibold opacity-70">{simbolo}</span>
+                </button>
+              ))}
+            </div>
+            {aviso.ok?.startsWith('Pasé') && <p className="mt-1.5 text-xs font-semibold text-menta-300">{aviso.ok}</p>}
+            {form.moneda === 'mixto' && (
+              <p className="mt-1.5 text-xs text-tinta-400">Cada renglón va en su moneda: tocá el <b>$</b> o <b>US$</b> de cada uno. El cliente ve dos columnas y dos totales.</p>
+            )}
+          </div>
+          {usaDolares && (
+            <div className="grid grid-cols-[1fr_9rem] items-end gap-2">
+              <label className="text-sm font-semibold text-tinta-300" htmlFor="p-cot">
+                Cotización del dólar
+                <span className="block text-xs font-normal text-tinta-400">Pesos por US$ 1, para la equivalencia y Finanzas</span>
+              </label>
+              <input
+                id="p-cot"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                className={`campo ${faltaCotizacion ? 'border-amber-400/70' : ''}`}
+                value={form.cotizacion}
+                onChange={(e) => cambiar('cotizacion', e.target.value)}
+                placeholder="Ej. 40,25"
+              />
+            </div>
+          )}
+        </section>
+
         {/* Ítems con costo y margen */}
         <EditorMateriales
+          moneda={form.moneda}
           materiales={form.items}
           onChange={(items) => cambiar('items', items)}
           margenDefecto={ajustes.margen_materiales}
@@ -343,22 +468,65 @@ function EditorPresupuestoPro() {
             </div>
             <div>
               <label className="etiqueta" htmlFor="p-mo">Mano de obra</label>
-              <input id="p-mo" type="number" inputMode="decimal" min="0" className="campo" value={form.mano_obra} onChange={(e) => cambiar('mano_obra', e.target.value)} placeholder="UYU" />
+              <div className="flex gap-1">
+                {form.moneda === 'mixto' && (
+                  <button
+                    type="button"
+                    onClick={() => cambiar('mano_obra_moneda', monedaMO === 'USD' ? 'UYU' : 'USD')}
+                    className={`shrink-0 rounded-lg px-2 text-xs font-extrabold ${monedaMO === 'USD' ? 'bg-[#2f9e5b]/25 text-[#7be0a5]' : 'bg-[#176ba8]/25 text-[#8cc4ee]'}`}
+                    aria-label="Moneda de la mano de obra (tocá para cambiar)"
+                  >
+                    {monedaMO === 'USD' ? 'US$' : '$'}
+                  </button>
+                )}
+                <input id="p-mo" type="number" inputMode="decimal" min="0" className="campo min-w-0" value={form.mano_obra} onChange={(e) => cambiar('mano_obra', e.target.value)} placeholder={monedaMO === 'USD' ? 'US$' : 'UYU'} />
+              </div>
             </div>
           </div>
           <div className="flex items-center justify-between gap-3">
             <label className="text-sm font-semibold text-tinta-300" htmlFor="p-iva">IVA (%)</label>
             <input id="p-iva" type="number" inputMode="decimal" min="0" max="100" className="campo w-32" value={form.iva_porcentaje} onChange={(e) => cambiar('iva_porcentaje', e.target.value)} />
           </div>
-          <div className="space-y-1 border-t border-navy-800 pt-3 text-sm">
-            <div className="flex justify-between text-tinta-300"><span>Materiales</span><span>{pesos(t.venta)}</span></div>
-            <div className="flex justify-between text-tinta-300"><span>Mano de obra</span><span>{pesos(t.manoObra)}</span></div>
-            <div className="flex justify-between font-semibold"><span>Subtotal</span><span>{pesos(t.subtotal)}</span></div>
-            <div className="flex justify-between text-tinta-300"><span>IVA {numero(form.iva_porcentaje) ?? 0}%</span><span>{pesos(t.iva)}</span></div>
-            <div className="flex justify-between pt-1 text-lg font-extrabold"><span>Total IVA inc.</span><span className="text-menta-300">{pesos(t.total)}</span></div>
+          <div className="border-t border-navy-800 pt-3 text-sm">
+            <div className={`grid gap-x-3 gap-y-1 ${dosMonedas ? 'grid-cols-[1fr_auto_auto]' : 'grid-cols-[1fr_auto]'}`}>
+              {dosMonedas && (
+                <>
+                  <span />
+                  <span className="text-right text-[11px] font-bold uppercase text-[#7be0a5]">US$</span>
+                  <span className="text-right text-[11px] font-bold uppercase text-[#8cc4ee]">Pesos</span>
+                </>
+              )}
+              {[
+                ['Materiales', 'venta', 'text-tinta-300'],
+                ['Mano de obra', 'manoObra', 'text-tinta-300'],
+                ['Subtotal', 'subtotal', 'font-semibold'],
+                [`IVA ${numero(form.iva_porcentaje) ?? 0}%`, 'iva', 'text-tinta-300'],
+              ].map(([etq, campo, clase]) => (
+                <div key={campo} className={`contents ${clase}`}>
+                  <span>{etq}</span>
+                  {monedasCliente.map((k) => (
+                    <span key={k} className="text-right tabular-nums">{dinero(tm[k][campo], k)}</span>
+                  ))}
+                </div>
+              ))}
+              <div className="contents text-lg font-extrabold">
+                <span className="pt-1">Total IVA inc.</span>
+                {monedasCliente.map((k) => (
+                  <span key={k} className="pt-1 text-right tabular-nums text-menta-300">{dinero(tm[k].total, k)}</span>
+                ))}
+              </div>
+            </div>
+            {usaDolares && tm.cotizacion > 0 && (
+              <p className="mt-2 rounded-xl bg-[#176ba8]/15 p-2.5 text-xs text-[#a9d4f5]">
+                {dosMonedas ? 'Todo junto equivale' : 'Equivale'} a <b>{dinero(tm.equivalente.total, 'UYU')}</b> o <b>{dinero(tm.equivalente.total / tm.cotizacion, 'USD')}</b> con el dólar a{' '}
+                {dinero(tm.cotizacion, 'UYU')}.
+              </p>
+            )}
+            {faltaCotizacion && <p className="mt-2 text-xs font-semibold text-amber-300">Poné la cotización del dólar para poder guardar.</p>}
           </div>
           <p className="rounded-xl bg-navy-850 p-2.5 text-xs text-tinta-400">
-            Solo para vos: costo de materiales {pesos(t.costo)} · ganancia {pesos(t.gananciaTotal)} (con la mano de obra).
+            Solo para vos: costo de materiales {monedasCliente.map((k) => dinero(tm[k].costo, k)).join(' + ')} · ganancia{' '}
+            {monedasCliente.map((k) => dinero(tm[k].ganancia, k)).join(' + ')} (con la mano de obra).
           </p>
         </section>
 
@@ -404,26 +572,54 @@ function EditorPresupuestoPro() {
               <thead>
                 <tr className="bg-[#0b1730] text-white">
                   <th className="px-2 py-1.5 text-left font-semibold">Descripción</th>
-                  <th className="px-1 py-1.5 text-right font-semibold">Cant.</th>
-                  <th className="px-1 py-1.5 text-right font-semibold">Unit.</th>
-                  <th className="px-2 py-1.5 text-right font-semibold">Importe</th>
+                  {!dosMonedas && <th className="px-1 py-1.5 text-right font-semibold">Cant.</th>}
+                  {!dosMonedas && <th className="px-1 py-1.5 text-right font-semibold">Unit.</th>}
+                  {monedasCliente.map((k) => (
+                    <th key={k} className="px-2 py-1.5 text-right font-semibold">{dosMonedas ? (k === 'USD' ? 'US$' : '$') : 'Importe'}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {filasCliente.map((f, i) => (
                   <tr key={i} className={i % 2 ? 'bg-[#f3f6f9]' : ''}>
-                    <td className="px-2 py-1.5">{f.desc}</td>
-                    <td className="px-1 py-1.5 text-right">{f.cant.toLocaleString('es-UY')}</td>
-                    <td className="px-1 py-1.5 text-right whitespace-nowrap">{pesos(f.unit)}</td>
-                    <td className="px-2 py-1.5 text-right font-semibold whitespace-nowrap">{pesos(f.imp)}</td>
+                    <td className="px-2 py-1.5">
+                      {f.desc}
+                      {dosMonedas && (
+                        <span className="block text-[10px] text-[#6b7684]">
+                          {f.cant.toLocaleString('es-UY')} × {dinero(f.unit, f.mon)}
+                        </span>
+                      )}
+                    </td>
+                    {!dosMonedas && <td className="px-1 py-1.5 text-right">{f.cant.toLocaleString('es-UY')}</td>}
+                    {!dosMonedas && <td className="px-1 py-1.5 text-right whitespace-nowrap">{dinero(f.unit, f.mon)}</td>}
+                    {monedasCliente.map((k) => (
+                      <td key={k} className="px-2 py-1.5 text-right font-semibold whitespace-nowrap">{f.mon === k ? dinero(f.imp, k) : ''}</td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="mt-2 ml-auto w-48 space-y-0.5 text-xs">
-              <div className="flex justify-between text-[#6b7684]"><span>Subtotal</span><span>{pesos(t.subtotal)}</span></div>
-              <div className="flex justify-between text-[#6b7684]"><span>IVA {numero(form.iva_porcentaje) ?? 0}%</span><span>{pesos(t.iva)}</span></div>
-              <div className="flex justify-between rounded bg-[#0b1730] px-2 py-1 text-sm font-bold text-white"><span>Total</span><span>{pesos(t.total)}</span></div>
+            <div className="mt-2 ml-auto w-60 space-y-0.5 text-xs">
+              {[
+                ['Subtotal', 'subtotal'],
+                [`IVA ${numero(form.iva_porcentaje) ?? 0}%`, 'iva'],
+              ].map(([etq, campo]) => (
+                <div key={campo} className="flex justify-between gap-2 text-[#6b7684]">
+                  <span>{etq}</span>
+                  <span className="text-right">{monedasCliente.map((k) => dinero(tm[k][campo], k)).join(' + ')}</span>
+                </div>
+              ))}
+              {monedasCliente.map((k) => (
+                <div key={k} className="flex justify-between rounded bg-[#0b1730] px-2 py-1 text-sm font-bold text-white">
+                  <span>Total{dosMonedas ? (k === 'USD' ? ' en dólares' : ' en pesos') : ''}</span>
+                  <span>{dinero(tm[k].total, k)}</span>
+                </div>
+              ))}
+              {usaDolares && tm.cotizacion > 0 && (
+                <p className="pt-0.5 text-right text-[10px] text-[#6b7684]">
+                  Equivale a {dinero(tm.equivalente.total, 'UYU')} (US$ 1 = {dinero(tm.cotizacion, 'UYU')})
+                </p>
+              )}
             </div>
             {form.notas && <p className="mt-3 whitespace-pre-line text-[11px] text-[#6b7684]">{form.notas}</p>}
           </div>
@@ -501,6 +697,68 @@ function EditorPresupuestoPro() {
             </div>
           )}
         </section>
+
+        {/* Vendedor y comisión (Business) */}
+        {business && (vendedores || comision || p.vendedor_id) && (
+          <section>
+            <h2 className="titulo-seccion mb-2">Venta y comisión</h2>
+            <div className="tarjeta space-y-3 p-4">
+              {vendedores ? (
+                <div>
+                  <label className="etiqueta" htmlFor="p-vend">Vendedor</label>
+                  <select
+                    id="p-vend"
+                    className="campo"
+                    value={form.vendedor_id}
+                    onChange={(e) => e.target.value && guardar({ vendedor_id: e.target.value }, 'Vendedor guardado.')}
+                    disabled={ocupado}
+                  >
+                    {!form.vendedor_id && <option value="">Sin vendedor</option>}
+                    {vendedores.map((v) => (
+                      <option key={v.usuario_id} value={v.usuario_id}>
+                        {v.nombre}
+                        {v.principal ? ' (cuenta principal)' : ''}
+                        {v.activo && v.porcentaje !== null ? ` · ${Number(v.porcentaje).toLocaleString('es-UY')}% de la ${v.base === 'ganancia' ? 'ganancia' : 'venta'}` : ' · sin comisión'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <p className="text-sm text-tinta-300">
+                  Vendedor: <b>{p.vendedor_id === user.id ? 'vos' : comision?.vendedor_nombre || 'otra persona del equipo'}</b>
+                </p>
+              )}
+              {comision ? (
+                <Link href="/panel/finanzas/comisiones" className="flex items-center gap-3 rounded-xl bg-navy-850 p-3 text-sm hover:bg-navy-800">
+                  <Icon name="billetera" className="h-5 w-5 shrink-0 text-menta-300" />
+                  <span className="min-w-0 flex-1">
+                    <b className="block">
+                      Comisión de {comision.vendedor_nombre || 'el vendedor'}:{' '}
+                      {[comision.monto_usd > 0 && dinero(comision.monto_usd, 'USD'), (comision.monto_uyu > 0 || !(comision.monto_usd > 0)) && dinero(comision.monto_uyu, 'UYU')]
+                        .filter(Boolean)
+                        .join(' + ')}
+                    </b>
+                    <span className="text-xs text-tinta-400">
+                      {Number(comision.porcentaje).toLocaleString('es-UY')}% de la {comision.base === 'ganancia' ? 'ganancia' : 'venta sin IVA'} ·{' '}
+                      {comision.estado === 'pagada' ? `pagada el ${fechaUY(comision.pagada_en)}` : comision.estado === 'anulada' ? 'anulada' : 'pendiente de pago'}
+                    </span>
+                  </span>
+                  <Icon name="der" className="h-4 w-4 shrink-0 text-tinta-400" />
+                </Link>
+              ) : p.cobrado_en ? (
+                vendedores ? (
+                  <button type="button" className="btn btn-sec w-full" onClick={calcularComision} disabled={ocupado}>
+                    <Icon name="calculadora" className="h-4 w-4" /> Calcular la comisión
+                  </button>
+                ) : (
+                  <p className="text-xs text-tinta-400">Este presupuesto no generó comisión.</p>
+                )
+              ) : (
+                <p className="text-xs text-tinta-400">La comisión se genera sola cuando lo marcás como cobrado.</p>
+              )}
+            </div>
+          </section>
+        )}
 
         <button type="button" className="btn btn-peligro w-full" onClick={eliminar}>
           <Icon name="borrar" /> Eliminar presupuesto

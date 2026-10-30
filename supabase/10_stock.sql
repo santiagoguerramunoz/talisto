@@ -31,7 +31,7 @@ end $$;
 create or replace function public.permisos_validos()
 returns text[] language sql immutable as $$
   select array['agenda','clientes','relevamientos','tickets_asignar','tickets_trabajar',
-               'presupuestos','importes','gastos','equipo','compras','stock']::text[];
+               'presupuestos','importes','gastos','equipo','compras','stock','comisiones']::text[];
 $$;
 -- Administración (rol de fábrica) maneja el depósito
 update public.roles_empresa set permisos = array_append(permisos, 'stock')

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Icon from './Icon';
 import BuscadorProductos from './BuscadorProductos';
-import { margenDePrecio, numero, pesos, precioConMargen, totalesMateriales } from '@/lib/precios';
+import { dinero, margenDePrecio, monedaLinea, numero, precioConMargen, r2, totalesMateriales } from '@/lib/precios';
 import { estadoStock, importe, lineaDesdeProducto } from '@/lib/proveedores';
 
 export const MATERIAL_VACIO = { item: '', cantidad: '1', unidad: 'u', proveedor: '', costo: '', margen: '', precio: '' };
@@ -24,9 +24,15 @@ export default function EditorMateriales({
   vacio = 'Sin materiales.',
   cuenta = null, // con la cuenta: buscar en las listas de los proveedores
   revision = null, // { producto_id: { stock, precio, … } } después de revisar stock y precios
+  moneda = 'UYU', // presupuestos: 'UYU' | 'USD' | 'mixto' (cada renglón en su moneda)
 }) {
   const lista = materiales || [];
+  const mixto = moneda === 'mixto';
+  const monedaDe = (m) => monedaLinea(m, moneda);
   const t = totalesMateriales(lista);
+  const porMoneda = ['UYU', 'USD']
+    .map((k) => ({ k, ...totalesMateriales(lista.filter((m) => monedaDe(m) === k)) }))
+    .filter((x) => x.items > 0 || (!mixto && x.k === monedaDe({})));
   const [buscando, setBuscando] = useState(false);
 
   // Del catálogo: si ya está en la lista, suma uno
@@ -37,7 +43,19 @@ export default function EditorMateriales({
       return;
     }
     const vacias = lista.filter((m) => String(m.item || '').trim() || numero(m.costo) !== null);
-    onChange([...vacias, lineaDesdeProducto(p, { margen: margenDefecto, cotizacion })]);
+    let linea;
+    if (mixto) {
+      // en los mixtos queda en la moneda del proveedor
+      linea = { ...lineaDesdeProducto(p, { margen: margenDefecto }), moneda: p.moneda === 'USD' ? 'USD' : 'UYU' };
+    } else if (moneda === 'USD' && p.moneda !== 'USD') {
+      const cot = numero(cotizacion);
+      const base = lineaDesdeProducto(p, { margen: margenDefecto });
+      const costo = cot ? r2(Number(p.precio) / cot) : Number(p.precio);
+      linea = { ...base, costo: String(costo), precio: String(precioConMargen(costo, margenDefecto) ?? '') };
+    } else {
+      linea = lineaDesdeProducto(p, { margen: margenDefecto, cotizacion: moneda === 'USD' ? null : cotizacion });
+    }
+    onChange([...vacias, linea]);
   }
 
   function cambiar(i, campo, valor) {
@@ -75,7 +93,7 @@ export default function EditorMateriales({
               <Icon name="buscar" className="h-3.5 w-3.5" /> Proveedores
             </button>
           )}
-          <button type="button" className="chip chip-activo shrink-0 whitespace-nowrap" onClick={() => onChange([...lista, { ...MATERIAL_VACIO, margen: String(margenDefecto) }])}>
+          <button type="button" className="chip chip-activo shrink-0 whitespace-nowrap" onClick={() => onChange([...lista, { ...MATERIAL_VACIO, margen: String(margenDefecto), moneda: mixto && lista.length ? monedaDe(lista[lista.length - 1]) : 'UYU' }])}>
             <Icon name="mas" className="h-3.5 w-3.5" /> {textoAgregar}
           </button>
         </div>
@@ -95,6 +113,17 @@ export default function EditorMateriales({
             return (
               <li key={i} className="rounded-xl border border-navy-700 bg-navy-850 p-2.5">
                 <div className="flex items-center gap-2">
+                  {mixto && (
+                    <button
+                      type="button"
+                      onClick={() => cambiar(i, 'moneda', monedaDe(m) === 'USD' ? 'UYU' : 'USD')}
+                      className={`shrink-0 rounded-lg px-2 py-2 text-xs font-extrabold ${monedaDe(m) === 'USD' ? 'bg-[#2f9e5b]/25 text-[#7be0a5]' : 'bg-[#176ba8]/25 text-[#8cc4ee]'}`}
+                      aria-label={`Moneda del renglón: ${monedaDe(m) === 'USD' ? 'dólares' : 'pesos'} (tocá para cambiar)`}
+                      title="Tocá para cambiar la moneda de este renglón"
+                    >
+                      {monedaDe(m) === 'USD' ? 'US$' : '$'}
+                    </button>
+                  )}
                   <input className="campo min-w-0 flex-1 px-3 py-2 text-sm" value={m.item} onChange={(e) => cambiar(i, 'item', e.target.value)} placeholder="Material o ítem" aria-label="Material" />
                   <button type="button" className="shrink-0 rounded-lg p-2 text-tinta-400 hover:text-red-300" onClick={() => onChange(lista.filter((_, k) => k !== i))} aria-label="Quitar">
                     <Icon name="cerrar" className="h-4 w-4" />
@@ -130,7 +159,7 @@ export default function EditorMateriales({
                 <div className="mt-2 grid grid-cols-3 gap-2">
                   <label className="block">
                     <span className="mb-0.5 block text-[11px] text-tinta-400">Costo unit.</span>
-                    <input className="campo px-2 py-2 text-sm" type="number" inputMode="decimal" min="0" value={m.costo} onChange={(e) => cambiar(i, 'costo', e.target.value)} placeholder="$" />
+                    <input className="campo px-2 py-2 text-sm" type="number" inputMode="decimal" min="0" value={m.costo} onChange={(e) => cambiar(i, 'costo', e.target.value)} placeholder={monedaDe(m) === 'USD' ? 'US$' : '$'} />
                   </label>
                   <label className="block">
                     <span className="mb-0.5 block text-[11px] text-tinta-400">Margen %</span>
@@ -138,14 +167,14 @@ export default function EditorMateriales({
                   </label>
                   <label className="block">
                     <span className="mb-0.5 block text-[11px] font-semibold text-menta-300">Precio final</span>
-                    <input className="campo border-menta-500/40 px-2 py-2 text-sm font-semibold" type="number" inputMode="decimal" min="0" value={m.precio} onChange={(e) => cambiar(i, 'precio', e.target.value)} placeholder="$" />
+                    <input className="campo border-menta-500/40 px-2 py-2 text-sm font-semibold" type="number" inputMode="decimal" min="0" value={m.precio} onChange={(e) => cambiar(i, 'precio', e.target.value)} placeholder={monedaDe(m) === 'USD' ? 'US$' : '$'} />
                   </label>
                 </div>
                 {linea > 0 && (
                   <p className="mt-1.5 text-right text-xs text-tinta-400">
-                    {costoLinea > 0 && <>Costo {pesos(costoLinea)} · </>}
-                    <b className="text-tinta-100">Subtotal {pesos(linea)}</b>
-                    {costoLinea > 0 && <> · Gana {pesos(linea - costoLinea)}</>}
+                    {costoLinea > 0 && <>Costo {dinero(costoLinea, monedaDe(m))} · </>}
+                    <b className="text-tinta-100">Subtotal {dinero(linea, monedaDe(m))}</b>
+                    {costoLinea > 0 && <> · Gana {dinero(linea - costoLinea, monedaDe(m))}</>}
                   </p>
                 )}
               </li>
@@ -154,25 +183,26 @@ export default function EditorMateriales({
         </ul>
       )}
 
-      {t.items > 0 && (
-        <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl bg-navy-850 p-2">
-            <p className="text-[11px] text-tinta-400">Costo</p>
-            <p className="text-sm font-bold">{pesos(t.costo)}</p>
+      {t.items > 0 &&
+        porMoneda.map((x) => (
+          <div key={x.k} className="mt-2 grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl bg-navy-850 p-2">
+              <p className="text-[11px] text-tinta-400">Costo{porMoneda.length > 1 ? ` en ${x.k === 'USD' ? 'US$' : '$'}` : ''}</p>
+              <p className="text-sm font-bold">{dinero(x.costo, x.k)}</p>
+            </div>
+            <div className="rounded-xl bg-navy-850 p-2">
+              <p className="text-[11px] text-tinta-400">Subtotal{porMoneda.length > 1 ? ` en ${x.k === 'USD' ? 'US$' : '$'}` : ''}</p>
+              <p className="text-sm font-bold text-menta-300">{dinero(x.venta, x.k)}</p>
+            </div>
+            <div className="rounded-xl bg-navy-850 p-2">
+              <p className="text-[11px] text-tinta-400">Ganancia</p>
+              <p className="text-sm font-bold">
+                {dinero(x.ganancia, x.k)}
+                {x.margen !== null && <span className="block text-[11px] font-semibold text-tinta-400">{x.margen.toLocaleString('es-UY')}%</span>}
+              </p>
+            </div>
           </div>
-          <div className="rounded-xl bg-navy-850 p-2">
-            <p className="text-[11px] text-tinta-400">Subtotal</p>
-            <p className="text-sm font-bold text-menta-300">{pesos(t.venta)}</p>
-          </div>
-          <div className="rounded-xl bg-navy-850 p-2">
-            <p className="text-[11px] text-tinta-400">Ganancia</p>
-            <p className="text-sm font-bold">
-              {pesos(t.ganancia)}
-              {t.margen !== null && <span className="block text-[11px] font-semibold text-tinta-400">{t.margen.toLocaleString('es-UY')}%</span>}
-            </p>
-          </div>
-        </div>
-      )}
+        ))}
       {cuenta && (
         <BuscadorProductos abierto={buscando} onCerrar={() => setBuscando(false)} onElegir={agregarProducto} cuenta={cuenta} />
       )}

@@ -9,7 +9,7 @@ import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
 import { useAlVolver } from '@/lib/useAlVolver';
 import { useAjustes } from '@/lib/ajustes';
-import { pesos } from '@/lib/precios';
+import { dinero, pesos } from '@/lib/precios';
 import { ESTADOS_PRESUPUESTO, fechaUY, numeroPresupuesto, presupuestoNuevo } from '@/lib/presupuestos';
 import { AVISO_SQL_04, faltaSql04, faltaTabla } from '@/lib/sql';
 import { mensajeError } from '@/lib/util';
@@ -62,7 +62,7 @@ function PresupuestosPro() {
   const cargar = useCallback(async () => {
     const { data, error: err } = await supabase
       .from('presupuestos')
-      .select('id, numero, cliente_nombre, titulo, fecha, estado, total, subtotal, aceptado_en, cobrado_en, relevamiento_id, clientes(nombre, color)')
+      .select('*, clientes(nombre, color)')
       .eq('profesional_id', profesional.id)
       .order('numero', { ascending: false });
     setCargando(false);
@@ -156,7 +156,13 @@ function PresupuestosPro() {
                       </div>
                       <div className="shrink-0 text-right">
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${estado.clase}`}>{estado.texto}</span>
-                        <p className="mt-1 font-extrabold">{pesos(p.total, { decimales: false })}</p>
+                        <p className="mt-1 font-extrabold">
+                          {p.moneda && p.moneda !== 'UYU'
+                            ? [p.total_usd > 0 && dinero(p.total_usd, 'USD', { decimales: false }), p.moneda === 'mixto' && p.total_uyu > 0 && dinero(p.total_uyu, 'UYU', { decimales: false })]
+                                .filter(Boolean)
+                                .join(' + ') || dinero(0, 'USD', { decimales: false })
+                            : pesos(p.total, { decimales: false })}
+                        </p>
                         {p.estado === 'aceptado' && (
                           <p className={`text-[11px] font-semibold ${p.cobrado_en ? 'text-menta-300' : 'text-amber-300'}`}>{p.cobrado_en ? 'Cobrado' : 'Por cobrar'}</p>
                         )}

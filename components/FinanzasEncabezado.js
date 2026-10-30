@@ -14,6 +14,7 @@ const TABS = [
   { href: '/panel/finanzas/gastos', texto: 'Gastos', pro: true, permisos: ['gastos', 'importes'] },
   { href: '/panel/finanzas/compras', texto: 'Compras', pro: true, permisos: ['compras'], tambien: ['/panel/finanzas/proveedores'] },
   { href: '/panel/finanzas/stock', texto: 'Stock', business: true, permisos: ['stock', 'compras'] },
+  { href: '/panel/finanzas/comisiones', texto: 'Comisiones', business: true, permisos: ['comisiones', 'presupuestos'] },
 ];
 
 // Encabezado de Finanzas: pestañas y, si corresponde, el mes
