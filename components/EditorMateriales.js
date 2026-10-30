@@ -65,11 +65,11 @@ export default function EditorMateriales({
 
   return (
     <section>
-      <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h3 className="titulo-seccion min-w-0">
           {titulo} {t.items > 0 && <span className="text-tinta-500">({t.items})</span>}
         </h3>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {cuenta && (
             <button type="button" className="chip shrink-0 whitespace-nowrap border-menta-500/50 text-menta-300" onClick={() => setBuscando(true)}>
               <Icon name="buscar" className="h-3.5 w-3.5" /> Proveedores

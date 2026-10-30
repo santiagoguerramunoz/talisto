@@ -6,6 +6,7 @@ import Icon from './Icon';
 import SelectorUbicacion from './SelectorUbicacion';
 import ControlTiempo from './ControlTiempo';
 import EditorMateriales from './EditorMateriales';
+import MaterialesTrabajo from './MaterialesTrabajo';
 import { supabase } from '@/lib/supabase';
 import { fechaISO, minutos } from '@/lib/fechas';
 import { equivalenteOrden, importePuestas } from '@/lib/liquidacion';
@@ -16,7 +17,7 @@ import { AVISO_SQL_04, faltaSql04 } from '@/lib/sql';
 import { linkGoogleMaps, linkWaze, mensajeError } from '@/lib/util';
 import { hhmm, useEquipoAsignable } from '@/lib/equipo';
 import { usePanel } from './PanelContext';
-import { esPro } from '@/lib/planes';
+import { esBusiness, esPro } from '@/lib/planes';
 import { Reloj } from './ControlTiempo';
 
 function Contador({ etiqueta, ayuda, valor, onChange }) {
@@ -459,6 +460,10 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
           textoAgregar="Añadir materiales"
           vacio="Si tuviste que comprar materiales para la tarea, agregalos acá con el proveedor y su precio."
         />
+
+        {form.id && esBusiness(panel?.plan?.plan) && (panel?.yo?.id === profesionalId || (panel?.permisos || []).includes('stock')) && (
+          <MaterialesTrabajo cuenta={profesionalId} tipo="ticket" id={form.id} modo="gestion" ocultarSinSql titulo="Materiales del stock" />
+        )}
 
         {/* Resumen del importe */}
         <div className="rounded-xl bg-navy-850 p-3 text-sm">

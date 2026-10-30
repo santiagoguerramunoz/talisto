@@ -24,7 +24,7 @@ end $$;
 create or replace function public.permisos_validos()
 returns text[] language sql immutable as $$
   select array['agenda','clientes','relevamientos','tickets_asignar','tickets_trabajar',
-               'presupuestos','importes','gastos','equipo','compras']::text[];
+               'presupuestos','importes','gastos','equipo','compras','stock']::text[];
 $$;
 
 create or replace function public.uuid_o_null(t text)
@@ -230,7 +230,7 @@ begin
   returning id into eid;
   if not exists (select 1 from public.roles_empresa where empresa_id = eid) then
     insert into public.roles_empresa (empresa_id, nombre, permisos, orden) values
-      (eid, 'Administración', array['agenda','clientes','relevamientos','tickets_asignar','presupuestos','importes','gastos'], 1),
+      (eid, 'Administración', array['agenda','clientes','relevamientos','tickets_asignar','presupuestos','importes','gastos','compras','stock'], 1),
       (eid, 'Producción',     array['tickets_trabajar'], 2),
       (eid, 'Ventas',         array['clientes','relevamientos','presupuestos'], 3);
   end if;

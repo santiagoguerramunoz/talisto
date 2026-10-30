@@ -89,7 +89,7 @@ function Ordenes() {
       );
   }, [profesional.id]);
 
-  const abiertas = (o) => ['borrador', 'enviada', 'confirmada'].includes(o.estado);
+  const abiertas = (o) => ['borrador', 'enviada', 'confirmada', 'parcial'].includes(o.estado);
   const lista = datos.lista.filter((o) => (filtro === 'abiertas' ? abiertas(o) : filtro === 'todas' ? true : o.estado === filtro));
 
   return (

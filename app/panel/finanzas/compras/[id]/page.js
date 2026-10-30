@@ -5,9 +5,12 @@ import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import Icon from '@/components/Icon';
 import BuscadorProductos from '@/components/BuscadorProductos';
+import RecibirOrden, { recibidoDeOrden } from '@/components/RecibirOrden';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
 import { useAjustes } from '@/lib/ajustes';
+import { esBusiness } from '@/lib/planes';
+import { fechaHora, numeroMov } from '@/lib/stock';
 import { numero, r2 } from '@/lib/precios';
 import { fechaUY, numeroPresupuesto } from '@/lib/presupuestos';
 import { linkWhatsapp, mensajeError } from '@/lib/util';
@@ -43,9 +46,13 @@ const itemsParaGuardar = (items) =>
 export default function OrdenDeCompra() {
   const { id } = useParams();
   const router = useRouter();
-  const { profesional, user, yo, empresa, permisos } = usePanel();
+  const { profesional, user, yo, empresa, permisos, plan } = usePanel();
   const { ajustes } = useAjustes(profesional.id);
   const puede = !empresa || yo?.id === profesional.id || (permisos || []).includes('compras');
+  // Recibir en el stock (Business): la cuenta principal, Compras o Stock
+  const puedeStock = esBusiness(plan?.plan) && (yo?.id === profesional.id || (permisos || []).includes('compras') || (permisos || []).includes('stock'));
+  const [rec, setRec] = useState({ porRenglon: {}, recepciones: [] });
+  const [recibiendo, setRecibiendo] = useState(false);
   const [o, setO] = useState(null);
   const [form, setForm] = useState(null);
   const [prov, setProv] = useState(null);
@@ -73,6 +80,8 @@ export default function OrdenDeCompra() {
     ]);
     setProv(pv.data || null);
     setPresu(pr.data || null);
+    const r = await recibidoDeOrden(data.id);
+    setRec(r.error ? { porRenglon: {}, recepciones: [] } : r);
   }, [id]);
 
   useEffect(() => {
@@ -89,7 +98,10 @@ export default function OrdenDeCompra() {
     );
   }
 
-  const editable = puede && ['borrador', 'enviada', 'confirmada'].includes(o.estado);
+  const recepcionesVigentes = rec.recepciones.filter((r) => !r.anulado_por);
+  const conRecepciones = rec.recepciones.length > 0;
+  const editable = puede && ['borrador', 'enviada', 'confirmada'].includes(o.estado) && !recepcionesVigentes.length;
+  const recibible = puedeStock && ['borrador', 'enviada', 'confirmada', 'parcial'].includes(o.estado);
   const subtotal = r2(form.items.reduce((s, i) => s + (numero(i.cantidad) ?? 0) * (numero(i.precio) ?? 0), 0));
   const negocio = {
     nombre: profesional.nombre_publico,
@@ -263,6 +275,11 @@ export default function OrdenDeCompra() {
                         <span className="text-[11px] text-tinta-400">
                           {i.codigo ? `cód. ${i.codigo}` : 'Sin código'}
                           {st && <span className={`ml-1.5 font-semibold ${st.clase}`}>{st.texto}</span>}
+                          {rec.porRenglon[k] > 0 && (
+                            <span className={`ml-1.5 font-semibold ${rec.porRenglon[k] >= (numero(i.cantidad) ?? 0) ? 'text-menta-300' : 'text-amber-300'}`}>
+                              Llegó {Number(rec.porRenglon[k]).toLocaleString('es-UY')} de {Number(numero(i.cantidad) ?? 0).toLocaleString('es-UY')}
+                            </span>
+                          )}
                         </span>
                       </span>
                       {editable && (
@@ -317,8 +334,29 @@ export default function OrdenDeCompra() {
           )}
         </section>
 
+        {/* Recepción en el stock */}
+        {(recibible || conRecepciones) && (
+          <section className="space-y-2">
+            <h2 className="titulo-seccion">Recepción</h2>
+            {recibible && (
+              <button type="button" className="btn btn-menta w-full" onClick={() => (cambios ? guardar({}, '') : Promise.resolve(o)).then((x) => x && setRecibiendo(true))} disabled={estado.ocupado || !form.items.length}>
+                <Icon name="descargar" /> {o.estado === 'parcial' ? 'Recibir lo que faltaba' : 'Recibir en el stock'}
+              </button>
+            )}
+            {rec.recepciones.map((r) => (
+              <Link key={r.id} href={`/panel/finanzas/stock?mov=${r.id}`} className={`flex items-center justify-between gap-2 rounded-xl bg-navy-850 p-2.5 text-sm ${r.anulado_por ? 'opacity-60' : ''}`}>
+                <span className="min-w-0">
+                  <b className="block">{numeroMov(r.numero)}{r.referencia ? ` · ${r.referencia}` : ''}</b>
+                  <span className="text-[11px] text-tinta-400">{fechaHora(r.creado_en)}{r.creado_por_nombre ? ` · ${r.creado_por_nombre}` : ''}{r.anulado_por ? ' · anulada' : ''}</span>
+                </span>
+                <Icon name="der" className="h-4 w-4 shrink-0 text-tinta-400" />
+              </Link>
+            ))}
+          </section>
+        )}
+
         {/* Enviar */}
-        {o.estado !== 'cancelada' && (
+        {o.estado !== 'cancelada' && !['parcial', 'recibida'].includes(o.estado) && (
           <section className="space-y-2">
             <h2 className="titulo-seccion">Mandar al proveedor</h2>
             {prov?.pedido_url && puede && (
@@ -363,23 +401,71 @@ export default function OrdenDeCompra() {
         {puede && (
           <section>
             <h2 className="titulo-seccion mb-2">Estado</h2>
-            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
-              {Object.entries(ESTADOS_COMPRA).map(([v, e]) => (
-                <button key={v} type="button" onClick={() => o.estado !== v && guardar({ estado: v }, v === 'recibida' ? '¡Recibida!' : 'Estado guardado.')} className={`chip justify-center ${o.estado === v ? 'chip-activo' : ''}`} disabled={estado.ocupado}>
-                  {e.texto}
-                </button>
-              ))}
-            </div>
+            {recepcionesVigentes.length ? (
+              <div className="space-y-2">
+                <p className="text-sm text-tinta-300">
+                  <span className={`mr-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${est.clase}`}>{est.texto}</span>
+                  El estado lo marca lo que se recibe en el stock.
+                </p>
+                {o.estado === 'parcial' && (
+                  <button type="button" className="chip" onClick={() => window.confirm('¿Cancelar lo que falta recibir? Lo que ya llegó queda en el stock.') && guardar({ estado: 'cancelada' }, 'Se canceló lo que faltaba.')} disabled={estado.ocupado}>
+                    No llega lo que falta: cancelar el resto
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+                {Object.entries(ESTADOS_COMPRA)
+                  .filter(([v]) => v !== 'parcial')
+                  .map(([v, e]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => {
+                        if (o.estado === v) return;
+                        if (v === 'recibida' && recibible) setRecibiendo(true);
+                        else guardar({ estado: v }, v === 'recibida' ? '¡Recibida!' : 'Estado guardado.');
+                      }}
+                      className={`chip justify-center ${o.estado === v ? 'chip-activo' : ''}`}
+                      disabled={estado.ocupado}
+                    >
+                      {e.texto}
+                    </button>
+                  ))}
+              </div>
+            )}
           </section>
         )}
 
-        {puede && (
+        {puede && !conRecepciones && (
           <button type="button" className="btn btn-peligro w-full" onClick={eliminar}>
             <Icon name="borrar" /> Eliminar orden
           </button>
         )}
         <div className="h-2" />
       </div>
+
+      {puedeStock && (
+        <RecibirOrden
+          abierto={recibiendo}
+          onCerrar={() => setRecibiendo(false)}
+          orden={o}
+          cuenta={profesional.id}
+          recibido={rec.porRenglon}
+          onListo={async (_, mensaje) => {
+            await cargar();
+            setEstado((e) => ({ ...e, ok: mensaje, error: '' }));
+          }}
+          onSinStock={
+            o.estado !== 'parcial'
+              ? async () => {
+                  setRecibiendo(false);
+                  await guardar({ estado: 'recibida' }, '¡Recibida! (sin pasar por el stock)');
+                }
+              : null
+          }
+        />
+      )}
 
       {o.proveedor_id && (
         <BuscadorProductos

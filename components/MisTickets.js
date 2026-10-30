@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from './Icon';
 import Modal from './Modal';
+import MaterialesTrabajo from './MaterialesTrabajo';
 import { Reloj } from './ControlTiempo';
 import { usePanel } from './PanelContext';
 import { supabase } from '@/lib/supabase';
@@ -150,8 +152,17 @@ export default function MisTickets({ onVerAgenda }) {
   const [aviso, setAviso] = useState('');
   const [cerrando, setCerrando] = useState(null);
   const [compartir, setCompartir] = useState(() => leerCompartir(cuenta));
+  const [avisos, setAvisos] = useState(null);
+  const [materiales, setMateriales] = useState(null);
   const pedido = useRef(0);
   const fechaIso = fechaISO(fecha);
+
+  // Stock (SQL 10): si la empresa lo usa y si tengo entregas para confirmar
+  const cargarAvisos = useCallback(async () => {
+    const { data, error } = await supabase.rpc('stock_avisos', { p_cuenta: cuenta });
+    if (!error) setAvisos(data);
+  }, [cuenta]);
+  const usaStock = !!avisos?.usa_stock;
 
   const cargar = useCallback(async () => {
     const n = ++pedido.current;
@@ -171,14 +182,15 @@ export default function MisTickets({ onVerAgenda }) {
   useEffect(() => {
     setDatos((d) => ({ ...d, cargando: true }));
     cargar();
-    const t = setInterval(cargar, 60000);
-    const alVolver = () => document.visibilityState === 'visible' && cargar();
+    cargarAvisos();
+    const t = setInterval(() => (cargar(), cargarAvisos()), 60000);
+    const alVolver = () => document.visibilityState === 'visible' && (cargar(), cargarAvisos());
     document.addEventListener('visibilitychange', alVolver);
     return () => {
       clearInterval(t);
       document.removeEventListener('visibilitychange', alVolver);
     };
-  }, [cargar]);
+  }, [cargar, cargarAvisos]);
 
   const ubicacionEstado = useCompartirUbicacion(cuenta, compartir === 'si');
 
@@ -213,11 +225,23 @@ export default function MisTickets({ onVerAgenda }) {
             <h1 className="text-2xl font-extrabold">Mis tickets</h1>
             <p className="truncate text-xs font-semibold text-menta-300">{empresa?.nombre}</p>
           </div>
-          {onVerAgenda && (
-            <button type="button" className="btn btn-sec px-3 py-2 text-sm" onClick={onVerAgenda}>
-              <Icon name="agenda" className="h-4 w-4" /> Agenda
-            </button>
-          )}
+          <div className="flex shrink-0 gap-2">
+            {usaStock && (
+              <Link href="/panel/mi-stock" className="btn btn-sec relative px-3 py-2 text-sm">
+                <Icon name="caja" className="h-4 w-4" /> Mi stock
+                {avisos.recibir > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-marca-naranja px-1 text-[11px] font-extrabold text-navy-950">
+                    {avisos.recibir}
+                  </span>
+                )}
+              </Link>
+            )}
+            {onVerAgenda && (
+              <button type="button" className="btn btn-sec px-3 py-2 text-sm" onClick={onVerAgenda}>
+                <Icon name="agenda" className="h-4 w-4" /> Agenda
+              </button>
+            )}
+          </div>
         </div>
         <div className="mt-3 flex items-center gap-2">
           <button onClick={() => setFecha((f) => sumarDias(f, -1))} className="btn btn-sec px-2.5 py-2" aria-label="Día anterior"><Icon name="izq" /></button>
@@ -260,6 +284,19 @@ export default function MisTickets({ onVerAgenda }) {
           </label>
         )}
 
+        {avisos?.recibir > 0 && (
+          <Link href="/panel/mi-stock" className="flex items-center gap-3 rounded-2xl border border-amber-400/50 bg-amber-400/10 p-3 text-sm">
+            <Icon name="caja" className="h-5 w-5 shrink-0 text-amber-300" />
+            <span className="min-w-0 flex-1">
+              <b className="block text-tinta-100">
+                Tenés {avisos.recibir} {avisos.recibir === 1 ? 'entrega' : 'entregas'} de materiales para confirmar
+              </b>
+              <span className="text-xs text-tinta-300">Confirmá lo que te llegó para que quede a tu cargo.</span>
+            </span>
+            <Icon name="der" className="h-4 w-4 shrink-0 text-tinta-400" />
+          </Link>
+        )}
+
         {datos.error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{datos.error}</p>}
         {aviso && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{aviso}</p>}
 
@@ -296,6 +333,7 @@ export default function MisTickets({ onVerAgenda }) {
                 bloqueado={!!enCurso && enCurso.key !== item.key}
                 onIniciar={() => iniciar(item)}
                 onFinalizar={() => setCerrando(item)}
+                onMateriales={usaStock && item.tipo !== 'relevamiento' ? () => setMateriales(item) : null}
               />
             ))}
           </ol>
@@ -310,12 +348,22 @@ export default function MisTickets({ onVerAgenda }) {
           setCerrando(null);
           cargar();
         }}
+        onMateriales={usaStock && cerrando?.tipo !== 'relevamiento' ? () => setMateriales(cerrando) : null}
       />
+
+      <Modal abierto={!!materiales} onCerrar={() => setMateriales(null)} titulo="Materiales del trabajo">
+        {materiales && (
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-tinta-200">{materiales.titulo}</p>
+            <MaterialesTrabajo cuenta={cuenta} tipo={materiales.rpc} id={materiales.id} modo="operario" onCambio={cargarAvisos} />
+          </div>
+        )}
+      </Modal>
     </>
   );
 }
 
-function Tarjeta({ item, numero, ocupado, bloqueado, onIniciar, onFinalizar }) {
+function Tarjeta({ item, numero, ocupado, bloqueado, onIniciar, onFinalizar, onMateriales }) {
   const info = ESTADOS_TRABAJO[item.estado] || ESTADOS_TRABAJO.pendiente;
   const tipo = TIPO[item.tipo] || TIPO.trabajo;
   const terminado = item.estado === 'finalizado';
@@ -415,6 +463,18 @@ function Tarjeta({ item, numero, ocupado, bloqueado, onIniciar, onFinalizar }) {
               )}
             </div>
           )}
+          {onMateriales && (
+            <button type="button" className="btn btn-sec w-full py-2 text-sm" onClick={onMateriales}>
+              <Icon name="caja" className="h-4 w-4" /> Materiales
+            </button>
+          )}
+        </div>
+      )}
+      {terminado && onMateriales && (
+        <div className="border-t border-navy-800 p-3">
+          <button type="button" className="btn btn-sec w-full py-2 text-sm" onClick={onMateriales}>
+            <Icon name="caja" className="h-4 w-4" /> Materiales
+          </button>
         </div>
       )}
     </li>
@@ -422,7 +482,7 @@ function Tarjeta({ item, numero, ocupado, bloqueado, onIniciar, onFinalizar }) {
 }
 
 // ¿Cómo queda el trabajo? Terminado (con la resolución) · Suspendido · Sigue otro día
-function Cierre({ item, onCerrar, onListo }) {
+function Cierre({ item, onCerrar, onListo, onMateriales }) {
   const [paso, setPaso] = useState('finalizado');
   const [texto, setTexto] = useState('');
   const [motivo, setMotivo] = useState('');
@@ -538,6 +598,17 @@ function Cierre({ item, onCerrar, onListo }) {
             <input id="mt-dia" type="date" className="campo" value={otroDia} min={fechaISO(sumarDias(new Date(), 1))} onChange={(e) => e.target.value && setOtroDia(e.target.value)} />
             <p className="mt-1 text-xs text-tinta-400">El tiempo se va sumando. El ticket te aparece ese día.</p>
           </div>
+        )}
+
+        {onMateriales && paso !== 'suspendido' && (
+          <button type="button" onClick={onMateriales} className="flex w-full items-center gap-3 rounded-xl border border-navy-700 bg-navy-850 p-3 text-left text-sm hover:bg-navy-800">
+            <Icon name="caja" className="h-5 w-5 shrink-0 text-menta-300" />
+            <span className="min-w-0 flex-1">
+              <b className="block">¿Usaste materiales?</b>
+              <span className="text-xs text-tinta-400">Cargá lo que usaste de tu stock y devolvé lo que sobró.</span>
+            </span>
+            <Icon name="der" className="h-4 w-4 shrink-0 text-tinta-400" />
+          </button>
         )}
 
         <p className="text-xs text-tinta-500">Se guarda la hora y el lugar donde estás.</p>

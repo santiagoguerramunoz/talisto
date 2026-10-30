@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useRef } from 'react';
 import Icon from './Icon';
 import { MESES } from '@/lib/fechas';
-import { esPro } from '@/lib/planes';
+import { esBusiness, esPro } from '@/lib/planes';
 import { usePanel } from './PanelContext';
 
 const TABS = [
@@ -12,13 +13,20 @@ const TABS = [
   { href: '/panel/finanzas/presupuestos', texto: 'Presupuestos', pro: true, permisos: ['presupuestos', 'importes'] },
   { href: '/panel/finanzas/gastos', texto: 'Gastos', pro: true, permisos: ['gastos', 'importes'] },
   { href: '/panel/finanzas/compras', texto: 'Compras', pro: true, permisos: ['compras'], tambien: ['/panel/finanzas/proveedores'] },
+  { href: '/panel/finanzas/stock', texto: 'Stock', business: true, permisos: ['stock', 'compras'] },
 ];
 
 // Encabezado de Finanzas: pestañas y, si corresponde, el mes
 export default function FinanzasEncabezado({ periodo, onMover, accion }) {
   const pathname = usePathname();
   const panel = usePanel();
+  const navRef = useRef(null);
+  useEffect(() => {
+    const activo = navRef.current?.querySelector('[data-activo="si"]');
+    if (activo && navRef.current) navRef.current.scrollLeft = Math.max(0, activo.offsetLeft - (navRef.current.clientWidth - activo.offsetWidth) / 2);
+  }, [pathname]);
   const pro = esPro(panel?.plan?.plan);
+  const business = esBusiness(panel?.plan?.plan);
   // En una empresa, solo las pestañas de sus permisos
   const tabs = panel?.empresa ? TABS.filter((t) => t.permisos.some((p) => (panel.permisos || []).includes(p))) : TABS;
   return (
@@ -27,13 +35,13 @@ export default function FinanzasEncabezado({ periodo, onMover, accion }) {
         <h1 className="text-2xl font-extrabold">Finanzas</h1>
         {accion}
       </div>
-      <nav className="mt-3 grid rounded-xl bg-navy-900 p-1 text-sm font-bold" style={{ gridTemplateColumns: `repeat(${tabs.length}, auto)` }}>
+      <nav ref={navRef} className="mt-3 flex overflow-x-auto rounded-xl bg-navy-900 p-1 text-sm font-bold [scrollbar-width:none]">
         {tabs.map((t) => {
           const activo = t.href === '/panel/finanzas' ? pathname === t.href : [t.href, ...(t.tambien || [])].some((h) => pathname.startsWith(h));
           return (
-            <Link key={t.href} href={t.href} className={`flex min-w-0 items-center justify-center gap-0.5 whitespace-nowrap rounded-lg px-1 py-1.5 text-center text-[13px] sm:text-sm ${activo ? 'bg-navy-700 text-tinta-100' : 'text-tinta-400'}`}>
+            <Link key={t.href} href={t.href} data-activo={activo ? 'si' : 'no'} className={`flex shrink-0 grow items-center justify-center gap-0.5 whitespace-nowrap rounded-lg px-[7px] py-1.5 text-center text-[13px] sm:px-2 sm:text-sm ${activo ? 'bg-navy-700 text-tinta-100' : 'text-tinta-400'}`}>
               {t.texto}
-              {t.pro && !pro && <Icon name="candado" className="h-3.5 w-3.5 text-marca-naranja" />}
+              {((t.pro && !pro) || (t.business && !business)) && <Icon name="candado" className="h-3.5 w-3.5 text-marca-naranja" />}
             </Link>
           );
         })}

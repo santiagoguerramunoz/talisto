@@ -20,7 +20,7 @@ Next.js + Supabase + Vercel.
 ### 1. Supabase (proyecto NUEVO, no el de Metabia)
 
 1. En supabase.com creá un proyecto nuevo llamado `talisto`.
-2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql`, `supabase/08_tickets.sql` y `supabase/09_proveedores.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo; el 09 los proveedores, sus listas de precios y las órdenes de compra). Todos se pueden volver a correr sin problema.
+2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql`, `supabase/08_tickets.sql`, `supabase/09_proveedores.sql` y `supabase/10_stock.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo; el 09 los proveedores, sus listas de precios y las órdenes de compra; el 10 el stock de la empresa, del equipo y de cada trabajo). Todos se pueden volver a correr sin problema.
 3. **Authentication → URL Configuration**:
    - Site URL: `https://talisto-ashen.vercel.app` (para probar en tu PC podés usar `http://localhost:3000`).
    - Redirect URLs: solo `https://talisto-ashen.vercel.app/**` (y `http://localhost:3000/**` mientras pruebes en tu PC; después sacalo).
@@ -95,13 +95,26 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
 - En una empresa, el permiso nuevo **Compras** maneja proveedores y órdenes (el rol Administración ya lo tiene).
 - Para las API con clave y el stock al momento, el servidor necesita `SUPABASE_SERVICE_ROLE_KEY` en Vercel (la misma de Mercado Pago).
 
-### 8. Seguridad
+### 8. Stock (Business)
+
+- **Finanzas → Stock**. Cada material tiene su **unidad mínima** (unidad, metro, kg, litro…) y sus **presentaciones** (caja x 100, rollo de 100 m, bolsa de 25 kg). Se carga por caja o suelto y el stock se lleva siempre en la unidad mínima, con el desglose a la vista ("2 × Rollo 100 m + 45,5 m").
+- **Lugares**: los depósitos de la empresa (local, galpón, camioneta), el stock de **cada persona del equipo** y **cada trabajo** (ticket B2B o trabajo de la agenda).
+- Todo se mueve con **comprobantes numerados**: *Ingreso* (compra o stock inicial), *Entrega* (depósito → operario), *A un trabajo*, *Devolución* (de un trabajo, o del operario al depósito), *Devolver al proveedor*, *Conteo* (queda la diferencia con lo que decía el sistema) y *Baja* (rotura, pérdida, vencido, robo).
+- Lo que se entrega a otra persona queda **por confirmar** hasta que lo recibe en la app (puede decir que llegó distinto o rechazarlo: lo que no recibe vuelve al origen). Lo mismo cuando un operario devuelve al depósito.
+- El operario ve **Mi stock** (desde Mis tickets): confirma lo que le entregan, lo usa en cada ticket con **Materiales** (también al cerrar el trabajo), devuelve lo que sobró y puede pasarle materiales a un compañero. No ve costos. Puede corregir hasta 2 días después de cerrar el trabajo; después, solo quien maneja el stock.
+- **Nada se edita ni se borra**: un error se corrige **anulando** el comprobante (quedan el original y su anulación). Cada asiento queda sellado con una huella encadenada a la anterior y la pantalla verifica el stock cada vez que se abre: si alguien tocara la base a mano, lo marca.
+- Las **órdenes de compra** se reciben en el stock (*Recibir en el stock*): todo o lo que llegó (queda *Recibida en parte*). Cada producto del proveedor se vincula a un material con cuántas unidades trae, y la próxima vez se reconoce solo. El costo por unidad se actualiza con el precio de la orden.
+- Avisos: materiales por debajo del mínimo, personas que salieron del equipo con materiales a su cargo y trabajos cancelados con materiales. Planilla Excel con el stock por lugar.
+- En una empresa, el permiso nuevo **Stock y depósito** mueve el stock (Administración ya lo tiene). **Compras** lo ve y recibe las compras. Los costos los ven la cuenta principal, Importes y Compras.
+
+### 9. Seguridad
 
 - La base controla todo (no la pantalla): cada cuenta solo ve y cambia lo suyo o lo que su rol permite, nadie puede pasar datos de una cuenta a otra, sin sesión solo se ve lo público, y las funciones internas no se pueden llamar desde afuera.
 - La app manda encabezados de seguridad (no se puede meter dentro de otra página, solo carga scripts propios, conexiones solo a Supabase y los mapas).
 - El permiso **Equipo** de un rol permite invitar y cambiar roles: dáselo solo a gente de confianza.
 - Las claves (`SUPABASE_SERVICE_ROLE_KEY`, `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`) van solo en Vercel; nunca en el código ni en mensajes.
 - Los links de los proveedores solo se consultan desde el servidor, con https, nunca a direcciones internas y con tiempo y tamaño máximos. Las claves de sus API quedan en una tabla que la app no puede leer.
+- El stock solo se mueve con las funciones de la base, de a una operación por empresa, y nunca queda en negativo. Los comprobantes y asientos no se pueden modificar ni borrar desde la app (solo se borran si se borra la cuenta entera).
 
 ## Trabajar desde tu PC (Windows)
 
@@ -141,7 +154,7 @@ npx vercel --prod            # publica en https://talisto-ashen.vercel.app
 ## Archivos
 
 ```
-supabase/01 … 08                → base de datos (correr en orden en Supabase)
+supabase/01 … 10                → base de datos (correr en orden en Supabase)
 app/page.js                     → portada
 app/login, app/registro, app/nueva-clave
 app/inicio/page.js              → pantalla del cliente (buscador en Fase 3)
@@ -150,6 +163,8 @@ app/panel/page.js               → Agenda (día / semana) · Mis tickets para P
 app/panel/equipo/page.js        → Equipo en ruta (tickets, tiempos y ubicación del equipo)
 app/panel/finanzas/compras      → órdenes de compra y proveedores
 app/panel/finanzas/proveedores  → ficha del proveedor y su lista de precios
+app/panel/finanzas/stock        → stock: existencias, movimientos, materiales, lugares y ficha con kardex
+app/panel/mi-stock/page.js      → Mi stock (cada persona del equipo)
 app/api/proveedores             → actualizar listas, stock al momento y mandar órdenes (servidor)
 app/panel/empresa/page.js       → Mi empresa: cuentas, roles e invitaciones
 app/panel/clientes/page.js      → lista de clientes

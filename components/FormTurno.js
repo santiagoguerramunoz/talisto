@@ -5,12 +5,15 @@ import { useEffect, useMemo, useState } from 'react';
 import Modal from './Modal';
 import Icon from './Icon';
 import DireccionRelevamiento, { UBICACION_VACIA, filaUbicacion, ubicacionMarcada } from './DireccionRelevamiento';
+import MaterialesTrabajo from './MaterialesTrabajo';
+import { usePanel } from './PanelContext';
 import { supabase } from '@/lib/supabase';
 import { AVISO_SQL_UBICACION, consultarRelevamientos, guardarRelevamiento } from '@/lib/relevamientos';
 import { combinar, fechaISO, fechaLarga, horaHHMM, minutos, textoHora } from '@/lib/fechas';
 import { choquesConBloques } from '@/lib/agenda';
 import { ESTADOS, linkWhatsapp, mensajeError } from '@/lib/util';
 import { hhmm, useEquipoAsignable } from '@/lib/equipo';
+import { esBusiness } from '@/lib/planes';
 
 function sumarMinutos(hora, n) {
   const total = Math.min(minutos(hora) + n, 23 * 60 + 59);
@@ -35,8 +38,11 @@ export default function FormTurno({
   inicial,
   equipo: equipoProp = null,
 }) {
+  const panel = usePanel();
   const equipoPanel = useEquipoAsignable();
   const equipo = equipoProp || equipoPanel;
+  // Stock (Business): quien lo maneja ve y manda materiales a este trabajo
+  const stockActivo = esBusiness(panel?.plan?.plan) && (panel?.yo?.id === profesionalId || (panel?.permisos || []).includes('stock'));
   const [form, setForm] = useState(null);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -434,6 +440,10 @@ export default function FormTurno({
           <label className="etiqueta" htmlFor="t-notas">Notas</label>
           <textarea id="t-notas" rows={2} className="campo" value={form.notas} onChange={(e) => cambiar('notas', e.target.value)} placeholder={esRelevamiento ? 'Quién recibe, timbre, horarios de portería…' : 'Qué hay que hacer, qué llevar…'} />
         </div>
+
+        {turno?.id && stockActivo && !esRelevamiento && (
+          <MaterialesTrabajo cuenta={profesionalId} tipo="turno" id={turno.id} modo="gestion" ocultarSinSql titulo="Materiales del stock" />
+        )}
 
         {esVisitaApp && (
           <p className="rounded-xl bg-menta-500/10 p-3 text-sm text-menta-300">Visita técnica reservada por TaListo!</p>
