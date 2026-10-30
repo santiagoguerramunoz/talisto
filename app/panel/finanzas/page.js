@@ -16,6 +16,7 @@ import { pesos } from '@/lib/precios';
 import { faltaTabla } from '@/lib/sql';
 import { esPro } from '@/lib/planes';
 import BloqueoPlan from '@/components/BloqueoPlan';
+import { useRouter } from 'next/navigation';
 
 const MESES_GRAFICO = 6;
 const corto = (mes) => MESES[mes - 1].slice(0, 3);
@@ -117,8 +118,25 @@ function BarrasMeses({ serie, seleccionado, onElegir }) {
 }
 
 export default function Finanzas() {
-  const { plan } = usePanel();
+  const { plan, empresa, permisos } = usePanel();
+  if (empresa && !(permisos || []).includes('importes')) return <FinanzasSinImportes permisos={permisos || []} />;
   return esPro(plan?.plan) ? <FinanzasPro /> : <FinanzasFree />;
+}
+
+// En una empresa, sin el permiso de importes: va a lo que sí puede usar
+function FinanzasSinImportes({ permisos }) {
+  const router = useRouter();
+  const destino = permisos.includes('presupuestos')
+    ? '/panel/finanzas/presupuestos'
+    : permisos.includes('gastos')
+      ? '/panel/finanzas/gastos'
+      : permisos.includes('tickets_asignar')
+        ? '/panel/ordenes'
+        : '/panel';
+  useEffect(() => {
+    router.replace(destino);
+  }, [router, destino]);
+  return <p className="p-4 text-tinta-400">Cargando…</p>;
 }
 
 // Plan Free: solo los trabajos B2B (hasta N empresas) y sus planillas

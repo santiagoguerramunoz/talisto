@@ -8,6 +8,7 @@ import CampoPassword from '@/components/CampoPassword';
 import AvisoConfiguracion from '@/components/AvisoConfiguracion';
 import { supabase } from '@/lib/supabase';
 import { mensajeError } from '@/lib/util';
+import { invitacionPendiente } from '@/lib/empresa';
 
 function FormRegistro() {
   const router = useRouter();
@@ -45,7 +46,8 @@ function FormRegistro() {
       setError(mensajeError(err));
       return;
     }
-    if (data.session) router.replace(rol === 'profesional' ? '/panel' : '/inicio');
+    const invitacion = invitacionPendiente();
+    if (data.session) router.replace(invitacion ? `/unirme?c=${encodeURIComponent(invitacion)}` : rol === 'profesional' ? '/panel' : '/inicio');
     else setEnviado(true);
   }
 

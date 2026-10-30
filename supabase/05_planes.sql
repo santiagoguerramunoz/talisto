@@ -75,6 +75,15 @@ returns text language sql stable security definer set search_path = public as $$
   ), 'free');
 $$;
 
+-- Texto a uuid sin fallar
+create or replace function public.uuid_o_null(t text)
+returns uuid language plpgsql immutable as $$
+begin
+  return t::uuid;
+exception when others then
+  return null;
+end $$;
+
 -- Comienzo del mes en Montevideo (para los límites mensuales)
 create or replace function public.inicio_mes_uy()
 returns timestamptz language sql stable as $$
@@ -93,23 +102,29 @@ create table if not exists public.exportaciones (
 );
 create index if not exists exportaciones_usuario_fecha_idx on public.exportaciones (usuario_id, creado_en);
 
-create or replace function public.registrar_exportacion(p_tipo text default 'planilla', p_detalle text default null)
+drop function if exists public.registrar_exportacion(text, text);
+create or replace function public.registrar_exportacion(p_tipo text default 'planilla', p_detalle text default null, p_cuenta uuid default null)
 returns json language plpgsql security definer set search_path = public as $$
 declare
   uid uuid := auth.uid();
-  pl text := public.plan_de(auth.uid());
+  cuenta uuid := coalesce(p_cuenta, auth.uid());   -- en una empresa: la cuenta principal
+  pl text;
   lim int;
   usadas int;
 begin
   if uid is null then raise exception 'Tenés que iniciar sesión'; end if;
+  if cuenta <> uid and not public.puede(cuenta, array['tickets_asignar','importes']) then
+    raise exception 'No tenés permiso para exportar planillas de esta empresa';
+  end if;
+  pl := public.plan_de(cuenta);
   select free_exportaciones_mes into lim from public.configuracion where id = 1;
-  select count(*) into usadas from public.exportaciones e where e.usuario_id = uid and e.creado_en >= public.inicio_mes_uy();
+  select count(*) into usadas from public.exportaciones e where e.usuario_id = cuenta and e.creado_en >= public.inicio_mes_uy();
   if pl = 'free' and usadas >= lim then
     raise exception using errcode = 'TL002',
       message = format('Llegaste al límite de %s planillas por mes del plan Free.', lim),
       hint = 'Con Pro exportás sin límite.';
   end if;
-  insert into public.exportaciones (usuario_id, tipo, detalle) values (uid, coalesce(p_tipo, 'planilla'), left(p_detalle, 200));
+  insert into public.exportaciones (usuario_id, tipo, detalle) values (cuenta, coalesce(p_tipo, 'planilla'), left(p_detalle, 200));
   return json_build_object('usadas', usadas + 1, 'limite', case when pl = 'free' then lim end);
 end $$;
 
@@ -145,11 +160,14 @@ $$;
 -- ---------------------------------------------------------------------
 create or replace function public.exigir_pro()
 returns trigger language plpgsql set search_path = public as $$
+declare dueno uuid;
 begin
-  if current_user in ('authenticated','anon') and public.plan_de(auth.uid()) = 'free' then
-    raise exception using errcode = 'TL001',
-      message = tg_argv[0],
-      hint = 'Pasate a Pro desde Perfil > Mi plan.';
+  if current_user in ('authenticated','anon') then
+    -- el plan que cuenta es el de la cuenta dueña de los datos (en una empresa, la principal)
+    dueno := coalesce(public.uuid_o_null(to_jsonb(coalesce(new, old))->>'profesional_id'), auth.uid());
+    if public.plan_de(dueno) = 'free' then
+      raise exception using errcode = 'TL001', message = tg_argv[0], hint = 'Pasate a Pro desde Perfil > Mi plan.';
+    end if;
   end if;
   return coalesce(new, old);
 end $$;
@@ -171,7 +189,7 @@ create or replace function public.limitar_empresas_b2b()
 returns trigger language plpgsql set search_path = public as $$
 declare lim int; usadas int;
 begin
-  if current_user not in ('authenticated','anon') or public.plan_de(auth.uid()) <> 'free' then
+  if current_user not in ('authenticated','anon') or public.plan_de(new.profesional_id) <> 'free' then
     return new;
   end if;
   if exists (select 1 from public.ordenes o
@@ -228,10 +246,11 @@ grant usage, select on sequence public.exportaciones_id_seq to service_role;
 grant execute on function public.plan_de(uuid)                    to authenticated, service_role;
 grant execute on function public.inicio_mes_uy()                   to authenticated, service_role;
 grant execute on function public.mi_plan()                         to authenticated, service_role;
-grant execute on function public.registrar_exportacion(text, text) to authenticated, service_role;
+grant execute on function public.registrar_exportacion(text, text, uuid) to authenticated, service_role;
+grant execute on function public.uuid_o_null(text)                 to authenticated, service_role;
 grant execute on function public.exigir_pro()                      to authenticated, service_role;
 grant execute on function public.limitar_empresas_b2b()            to authenticated, service_role;
-revoke execute on function public.registrar_exportacion(text, text) from anon;
+revoke execute on function public.registrar_exportacion(text, text, uuid) from anon;
 revoke execute on function public.mi_plan() from anon;
 
 -- ---------------------------------------------------------------------

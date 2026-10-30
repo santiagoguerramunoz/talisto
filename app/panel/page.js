@@ -20,7 +20,37 @@ const HORA_PX = 64;
 const GUTTER = '3.25rem';
 
 export default function Agenda() {
-  const { profesional } = usePanel();
+  const { empresa, permisos } = usePanel();
+  if (empresa && !(permisos || []).includes('agenda')) return <AgendaProduccion empresa={empresa} />;
+  return <AgendaCompleta />;
+}
+
+// Producción (sin acceso a la agenda completa): sus tickets asignados llegan en la próxima etapa
+function AgendaProduccion({ empresa }) {
+  return (
+    <>
+      <header className="sticky top-0 z-30 border-b border-navy-800 bg-navy-950/95 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur">
+        <h1 className="text-2xl font-extrabold">Mis tickets</h1>
+        <p className="text-xs text-tinta-400">{empresa.nombre}</p>
+      </header>
+      <div className="px-4 pt-4">
+        <section className="tarjeta p-5 text-center">
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-menta-500/15 text-menta-300">
+            <Icon name="maletin" />
+          </span>
+          <h2 className="mt-3 text-lg font-extrabold">Ya sos parte del equipo</h2>
+          <p className="mt-1 text-sm text-tinta-300">
+            Acá vas a ver los tickets que te asigne {empresa.nombre}, con la dirección y la ruta del día, para iniciarlos y finalizarlos con un toque.
+          </p>
+          <p className="mt-3 text-xs text-tinta-500">Llega en la próxima actualización de TaListo!. Mientras tanto, tu agenda personal sigue en Perfil &gt; Espacio de trabajo &gt; Personal.</p>
+        </section>
+      </div>
+    </>
+  );
+}
+
+function AgendaCompleta() {
+  const { profesional, empresa } = usePanel();
   const [vista, setVista] = useState('dia');
   const [fecha, setFecha] = useState(() => inicioDia(new Date()));
   const [modalTurno, setModalTurno] = useState(null);
@@ -56,7 +86,10 @@ export default function Agenda() {
     <>
       <header className="sticky top-0 z-30 border-b border-navy-800 bg-navy-950/95 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold">Agenda</h1>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-extrabold">Agenda</h1>
+            {empresa && <p className="truncate text-xs font-semibold text-menta-300">{empresa.nombre}</p>}
+          </div>
           <div className="grid grid-cols-2 rounded-xl bg-navy-900 p-1 text-sm font-bold">
             {[
               ['dia', 'Día'],
@@ -104,7 +137,7 @@ export default function Agenda() {
       </div>
 
       {/* Botón + */}
-      <div className="fixed right-4 bottom-[calc(5.75rem_+_env(safe-area-inset-bottom))] z-[1050] flex flex-col items-end gap-2 sm:right-[max(1rem,calc(50%_-_20rem))]">
+      <div className={`fixed right-4 ${empresa ? 'bottom-[calc(7.25rem_+_env(safe-area-inset-bottom))]' : 'bottom-[calc(5.75rem_+_env(safe-area-inset-bottom))]'} z-[1050] flex flex-col items-end gap-2 sm:right-[max(1rem,calc(50%_-_20rem))]`}>
         {menuNuevo && (
           <>
             <button

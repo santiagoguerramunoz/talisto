@@ -20,7 +20,7 @@ Next.js + Supabase + Vercel.
 ### 1. Supabase (proyecto NUEVO, no el de Metabia)
 
 1. En supabase.com creá un proyecto nuevo llamado `talisto`.
-2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql` y `supabase/05_planes.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites). Todos se pueden volver a correr sin problema.
+2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql` y `supabase/06_empresas.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones). Todos se pueden volver a correr sin problema.
 3. **Authentication → URL Configuration**:
    - Site URL: `http://localhost:3000` (después cambiala por la URL de Vercel).
    - Redirect URLs: agregá `http://localhost:3000/**` y, cuando la tengas, `https://TU-APP.vercel.app/**`.
@@ -57,7 +57,9 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
 ### 5. Planes y Mercado Pago
 
 - **Free**: agenda, relevamientos, clientes B2B y B2C, mapa y rutas; trabajos B2B de hasta 2 empresas y 6 planillas Excel por mes. Sin presupuestos, Mis gastos ni logo / datos del negocio.
-- **Pro**: todo. **Business**: Pro + empresa con cuentas (en camino).
+- **Pro**: todo. **Business**: Pro + empresa con cuentas del equipo.
+- **Business, cómo armar el equipo**: Perfil → Espacio de trabajo → *Crear mi empresa*. Después, en *Mi empresa*: **Invitar** (con email o con QR) y elegir los roles. La persona abre el link o escanea el QR, entra o crea su cuenta y toca *Unirme*. Cambia entre *Personal* y la empresa desde Perfil → Espacio de trabajo.
+- Roles de fábrica (editables): **Administración** (agenda, clientes, relevamientos, agendar tickets, presupuestos, importes y gastos; no trabaja tickets), **Producción** (trabajar en sus tickets, sin ver importes) y **Ventas** (clientes, relevamientos y presupuestos). Roles y cuentas se pueden bloquear. La cantidad de cuentas la fija el admin (Admin → Plan → Cuentas).
 - Al correr `05_planes.sql` las cuentas admin quedan en Business sin vencimiento. A los demás les regalás el plan desde **/admin → Plan** (sin vencimiento o hasta una fecha). Los precios y los límites de Free también se editan en /admin.
 - Para cobrar la suscripción mensual con Mercado Pago, cargá en Vercel (las pegás vos, no las compartas):
   - `MP_ACCESS_TOKEN`: Mercado Pago → Tus integraciones → tu aplicación → Credenciales de producción → Access Token.

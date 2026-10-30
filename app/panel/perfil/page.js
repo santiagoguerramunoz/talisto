@@ -7,6 +7,7 @@ import Modal from '@/components/Modal';
 import BotonInstalar from '@/components/BotonInstalar';
 import AjustesNegocio from '@/components/AjustesNegocio';
 import BloqueoPlan from '@/components/BloqueoPlan';
+import EspacioTrabajo from '@/components/EspacioTrabajo';
 import { NOMBRE_PLAN, esPro, textoVencimiento } from '@/lib/planes';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
@@ -14,7 +15,11 @@ import { DIAS, SEMANA_ORDEN } from '@/lib/fechas';
 import { DEPARTAMENTOS, SUFIJO_TARIFA, TIPOS_TARIFA, mensajeError, monto } from '@/lib/util';
 
 export default function Perfil() {
-  const { profesional, perfil, user, recargar, plan } = usePanel();
+  const panel = usePanel();
+  const { perfil, user, recargar, empresa } = panel;
+  // El perfil es siempre el personal, aunque se esté trabajando en una empresa
+  const profesional = panel.yo || panel.profesional;
+  const plan = panel.planPersonal || panel.plan;
 
   return (
     <>
@@ -38,9 +43,10 @@ export default function Perfil() {
 
       <div className="space-y-8 px-4 pt-4">
         <MiPlan plan={plan} />
+        <EspacioTrabajo />
         <BotonInstalar variante="tarjeta" />
         <DatosPublicos profesional={profesional} onGuardado={recargar} />
-        {esPro(plan?.plan) ? (
+        {empresa ? null : esPro(plan?.plan) ? (
           <AjustesNegocio profesional={profesional} email={user.email} />
         ) : (
           <section>

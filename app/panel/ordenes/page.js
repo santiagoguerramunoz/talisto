@@ -69,7 +69,7 @@ function TarjetaTrabajo({ o, onAbrir }) {
 
 function Trabajos() {
   const params = useSearchParams();
-  const { profesional, plan, recargarPlan } = usePanel();
+  const { profesional, plan, recargarPlan, empresa: enEmpresa } = usePanel();
   const { ajustes } = useAjustes(profesional.id);
   const [empresas, setEmpresas] = useState(null);
   const [errorPlan, setErrorPlan] = useState(null);
@@ -183,7 +183,7 @@ function Trabajos() {
   // Free: cada planilla cuenta para el límite del mes (lo controla la base)
   async function contar() {
     setErrorPlan(null);
-    const r = await registrarExportacion(empresa?.nombre);
+    const r = await registrarExportacion(empresa?.nombre, enEmpresa ? profesional.id : null);
     if (!r.ok) {
       setErrorPlan(r.error);
       return false;

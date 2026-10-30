@@ -21,6 +21,7 @@ export default function Admin() {
   const [guardando, setGuardando] = useState(false);
   const [planes, setPlanes] = useState(null); // null = falta el SQL 05
   const [editarPlan, setEditarPlan] = useState(null);
+  const [empresas, setEmpresas] = useState({});
 
   const cargarProfesionales = useCallback(async () => {
     const { data } = await supabase
@@ -30,6 +31,8 @@ export default function Admin() {
     setProfesionales(data || []);
     const { data: pl, error } = await supabase.from('planes').select('*');
     setPlanes(error ? null : Object.fromEntries((pl || []).map((p) => [p.usuario_id, p])));
+    const { data: em } = await supabase.from('empresas').select('id, nombre, dueno_id, miembros(count)');
+    setEmpresas(Object.fromEntries((em || []).map((e) => [e.dueno_id, { nombre: e.nombre, cuentas: e.miembros?.[0]?.count ?? 0 }])));
   }, []);
 
   useEffect(() => {
@@ -204,7 +207,7 @@ export default function Admin() {
                   <p className="mt-1 text-xs text-tinta-500">
                     {p.departamentos?.length ? p.departamentos.join(', ') : 'Sin zona cargada'} · desde {new Date(p.creado_en).toLocaleDateString('es-UY')}
                   </p>
-                  {planes && <PlanChip plan={planes[p.id]} />}
+                  {planes && <PlanChip plan={planes[p.id]} empresa={empresas[p.id]} cuentasDefecto={form.business_cuentas_defecto} />}
                 </div>
                 <div className="flex shrink-0 flex-col gap-1.5">
                   <button onClick={() => alternar(p, 'verificado')} className={`chip ${p.verificado ? 'chip-activo' : ''}`}>
@@ -244,7 +247,7 @@ export default function Admin() {
 
 const vigente = (p) => p && p.plan !== 'free' && (!p.vence_en || new Date(p.vence_en) > new Date());
 
-function PlanChip({ plan }) {
+function PlanChip({ plan, empresa, cuentasDefecto }) {
   const cual = vigente(plan) ? plan.plan : 'free';
   const vence = plan?.vence_en && vigente(plan) ? new Date(plan.vence_en).toLocaleDateString('es-UY') : null;
   const origen = cual === 'free' ? '' : plan.origen === 'regalo' ? 'regalo' : 'Mercado Pago';
@@ -252,7 +255,8 @@ function PlanChip({ plan }) {
     <p className="mt-1.5 inline-flex flex-wrap items-center gap-1.5 text-xs">
       <span className={`rounded-full px-2 py-0.5 font-bold ${cual === 'free' ? 'bg-navy-800 text-tinta-300' : 'bg-marca-naranja/15 text-marca-naranja'}`}>{NOMBRE_PLAN[cual]}</span>
       {origen && <span className="text-tinta-400">{origen}{vence ? ` · hasta ${vence}` : ' · sin vencimiento'}</span>}
-      {cual === 'business' && plan.max_cuentas && <span className="text-tinta-400">· {plan.max_cuentas} cuentas</span>}
+      {cual === 'business' && !empresa && <span className="text-tinta-400">· hasta {plan.max_cuentas ?? cuentasDefecto} cuentas</span>}
+      {empresa && <span className="text-tinta-300">· {empresa.nombre}: {empresa.cuentas} de {plan?.max_cuentas ?? cuentasDefecto} cuentas</span>}
       {plan?.mp_estado && plan.origen !== 'mercadopago' && <span className="text-tinta-500">· MP {plan.mp_estado}</span>}
     </p>
   );

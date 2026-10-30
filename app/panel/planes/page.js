@@ -37,7 +37,9 @@ function Valor({ v }) {
 
 function Contenido() {
   const params = useSearchParams();
-  const { plan, user, recargarPlan } = usePanel();
+  const panel = usePanel();
+  const { user, recargarPlan } = panel;
+  const plan = panel.planPersonal || panel.plan; // el plan es siempre el de tu cuenta
   const [disponible, setDisponible] = useState(null);
   const [elegido, setElegido] = useState(null);
   const [email, setEmail] = useState(user?.email || '');
@@ -127,9 +129,6 @@ function Contenido() {
     if (cual === 'free') return null;
     if (cual === 'pro' && actual === 'business') {
       return <p className="rounded-xl bg-navy-850 py-2.5 text-center text-sm text-tinta-400">Incluido en tu plan Business</p>;
-    }
-    if (cual === 'business') {
-      return <p className="rounded-xl bg-navy-850 py-2.5 text-center text-sm font-semibold text-tinta-300">Muy pronto</p>;
     }
     const sinPrecio = !precioPlan(plan, cual);
     if (!disponible || sinPrecio) {
