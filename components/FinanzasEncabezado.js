@@ -10,7 +10,8 @@ import { usePanel } from './PanelContext';
 const TABS = [
   { href: '/panel/finanzas', texto: 'Resumen', permisos: ['importes', 'tickets_asignar'] },
   { href: '/panel/finanzas/presupuestos', texto: 'Presupuestos', pro: true, permisos: ['presupuestos', 'importes'] },
-  { href: '/panel/finanzas/gastos', texto: 'Mis gastos', pro: true, permisos: ['gastos', 'importes'] },
+  { href: '/panel/finanzas/gastos', texto: 'Gastos', pro: true, permisos: ['gastos', 'importes'] },
+  { href: '/panel/finanzas/compras', texto: 'Compras', pro: true, permisos: ['compras'], tambien: ['/panel/finanzas/proveedores'] },
 ];
 
 // Encabezado de Finanzas: pestañas y, si corresponde, el mes
@@ -26,9 +27,9 @@ export default function FinanzasEncabezado({ periodo, onMover, accion }) {
         <h1 className="text-2xl font-extrabold">Finanzas</h1>
         {accion}
       </div>
-      <nav className="mt-3 grid rounded-xl bg-navy-900 p-1 text-sm font-bold" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+      <nav className="mt-3 grid rounded-xl bg-navy-900 p-1 text-sm font-bold" style={{ gridTemplateColumns: `repeat(${tabs.length}, auto)` }}>
         {tabs.map((t) => {
-          const activo = t.href === '/panel/finanzas' ? pathname === t.href : pathname.startsWith(t.href);
+          const activo = t.href === '/panel/finanzas' ? pathname === t.href : [t.href, ...(t.tambien || [])].some((h) => pathname.startsWith(h));
           return (
             <Link key={t.href} href={t.href} className={`flex min-w-0 items-center justify-center gap-0.5 whitespace-nowrap rounded-lg px-1 py-1.5 text-center text-[13px] sm:text-sm ${activo ? 'bg-navy-700 text-tinta-100' : 'text-tinta-400'}`}>
               {t.texto}

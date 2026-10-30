@@ -416,6 +416,7 @@ export default function FichaRelevamiento() {
           onChange={(m) => cambiar('materiales', m)}
           margenDefecto={ajustes.margen_materiales}
           vacio="Agregá lo que vas a necesitar con su precio de costo: el margen calcula el precio final de cada ítem."
+          cuenta={esPro(plan?.plan) ? profesional.id : null}
         />
 
         {/* Mano de obra y total */}

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/Icon';
 import EditorMateriales from '@/components/EditorMateriales';
 import FormTurno from '@/components/FormTurno';
+import CompraMateriales from '@/components/CompraMateriales';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
 import { cargarClientes } from '@/lib/clientes';
@@ -81,8 +82,10 @@ export default function EditorPresupuesto() {
 function EditorPresupuestoPro() {
   const { id } = useParams();
   const router = useRouter();
-  const { profesional, user } = usePanel();
+  const { profesional, user, yo, empresa, permisos } = usePanel();
   const { ajustes } = useAjustes(profesional.id);
+  const [revision, setRevision] = useState(null); // stock y precio de hoy de los materiales del catálogo
+  const puedeComprar = !empresa || yo?.id === profesional.id || (permisos || []).includes('compras');
   const [p, setP] = useState(null);
   const [form, setForm] = useState(null);
   const [clientes, setClientes] = useState([]);
@@ -315,7 +318,20 @@ function EditorPresupuestoPro() {
           margenDefecto={ajustes.margen_materiales}
           titulo="Materiales e ítems"
           textoAgregar="Agregar ítem"
-          vacio="Agregá los materiales con su costo: el margen calcula el precio final de cada ítem."
+          vacio="Agregá los materiales con su costo: el margen calcula el precio final de cada ítem. Con Proveedores los buscás en las listas de precios."
+          cuenta={profesional.id}
+          revision={revision}
+        />
+
+        <CompraMateriales
+          presupuesto={p}
+          items={form.items}
+          onItems={(items) => cambiar('items', items)}
+          cuenta={profesional.id}
+          puedeComprar={puedeComprar}
+          revision={revision}
+          onRevision={setRevision}
+          guardarAntes={() => guardar({}, '')}
         />
 
         {/* Mano de obra e IVA */}

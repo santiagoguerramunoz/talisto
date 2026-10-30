@@ -130,9 +130,11 @@ function FinanzasSinImportes({ permisos }) {
     ? '/panel/finanzas/presupuestos'
     : permisos.includes('gastos')
       ? '/panel/finanzas/gastos'
-      : permisos.includes('tickets_asignar')
-        ? '/panel/ordenes'
-        : '/panel';
+      : permisos.includes('compras')
+        ? '/panel/finanzas/compras'
+        : permisos.includes('tickets_asignar')
+          ? '/panel/ordenes'
+          : '/panel';
   useEffect(() => {
     router.replace(destino);
   }, [router, destino]);

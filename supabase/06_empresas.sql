@@ -24,7 +24,7 @@ end $$;
 create or replace function public.permisos_validos()
 returns text[] language sql immutable as $$
   select array['agenda','clientes','relevamientos','tickets_asignar','tickets_trabajar',
-               'presupuestos','importes','gastos','equipo']::text[];
+               'presupuestos','importes','gastos','equipo','compras']::text[];
 $$;
 
 create or replace function public.uuid_o_null(t text)
@@ -441,7 +441,7 @@ begin
     ('ordenes',       array['tickets_asignar','agenda','importes'],        array['tickets_asignar']),
     ('presupuestos',  array['presupuestos','importes'],                    array['presupuestos']),
     ('gastos',        array['gastos','importes'],                          array['gastos']),
-    ('ajustes',       array['presupuestos','gastos','importes'],           array[]::text[])
+    ('ajustes',       array['presupuestos','gastos','importes','compras'], array[]::text[])
   ) as v(tabla, leer, editar)
   loop
     execute format('drop policy if exists %I on public.%I', t.tabla || '_empresa_leer', t.tabla);

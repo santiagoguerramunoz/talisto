@@ -189,6 +189,20 @@ export default function Admin() {
       </section>
 
       <section className="mt-8">
+        <h2 className="titulo-seccion mb-2">Proveedores de TaListo!</h2>
+        <Link href="/panel/finanzas/compras?ver=proveedores" className="tarjeta flex items-center gap-3 p-4 hover:bg-navy-850">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-marca-naranja/15 text-marca-naranja">
+            <Icon name="caja" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <b className="block">Marketplace de proveedores</b>
+            <span className="text-xs text-tinta-400">Sumá proveedores con su lista (Excel, link o API) para todas las cuentas Pro y Business, sin comisión.</span>
+          </span>
+          <Icon name="der" className="h-4 w-4 text-tinta-500" />
+        </Link>
+      </section>
+
+      <section className="mt-8">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="titulo-seccion">Profesionales ({profesionales.length})</h2>
           {pendientes > 0 && <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-xs font-semibold text-amber-300">{pendientes} sin verificar</span>}

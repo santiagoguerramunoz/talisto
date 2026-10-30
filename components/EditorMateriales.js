@@ -1,7 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import Icon from './Icon';
+import BuscadorProductos from './BuscadorProductos';
 import { margenDePrecio, numero, pesos, precioConMargen, totalesMateriales } from '@/lib/precios';
+import { estadoStock, importe, lineaDesdeProducto } from '@/lib/proveedores';
 
 export const MATERIAL_VACIO = { item: '', cantidad: '1', unidad: 'u', proveedor: '', costo: '', margen: '', precio: '' };
 
@@ -19,9 +22,23 @@ export default function EditorMateriales({
   titulo = 'Materiales',
   textoAgregar = 'Agregar material',
   vacio = 'Sin materiales.',
+  cuenta = null, // con la cuenta: buscar en las listas de los proveedores
+  revision = null, // { producto_id: { stock, precio, … } } después de revisar stock y precios
 }) {
   const lista = materiales || [];
   const t = totalesMateriales(lista);
+  const [buscando, setBuscando] = useState(false);
+
+  // Del catálogo: si ya está en la lista, suma uno
+  function agregarProducto(p, { cotizacion }) {
+    const actual = lista.findIndex((m) => m.producto_id === p.id);
+    if (actual >= 0) {
+      onChange(lista.map((m, k) => (k === actual ? { ...m, cantidad: String((numero(m.cantidad) ?? 0) + 1) } : m)));
+      return;
+    }
+    const vacias = lista.filter((m) => String(m.item || '').trim() || numero(m.costo) !== null);
+    onChange([...vacias, lineaDesdeProducto(p, { margen: margenDefecto, cotizacion })]);
+  }
 
   function cambiar(i, campo, valor) {
     onChange(
@@ -52,9 +69,16 @@ export default function EditorMateriales({
         <h3 className="titulo-seccion min-w-0">
           {titulo} {t.items > 0 && <span className="text-tinta-500">({t.items})</span>}
         </h3>
-        <button type="button" className="chip chip-activo shrink-0 whitespace-nowrap" onClick={() => onChange([...lista, { ...MATERIAL_VACIO, margen: String(margenDefecto) }])}>
-          <Icon name="mas" className="h-3.5 w-3.5" /> {textoAgregar}
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {cuenta && (
+            <button type="button" className="chip shrink-0 whitespace-nowrap border-menta-500/50 text-menta-300" onClick={() => setBuscando(true)}>
+              <Icon name="buscar" className="h-3.5 w-3.5" /> Proveedores
+            </button>
+          )}
+          <button type="button" className="chip chip-activo shrink-0 whitespace-nowrap" onClick={() => onChange([...lista, { ...MATERIAL_VACIO, margen: String(margenDefecto) }])}>
+            <Icon name="mas" className="h-3.5 w-3.5" /> {textoAgregar}
+          </button>
+        </div>
       </div>
 
       {lista.length === 0 ? (
@@ -65,6 +89,9 @@ export default function EditorMateriales({
             const cant = numero(m.cantidad) ?? 0;
             const linea = cant * (numero(m.precio) ?? 0);
             const costoLinea = cant * (numero(m.costo) ?? 0);
+            const info = m.producto_id && revision ? revision[m.producto_id] : null;
+            const stock = info ? estadoStock(info, m.cantidad) : null;
+            const cambioPrecio = info && info.moneda !== 'USD' && numero(m.costo) !== null && Math.abs(Number(info.precio) - numero(m.costo)) >= 0.01;
             return (
               <li key={i} className="rounded-xl border border-navy-700 bg-navy-850 p-2.5">
                 <div className="flex items-center gap-2">
@@ -73,6 +100,24 @@ export default function EditorMateriales({
                     <Icon name="cerrar" className="h-4 w-4" />
                   </button>
                 </div>
+                {m.producto_id && (
+                  <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1 text-[11px] text-tinta-400">
+                    <span className="inline-flex items-center gap-1 font-semibold text-menta-400">
+                      <Icon name="check" className="h-3 w-3" /> Catálogo
+                    </span>
+                    {m.codigo && <span>cód. {m.codigo}</span>}
+                    {stock && <span className={`font-semibold ${stock.clase}`}>{stock.texto}</span>}
+                    {cambioPrecio && (
+                      <button
+                        type="button"
+                        className="font-semibold text-amber-300 underline"
+                        onClick={() => cambiar(i, 'costo', String(info.precio))}
+                      >
+                        Precio hoy {importe(info.precio, info.moneda)}: actualizar
+                      </button>
+                    )}
+                  </p>
+                )}
                 <div className="mt-2 grid grid-cols-[4.5rem_3.75rem_1fr] gap-2">
                   <input className="campo px-2 py-2 text-sm" type="number" inputMode="decimal" min="0" value={m.cantidad} onChange={(e) => cambiar(i, 'cantidad', e.target.value)} placeholder="Cant." aria-label="Cantidad" />
                   <input className="campo px-2 py-2 text-sm" value={m.unidad} onChange={(e) => cambiar(i, 'unidad', e.target.value)} placeholder="u" aria-label="Unidad" />
@@ -127,6 +172,9 @@ export default function EditorMateriales({
             </p>
           </div>
         </div>
+      )}
+      {cuenta && (
+        <BuscadorProductos abierto={buscando} onCerrar={() => setBuscando(false)} onElegir={agregarProducto} cuenta={cuenta} />
       )}
     </section>
   );

@@ -15,6 +15,8 @@ import { ESTADOS_TRABAJO, estadoTrabajo } from '@/lib/trabajos';
 import { AVISO_SQL_04, faltaSql04 } from '@/lib/sql';
 import { linkGoogleMaps, linkWaze, mensajeError } from '@/lib/util';
 import { hhmm, useEquipoAsignable } from '@/lib/equipo';
+import { usePanel } from './PanelContext';
+import { esPro } from '@/lib/planes';
 import { Reloj } from './ControlTiempo';
 
 function Contador({ etiqueta, ayuda, valor, onChange }) {
@@ -132,6 +134,7 @@ function TiempoDelEquipo({ trabajo, nombre }) {
 
 /** Trabajo de un cliente B2B: ticket, dirección, Iniciar/Finalizar, puestas, MOE, mano de obra y materiales. */
 export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesionalId, empresas = [], orden, inicial, margenDefecto = 30, equipo: equipoProp = null }) {
+  const panel = usePanel();
   const equipoPanel = useEquipoAsignable();
   const equipo = equipoProp || equipoPanel;
   const [form, setForm] = useState(null);
@@ -452,6 +455,7 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
           onChange={(m) => cambiar('materiales', m)}
           margenDefecto={margenDefecto}
           titulo="Materiales"
+          cuenta={esPro(panel?.plan?.plan) ? profesionalId : null}
           textoAgregar="Añadir materiales"
           vacio="Si tuviste que comprar materiales para la tarea, agregalos acá con el proveedor y su precio."
         />

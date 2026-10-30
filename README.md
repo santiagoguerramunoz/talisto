@@ -20,7 +20,7 @@ Next.js + Supabase + Vercel.
 ### 1. Supabase (proyecto NUEVO, no el de Metabia)
 
 1. En supabase.com creá un proyecto nuevo llamado `talisto`.
-2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql` y `supabase/08_tickets.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo). Todos se pueden volver a correr sin problema.
+2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql`, `supabase/08_tickets.sql` y `supabase/09_proveedores.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo; el 09 los proveedores, sus listas de precios y las órdenes de compra). Todos se pueden volver a correr sin problema.
 3. **Authentication → URL Configuration**:
    - Site URL: `https://talisto-ashen.vercel.app` (para probar en tu PC podés usar `http://localhost:3000`).
    - Redirect URLs: solo `https://talisto-ashen.vercel.app/**` (y `http://localhost:3000/**` mientras pruebes en tu PC; después sacalo).
@@ -81,12 +81,27 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
 - **Equipo en ruta** (Agenda → *Equipo*, o Mi empresa): qué está haciendo cada uno ahora, el cronómetro, cuántos terminó, la resolución de cada trabajo, los que quedan sin asignar, el orden de la ruta con flechas y el mapa con la última ubicación de cada uno (si la comparte). Se actualiza sola cada 20 segundos.
 - Si alguien sale del equipo, sus trabajos sin terminar quedan *Sin asignar* para dárselos a otro.
 
-### 7. Seguridad
+### 7. Proveedores y órdenes de compra (Pro y Business)
+
+- **Finanzas → Compras → Proveedores → + Proveedor**. Cada proveedor tiene su lista de precios, que llega de una de estas formas:
+  - **Planilla Excel o CSV**: el proveedor te la pasa y la subís (hay una *planilla modelo* para mandarle). TaListo! reconoce solo qué columna es el código, la descripción, el precio, el stock, la unidad y la marca; si algo no coincide lo cambiás antes de cargar.
+  - **Link publicado**: por ejemplo una planilla de Google publicada como CSV. Con *Actualizar lista* se trae la versión nueva.
+  - **API del proveedor**: el link de la lista (JSON, CSV o Excel), la clave (queda guardada protegida: nadie la vuelve a ver), el link de **stock al momento** con `{codigo}` y el link para **recibir órdenes de compra**.
+  - **A mano**: cargás los productos uno por uno.
+- En el **presupuesto**, en Materiales tocá **Proveedores**: buscás por nombre, marca o código y el producto se agrega con el costo y tu margen. Si está en dólares te pide la cotización.
+- **Compra de materiales** (en el presupuesto): *Revisar stock* compara las cantidades con el stock (en el momento si el proveedor tiene API) y avisa si cambió el precio. *Orden de compra* arma una orden por proveedor, en borrador.
+- En la orden: ajustás cantidades, la mandás en **PDF, WhatsApp o email**, o **a su sistema** si tiene API, y le vas cambiando el estado (enviada, confirmada, recibida).
+- **Proveedores de TaListo!**: el admin los suma desde /admin (o Compras → + Proveedor → *Proveedor de TaListo!*) y los ven todas las cuentas Pro y Business, sin comisión.
+- En una empresa, el permiso nuevo **Compras** maneja proveedores y órdenes (el rol Administración ya lo tiene).
+- Para las API con clave y el stock al momento, el servidor necesita `SUPABASE_SERVICE_ROLE_KEY` en Vercel (la misma de Mercado Pago).
+
+### 8. Seguridad
 
 - La base controla todo (no la pantalla): cada cuenta solo ve y cambia lo suyo o lo que su rol permite, nadie puede pasar datos de una cuenta a otra, sin sesión solo se ve lo público, y las funciones internas no se pueden llamar desde afuera.
 - La app manda encabezados de seguridad (no se puede meter dentro de otra página, solo carga scripts propios, conexiones solo a Supabase y los mapas).
 - El permiso **Equipo** de un rol permite invitar y cambiar roles: dáselo solo a gente de confianza.
 - Las claves (`SUPABASE_SERVICE_ROLE_KEY`, `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`) van solo en Vercel; nunca en el código ni en mensajes.
+- Los links de los proveedores solo se consultan desde el servidor, con https, nunca a direcciones internas y con tiempo y tamaño máximos. Las claves de sus API quedan en una tabla que la app no puede leer.
 
 ## Trabajar desde tu PC (Windows)
 
@@ -133,6 +148,9 @@ app/inicio/page.js              → pantalla del cliente (buscador en Fase 3)
 app/panel/layout.js             → protección de sesión + barra inferior
 app/panel/page.js               → Agenda (día / semana) · Mis tickets para Producción
 app/panel/equipo/page.js        → Equipo en ruta (tickets, tiempos y ubicación del equipo)
+app/panel/finanzas/compras      → órdenes de compra y proveedores
+app/panel/finanzas/proveedores  → ficha del proveedor y su lista de precios
+app/api/proveedores             → actualizar listas, stock al momento y mandar órdenes (servidor)
 app/panel/empresa/page.js       → Mi empresa: cuentas, roles e invitaciones
 app/panel/clientes/page.js      → lista de clientes
 app/panel/clientes/[id]/page.js → ficha: horarios acordados, direcciones, historial
