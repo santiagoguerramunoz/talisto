@@ -20,10 +20,15 @@ Next.js + Supabase + Vercel.
 ### 1. Supabase (proyecto NUEVO, no el de Metabia)
 
 1. En supabase.com creá un proyecto nuevo llamado `talisto`.
-2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql` y `supabase/06_empresas.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones). Todos se pueden volver a correr sin problema.
+2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql` y `supabase/08_tickets.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo). Todos se pueden volver a correr sin problema.
 3. **Authentication → URL Configuration**:
-   - Site URL: `http://localhost:3000` (después cambiala por la URL de Vercel).
-   - Redirect URLs: agregá `http://localhost:3000/**` y, cuando la tengas, `https://TU-APP.vercel.app/**`.
+   - Site URL: `https://talisto-ashen.vercel.app` (para probar en tu PC podés usar `http://localhost:3000`).
+   - Redirect URLs: solo `https://talisto-ashen.vercel.app/**` (y `http://localhost:3000/**` mientras pruebes en tu PC; después sacalo).
+   - **Seguridad recomendada** (Authentication → Sign In / Providers y → Policies o *Password security*):
+     - *Confirm email* prendido (nadie entra con un email que no es suyo).
+     - Contraseña mínima de 8 caracteres y, si tu plan lo permite, *Leaked password protection*.
+     - *Secure email change* prendido.
+     - Apagá los proveedores que no usás (teléfono, Google, etc.).
 4. **Project Settings → API**: copiá la *Project URL* y la *anon / publishable key*.
 
 ### 2. Proyecto en tu PC
@@ -68,6 +73,21 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
   - En Mercado Pago → Tus integraciones → Webhooks, URL de producción `https://talisto-ashen.vercel.app/api/mercadopago/webhook` con el evento **Planes y suscripciones**.
   - Después de cargar las variables, hacé **Redeploy** en Vercel. Hasta entonces el botón de suscribirse dice "Muy pronto".
 
+### 6. Tickets y rutas del equipo (Business)
+
+- **Administración** (o quien tenga *Agendar tickets* / *Agenda*) crea el ticket B2B o el turno y elige **Asignado a**. En una empresa, dos personas pueden tener trabajos a la misma hora.
+- **Producción** ve **Tickets**: sus trabajos del día en el orden de la ruta, con dirección, Ir / Waze / Llamar, lo que hay que hacer y los materiales, **sin importes**. Toca **Iniciar** al llegar y **Finalizar** al terminar: *Terminado* (cuenta cómo quedó, puestas y MOE), *Suspendido* (con el motivo) o *Sigue otro día*. Se guarda la hora y el lugar de cada inicio y fin.
+- Solo la persona asignada marca el inicio y el fin (la cuenta principal también puede, en lo suyo). Administración no puede "iniciarse": la base lo bloquea.
+- **Equipo en ruta** (Agenda → *Equipo*, o Mi empresa): qué está haciendo cada uno ahora, el cronómetro, cuántos terminó, la resolución de cada trabajo, los que quedan sin asignar, el orden de la ruta con flechas y el mapa con la última ubicación de cada uno (si la comparte). Se actualiza sola cada 20 segundos.
+- Si alguien sale del equipo, sus trabajos sin terminar quedan *Sin asignar* para dárselos a otro.
+
+### 7. Seguridad
+
+- La base controla todo (no la pantalla): cada cuenta solo ve y cambia lo suyo o lo que su rol permite, nadie puede pasar datos de una cuenta a otra, sin sesión solo se ve lo público, y las funciones internas no se pueden llamar desde afuera.
+- La app manda encabezados de seguridad (no se puede meter dentro de otra página, solo carga scripts propios, conexiones solo a Supabase y los mapas).
+- El permiso **Equipo** de un rol permite invitar y cambiar roles: dáselo solo a gente de confianza.
+- Las claves (`SUPABASE_SERVICE_ROLE_KEY`, `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`) van solo en Vercel; nunca en el código ni en mensajes.
+
 ## Trabajar desde tu PC (Windows)
 
 Necesitás [Git](https://git-scm.com/download/win) y Node 20.9 o más nuevo. Conviene una carpeta fuera de OneDrive
@@ -106,12 +126,14 @@ npx vercel --prod            # publica en https://talisto-ashen.vercel.app
 ## Archivos
 
 ```
-supabase/01_talisto_fase1.sql   → base de datos completa de la Fase 1 (correr en Supabase)
+supabase/01 … 08                → base de datos (correr en orden en Supabase)
 app/page.js                     → portada
 app/login, app/registro, app/nueva-clave
 app/inicio/page.js              → pantalla del cliente (buscador en Fase 3)
 app/panel/layout.js             → protección de sesión + barra inferior
-app/panel/page.js               → Agenda (día / semana)
+app/panel/page.js               → Agenda (día / semana) · Mis tickets para Producción
+app/panel/equipo/page.js        → Equipo en ruta (tickets, tiempos y ubicación del equipo)
+app/panel/empresa/page.js       → Mi empresa: cuentas, roles e invitaciones
 app/panel/clientes/page.js      → lista de clientes
 app/panel/clientes/[id]/page.js → ficha: horarios acordados, direcciones, historial
 app/panel/mapa/page.js          → mapa del día y de todos los clientes

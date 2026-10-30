@@ -22,6 +22,7 @@ const NAV = [
 function seccionDe(pathname) {
   if (pathname.startsWith('/panel/ordenes')) return '/panel/finanzas';
   if (pathname.startsWith('/panel/planes') || pathname.startsWith('/panel/empresa')) return '/panel/perfil';
+  if (pathname.startsWith('/panel/equipo')) return '/panel/equipo';
   const item = NAV.filter((n) => n.href !== '/panel').find((n) => pathname.startsWith(n.href));
   return item ? item.href : '/panel';
 }
@@ -107,7 +108,12 @@ export default function PanelLayout({ children }) {
   const valor = useMemo(() => ({ ...estado, recargar: cargar, recargarPlan, cambiarEspacio }), [estado, cargar, recargarPlan, cambiarEspacio]);
 
   // En una empresa, cada uno ve solo las secciones de sus permisos
-  const nav = estado.empresa ? NAV.filter((n) => tiene(estado.permisos, SECCIONES[n.href])) : NAV;
+  const nav = estado.empresa
+    ? NAV.filter((n) => tiene(estado.permisos, SECCIONES[n.href])).map((n) =>
+        // Producción sin agenda: su inicio son sus tickets
+        n.href === '/panel' && !(estado.permisos || []).includes('agenda') ? { ...n, icono: 'maletin', texto: 'Tickets' } : n
+      )
+    : NAV;
   const seccion = seccionDe(pathname);
   const permitida = !estado.empresa || tiene(estado.permisos, SECCIONES[seccion]);
   useEffect(() => {
@@ -161,7 +167,7 @@ export default function PanelLayout({ children }) {
         )}
         <div className="mx-auto grid max-w-2xl" style={{ gridTemplateColumns: `repeat(${nav.length}, minmax(0, 1fr))` }}>
           {nav.map((item) => {
-            const activo = item.href === seccion;
+            const activo = item.href === (seccion === '/panel/equipo' ? '/panel' : seccion);
             return (
               <Link
                 key={item.href}

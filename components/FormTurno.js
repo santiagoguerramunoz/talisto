@@ -10,6 +10,7 @@ import { AVISO_SQL_UBICACION, consultarRelevamientos, guardarRelevamiento } from
 import { combinar, fechaISO, fechaLarga, horaHHMM, minutos, textoHora } from '@/lib/fechas';
 import { choquesConBloques } from '@/lib/agenda';
 import { ESTADOS, linkWhatsapp, mensajeError } from '@/lib/util';
+import { hhmm, useEquipoAsignable } from '@/lib/equipo';
 
 function sumarMinutos(hora, n) {
   const total = Math.min(minutos(hora) + n, 23 * 60 + 59);
@@ -32,7 +33,10 @@ export default function FormTurno({
   indice,
   turno,
   inicial,
+  equipo: equipoProp = null,
 }) {
+  const equipoPanel = useEquipoAsignable();
+  const equipo = equipoProp || equipoPanel;
   const [form, setForm] = useState(null);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -59,6 +63,7 @@ export default function FormTurno({
         monto: turno.monto_acordado ?? '',
         estado: turno.estado,
         notas: turno.notas || '',
+        asignado_a: turno.asignado_a || '',
       });
       if (turno.tipo === 'relevamiento') {
         consultarRelevamientos((campos) => supabase.from('relevamientos').select(campos).eq('turno_id', turno.id).maybeSingle()).then(
@@ -100,6 +105,7 @@ export default function FormTurno({
         monto: '',
         estado: 'confirmado',
         notas: '',
+        asignado_a: inicial?.asignado_a || '',
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -112,6 +118,9 @@ export default function FormTurno({
 
   const esRelevamiento = form.tipo === 'relevamiento';
   const esVisitaApp = form.tipo === 'visita';
+  const conEquipo = !!equipo?.hayEquipo && equipo.disponible;
+  const asignables = conEquipo ? equipo.equipo.filter((p) => p.trabaja || p.usuario_id === form.asignado_a) : [];
+  const sesiones = (turno?.tiempos || []).filter((t) => t?.inicio);
   const cambiar = (campo, valor) => setForm((f) => ({ ...f, [campo]: valor }));
 
   function cambiarCliente(id) {
@@ -167,6 +176,7 @@ export default function FormTurno({
       estado: form.estado,
       notas: form.notas.trim() || null,
     };
+    if (conEquipo) fila.asignado_a = form.asignado_a || null;
     if (esRelevamiento) {
       fila.tipo = 'relevamiento';
       fila.flexible = !!form.flexible;
@@ -297,6 +307,35 @@ export default function FormTurno({
             ))}
           </select>
         </div>
+
+        {conEquipo && (
+          <div>
+            <label className="etiqueta" htmlFor="t-asig">Asignado a</label>
+            <select id="t-asig" className="campo" value={form.asignado_a} onChange={(e) => cambiar('asignado_a', e.target.value)}>
+              <option value="">— Sin asignar —</option>
+              {asignables.map((p) => (
+                <option key={p.usuario_id} value={p.usuario_id}>{p.nombre}</option>
+              ))}
+            </select>
+            {form.asignado_a && <p className="mt-1 text-xs text-tinta-400">Le aparece en Mis tickets con la dirección, para iniciarlo y finalizarlo.</p>}
+          </div>
+        )}
+
+        {(sesiones.length > 0 || turno?.resolucion) && (
+          <div className="rounded-xl border border-navy-700 bg-navy-850 p-3 text-sm">
+            {sesiones.map((t, i) => (
+              <p key={i} className="text-xs text-tinta-300">
+                {t.por && equipo?.nombreDe(t.por) ? `${equipo.nombreDe(t.por)}: ` : ''}inició {hhmm(t.inicio)}{t.fin ? ` · terminó ${hhmm(t.fin)}` : ' · trabajando ahora'}
+              </p>
+            ))}
+            {turno?.resolucion && (
+              <p className="mt-1.5 whitespace-pre-line text-tinta-100">
+                <b className="block text-xs uppercase tracking-wide text-menta-300">{turno.estado === 'realizado' ? 'Cómo quedó' : 'Nota de quien lo hizo'}</b>
+                {turno.resolucion}
+              </p>
+            )}
+          </div>
+        )}
 
         {!form.cliente_id && (
           <div>

@@ -84,6 +84,12 @@ exception when others then
   return null;
 end $$;
 
+-- ¿Mi cuenta es Pro o Business? (para las reglas del Storage)
+create or replace function public.soy_pro()
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.plan_de(auth.uid()) <> 'free';
+$$;
+
 -- Comienzo del mes en Montevideo (para los límites mensuales)
 create or replace function public.inicio_mes_uy()
 returns timestamptz language sql stable as $$
@@ -159,12 +165,12 @@ $$;
 --    procesos del servidor (service_role) no quedan limitados.
 -- ---------------------------------------------------------------------
 create or replace function public.exigir_pro()
-returns trigger language plpgsql set search_path = public as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 declare dueno uuid;
 begin
-  if current_user in ('authenticated','anon') then
+  if coalesce(current_setting('role', true), '') in ('authenticated', 'anon') then
     -- el plan que cuenta es el de la cuenta dueña de los datos (en una empresa, la principal)
-    dueno := coalesce(public.uuid_o_null(to_jsonb(coalesce(new, old))->>'profesional_id'), auth.uid());
+    dueno := coalesce(public.uuid_o_null(to_jsonb(coalesce(new, old)) ->> 'profesional_id'), auth.uid());
     if public.plan_de(dueno) = 'free' then
       raise exception using errcode = 'TL001', message = tg_argv[0], hint = 'Pasate a Pro desde Perfil > Mi plan.';
     end if;
@@ -186,15 +192,16 @@ create trigger talisto_plan_ajustes before insert or update on public.ajustes
 
 -- Trabajos B2B: en Free, de hasta N empresas distintas
 create or replace function public.limitar_empresas_b2b()
-returns trigger language plpgsql set search_path = public as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 declare lim int; usadas int;
 begin
-  if current_user not in ('authenticated','anon') or public.plan_de(new.profesional_id) <> 'free' then
+  if coalesce(current_setting('role', true), '') not in ('authenticated', 'anon')
+     or public.plan_de(new.profesional_id) <> 'free' then
     return new;
   end if;
   if exists (select 1 from public.ordenes o
              where o.profesional_id = new.profesional_id and o.empresa_id = new.empresa_id and o.id <> new.id) then
-    return new;   -- empresa que ya venía usando
+    return new;
   end if;
   select free_empresas_b2b into lim from public.configuracion where id = 1;
   select count(distinct o.empresa_id) into usadas from public.ordenes o
@@ -218,7 +225,7 @@ begin
     execute 'drop policy if exists logos_subir on storage.objects';
     execute $p$create policy logos_subir on storage.objects for insert to authenticated
       with check (bucket_id = 'logos' and (storage.foldername(name))[1] = (select auth.uid())::text
-                  and public.plan_de((select auth.uid())) <> 'free')$p$;
+                  and public.soy_pro())$p$;
   end if;
 end $$;
 
@@ -243,7 +250,9 @@ grant select, insert, update, delete on public.planes to authenticated, service_
 grant select on public.exportaciones to authenticated;
 grant all on public.exportaciones to service_role;
 grant usage, select on sequence public.exportaciones_id_seq to service_role;
-grant execute on function public.plan_de(uuid)                    to authenticated, service_role;
+grant execute on function public.plan_de(uuid)                    to service_role;
+revoke execute on function public.plan_de(uuid)                   from public, anon, authenticated;
+grant execute on function public.soy_pro()                          to authenticated, service_role;
 grant execute on function public.inicio_mes_uy()                   to authenticated, service_role;
 grant execute on function public.mi_plan()                         to authenticated, service_role;
 grant execute on function public.registrar_exportacion(text, text, uuid) to authenticated, service_role;

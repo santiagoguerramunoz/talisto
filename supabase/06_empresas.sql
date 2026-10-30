@@ -499,11 +499,12 @@ end $$;
 --    (el equipo de una empresa Business no queda limitado por su plan personal)
 -- ---------------------------------------------------------------------
 create or replace function public.exigir_pro()
-returns trigger language plpgsql set search_path = public as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 declare dueno uuid;
 begin
-  if current_user in ('authenticated','anon') then
-    dueno := coalesce(public.uuid_o_null(to_jsonb(coalesce(new, old))->>'profesional_id'), auth.uid());
+  if coalesce(current_setting('role', true), '') in ('authenticated', 'anon') then
+    -- el plan que cuenta es el de la cuenta dueña de los datos (en una empresa, la principal)
+    dueno := coalesce(public.uuid_o_null(to_jsonb(coalesce(new, old)) ->> 'profesional_id'), auth.uid());
     if public.plan_de(dueno) = 'free' then
       raise exception using errcode = 'TL001', message = tg_argv[0], hint = 'Pasate a Pro desde Perfil > Mi plan.';
     end if;
@@ -512,10 +513,11 @@ begin
 end $$;
 
 create or replace function public.limitar_empresas_b2b()
-returns trigger language plpgsql set search_path = public as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 declare lim int; usadas int;
 begin
-  if current_user not in ('authenticated','anon') or public.plan_de(new.profesional_id) <> 'free' then
+  if coalesce(current_setting('role', true), '') not in ('authenticated', 'anon')
+     or public.plan_de(new.profesional_id) <> 'free' then
     return new;
   end if;
   if exists (select 1 from public.ordenes o
@@ -569,7 +571,8 @@ grant execute on function public.es_miembro(uuid)                            to 
 grant execute on function public.gestiona_equipo(uuid)                       to authenticated, service_role;
 grant execute on function public.cuentas_con(text[])                         to authenticated, service_role;
 grant execute on function public.puede(uuid, text[])                         to authenticated, service_role;
-grant execute on function public.cupo_empresa(uuid)                          to authenticated, service_role;
+grant execute on function public.cupo_empresa(uuid)                          to service_role;
+revoke execute on function public.cupo_empresa(uuid)                         from public, anon, authenticated;
 grant execute on function public.crear_mi_empresa(text)                      to authenticated, service_role;
 grant execute on function public.info_empresa(uuid)                          to authenticated, service_role;
 grant execute on function public.equipo_empresa(uuid)                        to authenticated, service_role;

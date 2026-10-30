@@ -6,6 +6,7 @@ import Icon from '@/components/Icon';
 import Modal from '@/components/Modal';
 import BloqueoPlan from '@/components/BloqueoPlan';
 import { usePanel } from '@/components/PanelContext';
+import { useContextoEquipo } from '@/lib/equipo';
 import { supabase } from '@/lib/supabase';
 import { esBusiness } from '@/lib/planes';
 import { PERMISOS, TEXTO_PERMISO, linkInvitacion, textoInvitacion } from '@/lib/empresa';
@@ -290,6 +291,7 @@ function CrearEmpresa({ onCreada, nombreSugerido }) {
 
 export default function Empresa() {
   const { yo, empresa: enEmpresa, permisos, espacios, planPersonal, recargar } = usePanel();
+  const ctxEquipo = useContextoEquipo();
   const empresaId = enEmpresa && (permisos || []).includes('equipo') ? enEmpresa.id : espacios?.miEmpresa?.id || null;
   const [info, setInfo] = useState(null);
   const [roles, setRoles] = useState([]);
@@ -375,6 +377,19 @@ export default function Empresa() {
         ) : (
           <>
             {!info.activa && <p className="rounded-xl bg-amber-400/10 p-3 text-sm text-amber-200">La empresa no tiene Business activo: el equipo no puede entrar hasta que se renueve.</p>}
+
+            {ctxEquipo.puedeMonitorear && (
+              <Link href="/panel/equipo" className="tarjeta flex items-center gap-3 p-4 hover:bg-navy-850">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#0a84ff]/15 text-[#8cc8ff]">
+                  <Icon name="ruta" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <b className="block">Equipo en ruta</b>
+                  <span className="text-xs text-tinta-400">Tickets de cada uno, tiempos en cada cliente y dónde está ahora</span>
+                </span>
+                <Icon name="der" className="h-4 w-4 text-tinta-500" />
+              </Link>
+            )}
 
             {/* Equipo */}
             <section>

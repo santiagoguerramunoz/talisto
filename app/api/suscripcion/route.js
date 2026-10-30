@@ -27,7 +27,11 @@ export async function POST(request) {
   const precio = Number(plan === 'business' ? config?.precio_business : config?.precio_pro) || 0;
   if (precio <= 0) return responder({ error: 'TaListo! todavía no definió el precio de este plan.' }, 400);
 
-  const origen = new URL(request.url).origin;
+  // Mercado Pago vuelve siempre al sitio de TaListo! (nunca a una dirección armada por quien llama)
+  const origen =
+    process.env.VERCEL_ENV === 'production' && process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : new URL(request.url).origin;
   let pre;
   try {
     pre = await mp('/preapproval', {

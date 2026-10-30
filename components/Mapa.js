@@ -10,6 +10,15 @@ const PORTAPAPELES =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h4"/></svg>';
 
 function iconoPin(L, p) {
+  if (p.forma === 'persona') {
+    return L.divIcon({
+      className: '',
+      html: `<div class="pin-persona${p.viejo ? ' pin-persona-vieja' : ''}" style="background:${escapar(p.color || '#0a84ff')}"><span>${escapar(p.etiqueta ?? '')}</span></div>`,
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
+      popupAnchor: [0, -18],
+    });
+  }
   if (p.forma === 'relevamiento') {
     const contenido = p.etiqueta ? `<span>${escapar(p.etiqueta)}</span>` : PORTAPAPELES;
     return L.divIcon({
@@ -33,7 +42,9 @@ function iconoPin(L, p) {
  * Mapa con OpenStreetMap (Leaflet).
  * puntos: [{ lat, lng, color, etiqueta, popup, forma }]  → pines tipo gota (clientes / paradas)
  *   forma: 'relevamiento' → pin cuadrado naranja con portapapeles (o el número de parada)
+ *   forma: 'persona' → círculo con iniciales (dónde está alguien del equipo; viejo: ubicación de hace rato)
  *   fueraDeRuta: no se une con la línea punteada de la ruta
+ * encuadrarSiempre: false → solo encuadra la primera vez (pantallas que se actualizan solas)
  * onClickMapa(lat, lng): para elegir una ubicación tocando el mapa
  * trazado: [[lat, lng], ...] ruta real por calles
  * ruta: si no hay trazado, une los puntos en orden con línea punteada
@@ -54,6 +65,7 @@ export default function Mapa({
   encuadrarUbicacion = true,
   onActivarBrujula,
   zoomInicial = 12,
+  encuadrarSiempre = true,
 }) {
   const divRef = useRef(null);
   const mapRef = useRef(null);
@@ -65,6 +77,7 @@ export default function Mapa({
   const trazadoRef = useRef(trazado);
   const ubicacionRef = useRef(ubicacion);
   const [listo, setListo] = useState(false);
+  const encuadradoRef = useRef(false);
 
   clickRef.current = onClickMapa;
   puntosRef.current = puntos;
@@ -135,11 +148,13 @@ export default function Mapa({
     }
 
     lista.forEach((p) => {
-      const marcador = L.marker([p.lat, p.lng], { icon: iconoPin(L, p), zIndexOffset: p.forma === 'relevamiento' ? 200 : 0 }).addTo(capas.puntos);
+      const marcador = L.marker([p.lat, p.lng], { icon: iconoPin(L, p), zIndexOffset: p.forma === 'persona' ? 500 : p.forma === 'relevamiento' ? 200 : 0 }).addTo(capas.puntos);
       if (p.popup) marcador.bindPopup(escapar(p.popup).replace(/\n/g, '<br>'));
     });
 
+    if (!encuadrarSiempre && encuadradoRef.current) return;
     const encuadre = linea ? [...linea] : lista.map((p) => [p.lat, p.lng]);
+    if (encuadre.length) encuadradoRef.current = true;
     const yo = ubicacionRef.current;
     if (encuadrarUbicacion && valido(yo)) encuadre.push([Number(yo.lat), Number(yo.lng)]);
 
@@ -149,7 +164,7 @@ export default function Mapa({
       map.fitBounds(L.latLngBounds(encuadre), { padding: [40, 40], maxZoom: 16 });
     }
     // hayUbicacion: cuando aparece tu ubicación por primera vez, se reencuadra para verte junto a los clientes
-  }, [listo, clave, ruta, encuadrarUbicacion, hayUbicacion]);
+  }, [listo, clave, ruta, encuadrarUbicacion, hayUbicacion, encuadrarSiempre]);
 
   // Tu marcador: se crea una vez y después solo se mueve
   useEffect(() => {

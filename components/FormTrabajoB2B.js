@@ -14,6 +14,8 @@ import { cerrarTiempos, iniciarTiempos, sesionAbierta } from '@/lib/tiempos';
 import { ESTADOS_TRABAJO, estadoTrabajo } from '@/lib/trabajos';
 import { AVISO_SQL_04, faltaSql04 } from '@/lib/sql';
 import { linkGoogleMaps, linkWaze, mensajeError } from '@/lib/util';
+import { hhmm, useEquipoAsignable } from '@/lib/equipo';
+import { Reloj } from './ControlTiempo';
 
 function Contador({ etiqueta, ayuda, valor, onChange }) {
   const v = Number(valor) || 0;
@@ -59,6 +61,9 @@ function formDesde(orden, empresas, inicial) {
       tiempos: Array.isArray(orden.tiempos) ? orden.tiempos : [],
       minutos_manual: orden.minutos_manual ?? null,
       nota_estado: orden.nota_estado || '',
+      asignado_a: orden.asignado_a || '',
+      cerrado_por: orden.cerrado_por || null,
+      cerrado_en: orden.cerrado_en || null,
     };
   }
   const empresa = empresas.find((e) => e.id === inicial?.empresa_id) || empresas[0];
@@ -88,11 +93,47 @@ function formDesde(orden, empresas, inicial) {
     tiempos: [],
     minutos_manual: null,
     nota_estado: '',
+    asignado_a: inicial?.asignado_a || '',
   };
 }
 
+// En una empresa, el inicio y el fin los marca quien hace el trabajo (desde Mis tickets)
+function TiempoDelEquipo({ trabajo, nombre }) {
+  const estado = estadoTrabajo(trabajo.estado);
+  const info = ESTADOS_TRABAJO[estado] || ESTADOS_TRABAJO.pendiente;
+  const sesiones = (trabajo.tiempos || []).filter((t) => t?.inicio);
+  const corriendo = !!sesionAbierta(trabajo.tiempos);
+  return (
+    <div className={`rounded-2xl border p-4 ${corriendo ? 'border-[#0a84ff]/60 bg-[#0a84ff]/10' : 'border-navy-700 bg-navy-850'}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${info.clase}`}>
+          {corriendo && <span className="h-2 w-2 animate-pulse rounded-full bg-[#0a84ff]" />}
+          {info.texto}
+        </span>
+        <Reloj tiempos={trabajo.tiempos} minutosManual={trabajo.minutos_manual} className="text-xl font-extrabold" />
+      </div>
+      {sesiones.length > 0 && (
+        <ul className="mt-2 space-y-0.5 text-xs text-tinta-300">
+          {sesiones.map((t, i) => (
+            <li key={i}>
+              {new Date(t.inicio).toLocaleDateString('es-UY', { day: 'numeric', month: 'short' })}: {hhmm(t.inicio)} a {t.fin ? hhmm(t.fin) : 'ahora'}
+              {t.lat_i != null && ' · con ubicación'}
+            </li>
+          ))}
+        </ul>
+      )}
+      {estado === 'suspendido' && trabajo.nota_estado && <p className="mt-1 text-sm text-red-200">Motivo: {trabajo.nota_estado}</p>}
+      <p className="mt-2 text-xs text-tinta-400">
+        {nombre ? `Lo inicia y lo finaliza ${nombre} desde Mis tickets.` : 'Asignalo a alguien del equipo: lo inicia y lo finaliza desde Mis tickets.'}
+      </p>
+    </div>
+  );
+}
+
 /** Trabajo de un cliente B2B: ticket, dirección, Iniciar/Finalizar, puestas, MOE, mano de obra y materiales. */
-export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesionalId, empresas = [], orden, inicial, margenDefecto = 30 }) {
+export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesionalId, empresas = [], orden, inicial, margenDefecto = 30, equipo: equipoProp = null }) {
+  const equipoPanel = useEquipoAsignable();
+  const equipo = equipoProp || equipoPanel;
   const [form, setForm] = useState(null);
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
@@ -113,6 +154,10 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
 
   const cambiar = (campo, valor) => setForm((f) => ({ ...f, [campo]: valor }));
   const empresa = empresas.find((e) => e.id === form.empresa_id);
+  // Empresa con equipo: se asigna a alguien y, si no soy la cuenta principal, el tiempo lo marca esa persona
+  const conEquipo = !!equipo?.hayEquipo && equipo.disponible;
+  const tiempoDelEquipo = conEquipo && !equipo.esDueno;
+  const asignables = conEquipo ? equipo.equipo.filter((p) => p.trabaja || p.usuario_id === form.asignado_a) : [];
 
   function cambiarEmpresa(id) {
     const e = empresas.find((x) => x.id === id);
@@ -161,7 +206,7 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
     }
 
     // Si no queda "en curso", el cronómetro se frena
-    const tiempos = f.estado === 'en_curso' ? f.tiempos : cerrarTiempos(f.tiempos);
+    const tiempos = f.estado === 'en_curso' || tiempoDelEquipo ? f.tiempos : cerrarTiempos(f.tiempos);
 
     setGuardando(true);
     const fila = {
@@ -191,6 +236,24 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
       minutos_manual: f.minutos_manual,
       nota_estado: f.estado === 'suspendido' ? f.nota_estado?.trim() || null : null,
     };
+    if (conEquipo) fila.asignado_a = f.asignado_a || null;
+    if (tiempoDelEquipo) {
+      // El cronómetro lo maneja quien hace el trabajo. Lo que esa persona completa al cerrar
+      // (estado, resolución, puestas, día) solo se manda si acá se cambió, para no pisarlo.
+      delete fila.tiempos;
+      if (f.id && orden) {
+        const original = { ...formDesde(orden, empresas, null), estado: estadoTrabajo(orden.estado) };
+        if (f.estado === original.estado) {
+          delete fila.estado;
+          delete fila.nota_estado;
+        }
+        if (f.realizado === original.realizado) delete fila.realizado;
+        if (f.acondicionamientos === original.acondicionamientos) delete fila.acondicionamientos;
+        if (f.moes === original.moes) delete fila.moes;
+        if (f.fecha === original.fecha) delete fila.fecha;
+        if ((f.fecha_inicio || null) === (original.fecha_inicio || null)) delete fila.fecha_inicio;
+      }
+    }
     const consulta = f.id
       ? supabase.from('ordenes').update(fila).eq('id', f.id).select('id').single()
       : supabase.from('ordenes').insert(fila).select('id').single();
@@ -293,8 +356,30 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
           </div>
         </div>
 
+        {conEquipo && (
+          <div>
+            <label className="etiqueta" htmlFor="o-asig">Asignado a</label>
+            <select id="o-asig" className="campo" value={form.asignado_a} onChange={(e) => cambiar('asignado_a', e.target.value)}>
+              <option value="">— Sin asignar —</option>
+              {asignables.map((p) => (
+                <option key={p.usuario_id} value={p.usuario_id}>{p.nombre}</option>
+              ))}
+            </select>
+            {form.cerrado_en && (
+              <p className="mt-1 text-xs text-menta-300">
+                Cerrado {form.cerrado_por ? `por ${equipo.nombreDe(form.cerrado_por) || 'el equipo'} ` : ''}el{' '}
+                {new Date(form.cerrado_en).toLocaleDateString('es-UY', { day: 'numeric', month: 'short' })} a las {hhmm(form.cerrado_en)}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Iniciar / Finalizar */}
-        <ControlTiempo trabajo={form} onAccion={accionTiempo} ocupado={guardando} />
+        {tiempoDelEquipo ? (
+          <TiempoDelEquipo trabajo={form} nombre={form.asignado_a ? equipo.nombreDe(form.asignado_a) : ''} />
+        ) : (
+          <ControlTiempo trabajo={form} onAccion={accionTiempo} ocupado={guardando} />
+        )}
         {aviso && <p className="rounded-xl bg-menta-500/10 p-3 text-sm text-menta-300">{aviso}</p>}
 
         <div>
@@ -404,14 +489,16 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
             value={form.estado}
             onChange={(e) => {
               const estado = e.target.value;
-              setForm((f) => ({ ...f, estado, tiempos: estado === 'en_curso' ? iniciarTiempos(f.tiempos) : f.tiempos }));
+              setForm((f) => ({ ...f, estado, tiempos: estado === 'en_curso' && !tiempoDelEquipo ? iniciarTiempos(f.tiempos) : f.tiempos }));
             }}
           >
-            {Object.entries(ESTADOS_TRABAJO).map(([valor, e]) => (
-              <option key={valor} value={valor}>{e.texto}</option>
-            ))}
+            {Object.entries(ESTADOS_TRABAJO)
+              .filter(([valor]) => !tiempoDelEquipo || !['en_curso', 'multidia'].includes(valor) || valor === form.estado)
+              .map(([valor, e]) => (
+                <option key={valor} value={valor}>{e.texto}</option>
+              ))}
           </select>
-          {corriendo && <p className="mt-1 text-xs text-tinta-400">Si lo pasás a otro estado, el cronómetro se frena al guardar.</p>}
+          {corriendo && !tiempoDelEquipo && <p className="mt-1 text-xs text-tinta-400">Si lo pasás a otro estado, el cronómetro se frena al guardar.</p>}
         </div>
 
         {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}

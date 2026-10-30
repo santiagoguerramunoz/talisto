@@ -6,6 +6,9 @@ import FormTurno from '@/components/FormTurno';
 import FormBloque from '@/components/FormBloque';
 import FormTrabajoB2B from '@/components/FormTrabajoB2B';
 import TrabajosEnCurso from '@/components/TrabajosEnCurso';
+import MisTickets from '@/components/MisTickets';
+import Link from 'next/link';
+import { useEquipoAsignable } from '@/lib/equipo';
 import { usePanel } from '@/components/PanelContext';
 import { useDatosAgenda } from '@/lib/useDatosAgenda';
 import { distribuirColumnas, eventosDelDia, indexarClientes } from '@/lib/agenda';
@@ -21,36 +24,17 @@ const GUTTER = '3.25rem';
 
 export default function Agenda() {
   const { empresa, permisos } = usePanel();
-  if (empresa && !(permisos || []).includes('agenda')) return <AgendaProduccion empresa={empresa} />;
-  return <AgendaCompleta />;
+  const lista = permisos || [];
+  const [verMios, setVerMios] = useState(true);
+  if (empresa && !lista.includes('agenda')) return <MisTickets />;
+  // Con agenda y tickets: arranca en sus tickets y puede pasar a la agenda de la empresa
+  if (empresa && lista.includes('tickets_trabajar') && verMios) return <MisTickets onVerAgenda={() => setVerMios(false)} />;
+  return <AgendaCompleta onVerMios={empresa && lista.includes('tickets_trabajar') ? () => setVerMios(true) : null} />;
 }
 
-// Producción (sin acceso a la agenda completa): sus tickets asignados llegan en la próxima etapa
-function AgendaProduccion({ empresa }) {
-  return (
-    <>
-      <header className="sticky top-0 z-30 border-b border-navy-800 bg-navy-950/95 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur">
-        <h1 className="text-2xl font-extrabold">Mis tickets</h1>
-        <p className="text-xs text-tinta-400">{empresa.nombre}</p>
-      </header>
-      <div className="px-4 pt-4">
-        <section className="tarjeta p-5 text-center">
-          <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-menta-500/15 text-menta-300">
-            <Icon name="maletin" />
-          </span>
-          <h2 className="mt-3 text-lg font-extrabold">Ya sos parte del equipo</h2>
-          <p className="mt-1 text-sm text-tinta-300">
-            Acá vas a ver los tickets que te asigne {empresa.nombre}, con la dirección y la ruta del día, para iniciarlos y finalizarlos con un toque.
-          </p>
-          <p className="mt-3 text-xs text-tinta-500">Llega en la próxima actualización de TaListo!. Mientras tanto, tu agenda personal sigue en Perfil &gt; Espacio de trabajo &gt; Personal.</p>
-        </section>
-      </div>
-    </>
-  );
-}
-
-function AgendaCompleta() {
+function AgendaCompleta({ onVerMios }) {
   const { profesional, empresa } = usePanel();
+  const equipo = useEquipoAsignable();
   const [vista, setVista] = useState('dia');
   const [fecha, setFecha] = useState(() => inicioDia(new Date()));
   const [modalTurno, setModalTurno] = useState(null);
@@ -90,6 +74,12 @@ function AgendaCompleta() {
             <h1 className="text-2xl font-extrabold">Agenda</h1>
             {empresa && <p className="truncate text-xs font-semibold text-menta-300">{empresa.nombre}</p>}
           </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+          {onVerMios && (
+            <button type="button" onClick={onVerMios} className="btn btn-sec px-2.5 py-2 text-sm" aria-label="Mis tickets">
+              <Icon name="maletin" className="h-4 w-4" />
+            </button>
+          )}
           <div className="grid grid-cols-2 rounded-xl bg-navy-900 p-1 text-sm font-bold">
             {[
               ['dia', 'Día'],
@@ -100,6 +90,7 @@ function AgendaCompleta() {
               </button>
             ))}
           </div>
+          </div>
         </div>
         <div className="mt-3 flex items-center gap-2">
           <button onClick={() => mover(-1)} className="btn btn-sec px-2.5 py-2" aria-label="Anterior"><Icon name="izq" /></button>
@@ -107,6 +98,11 @@ function AgendaCompleta() {
           <p className="flex-1 truncate px-1 font-bold">{titulo}</p>
           {!esMismoDia(fecha, new Date()) && (
             <button onClick={() => setFecha(inicioDia(new Date()))} className="chip chip-activo">Hoy</button>
+          )}
+          {equipo.puedeMonitorear && equipo.disponible && (
+            <Link href="/panel/equipo" className="chip shrink-0 border-[#0a84ff]/50 text-[#8cc8ff]">
+              <Icon name="ruta" className="h-4 w-4" /> Equipo
+            </Link>
           )}
         </div>
       </header>
@@ -120,6 +116,7 @@ function AgendaCompleta() {
             datos={datos}
             indice={indice}
             onEvento={abrirEvento}
+            nombreDe={equipo.hayEquipo ? equipo.nombreDe : null}
             onHora={(h) => setModalTurno({ inicial: { fecha: fechaISO(fecha), hora: textoHora(h * 60) } })}
           />
         ) : (
@@ -201,6 +198,7 @@ function AgendaCompleta() {
         indice={indice}
         turno={modalTurno?.turno}
         inicial={modalTurno?.inicial}
+        equipo={equipo}
       />
       <FormTrabajoB2B
         abierto={!!modalOrden}
@@ -211,6 +209,7 @@ function AgendaCompleta() {
         orden={modalOrden?.orden}
         inicial={modalOrden?.inicial}
         margenDefecto={ajustes.margen_materiales}
+        equipo={equipo}
       />
       <FormBloque
         abierto={!!modalBloque}
@@ -226,7 +225,7 @@ function AgendaCompleta() {
   );
 }
 
-function VistaDia({ fecha, datos, indice, onEvento, onHora }) {
+function VistaDia({ fecha, datos, indice, onEvento, onHora, nombreDe }) {
   const eventos = useMemo(
     () => eventosDelDia({ fecha, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, relevamientos: datos.relevamientos, indice }),
     [fecha, datos.turnos, datos.bloques, datos.ordenes, datos.relevamientos, indice]
@@ -358,6 +357,7 @@ function VistaDia({ fecha, datos, indice, onEvento, onHora }) {
                 {textoHora(ev.ini)}–{textoHora(Math.min(ev.fin, 1439))}
                 {ev.clase === 'orden' && estadoTrabajo(ev.estado) !== 'pendiente' ? ` · ${ESTADOS_TRABAJO[estadoTrabajo(ev.estado)]?.texto}` : ''}
                 {ev.direccion ? ` · ${ev.direccion.etiqueta}` : ''}
+                {nombreDe && (ev.turno?.asignado_a || ev.orden?.asignado_a) ? ` · ${nombreDe(ev.turno?.asignado_a || ev.orden?.asignado_a)}` : ''}
                 {!compacto && ev.monto ? ` · ${monto(ev.monto)}` : ''}
               </p>
             </button>

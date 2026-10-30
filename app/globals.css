@@ -186,6 +186,26 @@ body {
   color: #06101f;
 }
 
+/* Alguien del equipo en el mapa: círculo con sus iniciales */
+.pin-persona {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 4px rgb(10 132 255 / 0.35), 0 3px 10px rgb(0 0 0 / 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pin-persona span {
+  font: 800 12px/1 var(--font-jakarta), system-ui, sans-serif;
+  color: #06101f;
+}
+.pin-persona-vieja {
+  opacity: 0.6;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 0.5);
+}
+
 /* Relevamiento pendiente: cuadrado naranja con portapapeles (o número de parada) */
 .pin-relev {
   position: relative;
