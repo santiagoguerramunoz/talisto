@@ -1,13 +1,11 @@
 // Lee una factura, e-ticket, remito o comprobante con IA y devuelve los datos para revisar.
-// Se activa cargando en Vercel GEMINI_API_KEY (Google, modelo gemini-3.8-flash; opcional GEMINI_MODEL)
-// o ANTHROPIC_API_KEY (Claude; opcional ANTHROPIC_MODEL). Si están las dos, usa Gemini.
+// Se activa cargando en Vercel GEMINI_API_KEY (Google AI Studio, uso gratis; modelo gemini-3.8-flash, se cambia con GEMINI_MODEL).
 // El plan, el permiso y el tope del mes los controla la base con el usuario que lo pide.
 import { clienteUsuario } from '@/lib/servidor';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const MODELO = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
 const MODELO_GEMINI = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 const TIPOS = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 const MAX_BASE64 = 4_000_000; // ~3 MB de archivos (el pedido entero tiene que pasar los 4,5 MB de Vercel)
@@ -195,7 +193,7 @@ async function leerConGemini(archivos, categorias) {
     const msg = String(datos?.error?.message || '');
     if (/api key/i.test(msg) || r.status === 401 || r.status === 403) throw new Error('La clave de la IA no es válida: revisá GEMINI_API_KEY en Vercel.');
     if (r.status === 404) throw new Error('El modelo de IA configurado no existe: revisá GEMINI_MODEL en Vercel.');
-    if (r.status === 429) throw new Error('Se terminó por hoy el cupo gratis de la IA de Google. Probá más tarde o activá la facturación en Google AI Studio.');
+    if (r.status === 429) throw new Error('Se terminó por hoy el cupo gratis de la IA de Google (se renueva todos los días). Mientras tanto cargalo a mano.');
     if (r.status >= 500) throw new Error('La IA está con mucha demanda. Probá de nuevo en un minuto.');
     throw new Error('No pudimos leer este archivo. Probá con otra foto, bien de frente y con luz.');
   }
@@ -217,55 +215,13 @@ async function leerConGemini(archivos, categorias) {
   return limpiar(json);
 }
 
-async function leerConIA(archivos, categorias) {
-  if (process.env.GEMINI_API_KEY) return leerConGemini(archivos, categorias);
-  const bloques = archivos.map((a) =>
-    a.tipo === 'application/pdf'
-      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: a.datos } }
-      : { type: 'image', source: { type: 'base64', media_type: a.tipo, data: a.datos } }
-  );
-  bloques.push({ type: 'text', text: pedidoTexto(categorias) });
-
-  let r;
-  try {
-    r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: MODELO,
-        max_tokens: 8000,
-        system: SISTEMA,
-        tools: [HERRAMIENTA],
-        tool_choice: { type: 'tool', name: 'comprobante' },
-        messages: [{ role: 'user', content: bloques }],
-      }),
-      signal: AbortSignal.timeout(55000),
-      cache: 'no-store',
-    });
-  } catch {
-    throw new Error('La IA tardó demasiado en responder. Probá de nuevo.');
-  }
-  const datos = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    if (r.status === 401 || r.status === 403) throw new Error('La clave de la IA no es válida: revisá ANTHROPIC_API_KEY en Vercel.');
-    if (r.status === 404) throw new Error('El modelo de IA configurado no existe: revisá ANTHROPIC_MODEL en Vercel.');
-    if (r.status === 429 || r.status === 529 || r.status >= 500) throw new Error('La IA está con mucha demanda. Probá de nuevo en un minuto.');
-    if (r.status === 413) throw new Error('El archivo es muy grande. Probá con una foto.');
-    throw new Error('No pudimos leer este archivo. Probá con otra foto, bien de frente y con luz.');
-  }
-  const uso = (datos.content || []).find((b) => b.type === 'tool_use');
-  if (!uso?.input) throw new Error('La IA no devolvió los datos. Probá de nuevo.');
-  return limpiar(uso.input);
-}
+// Solo Gemini en el uso gratis de Google: sin facturación activada en ese proyecto no hay forma de que cobre
+const leerConIA = (archivos, categorias) => leerConGemini(archivos, categorias);
 
 export async function POST(request) {
   const { usuario, db } = await clienteUsuario(request);
   if (!usuario) return responder({ error: 'Tenés que iniciar sesión.' }, 401);
-  if (!process.env.GEMINI_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     return responder({ error: 'La lectura con IA todavía no está activada: falta cargar GEMINI_API_KEY en Vercel.', codigo: 'sin_clave' }, 503);
   }
 
