@@ -199,6 +199,9 @@ async function leerConGemini(archivos, categorias) {
   const datos = await r.json().catch(() => ({}));
   if (!r.ok) {
     const msg = registrar(r.status, datos, 2);
+    if (/prepay|billing|credits/i.test(msg)) {
+      throw new Error('La clave de Google es de un proyecto con facturación y sin saldo. Para el uso gratis, creá la clave en un proyecto nuevo de AI Studio sin facturación y reemplazá GEMINI_API_KEY en Vercel.');
+    }
     if (/api key/i.test(msg) || r.status === 401 || r.status === 403) throw new Error('La clave de la IA no es válida: revisá GEMINI_API_KEY en Vercel.');
     if (r.status === 404) throw new Error('El modelo de IA configurado no existe: revisá GEMINI_MODEL en Vercel.');
     if (r.status === 429) throw new Error('Se terminó por hoy el cupo gratis de la IA de Google (se renueva todos los días). Mientras tanto cargalo a mano.');
