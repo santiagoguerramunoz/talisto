@@ -25,13 +25,29 @@ export default function Admin() {
   const [empresas, setEmpresas] = useState({});
 
   const cargarProfesionales = useCallback(async () => {
-    const { data } = await supabase
+    // El email viene de perfiles. Se indica la relación exacta: hay más de un camino entre las dos tablas
+    // (por ejemplo, las ubicaciones del equipo) y sin la indicación la consulta falla.
+    const campos = 'id, nombre_publico, verificado, activo, departamentos, creado_en';
+    let { data, error } = await supabase
       .from('profesionales')
-      .select('id, nombre_publico, verificado, activo, departamentos, creado_en, perfiles(email, telefono)')
+      .select(`${campos}, perfiles!profesionales_id_fkey(email, telefono)`)
       .order('creado_en', { ascending: false });
+    if (error) {
+      // Plan B: los dos datos por separado y se juntan acá
+      const r = await supabase.from('profesionales').select(campos).order('creado_en', { ascending: false });
+      if (r.error) {
+        setEstado({ error: `No se pudo cargar la lista de profesionales: ${mensajeError(r.error)}` });
+        data = [];
+      } else {
+        const ids = (r.data || []).map((x) => x.id);
+        const { data: pe } = ids.length ? await supabase.from('perfiles').select('id, email, telefono').in('id', ids) : { data: [] };
+        const porId = Object.fromEntries((pe || []).map((x) => [x.id, x]));
+        data = (r.data || []).map((x) => ({ ...x, perfiles: porId[x.id] || null }));
+      }
+    }
     setProfesionales(data || []);
-    const { data: pl, error } = await supabase.from('planes').select('*');
-    setPlanes(error ? null : Object.fromEntries((pl || []).map((p) => [p.usuario_id, p])));
+    const { data: pl, error: errPlanes } = await supabase.from('planes').select('*');
+    setPlanes(errPlanes ? null : Object.fromEntries((pl || []).map((p) => [p.usuario_id, p])));
     const { data: em } = await supabase.from('empresas').select('id, nombre, dueno_id, miembros(count)');
     setEmpresas(Object.fromEntries((em || []).map((e) => [e.dueno_id, { nombre: e.nombre, cuentas: e.miembros?.[0]?.count ?? 0 }])));
   }, []);
