@@ -99,6 +99,14 @@ function MisGastosPro() {
   const sueltas = Object.keys(porCategoria).filter((c) => !categorias.some((x) => x.nombre === c));
   const grilla = [...categorias, ...sueltas.map((nombre) => infoCategoria(nombre, categorias))];
 
+  // Gasto cargado desde la foto: si es de otro mes, se muestra ese mes
+  function alCargarComprobante(r) {
+    setRecargaIA((n) => n + 1);
+    const [anio, mes] = String(r?.gasto_id ? r.fecha || '' : '').split('-').map(Number);
+    if (anio && mes && (anio !== periodo.anio || mes !== periodo.mes)) setPeriodo({ anio, mes });
+    else cargar();
+  }
+
   async function guardarMovilidad() {
     setAvisoMovilidad('');
     const { error: err } = await guardarAjustes({
@@ -136,7 +144,7 @@ function MisGastosPro() {
             <button className="btn btn-menta" onClick={() => setModal({ inicial: { fecha: fechaISO(new Date()), categoria: filtro || 'Movilidad' } })}>
               <Icon name="mas" /> Gasto
             </button>
-            <BotonComprobante className="btn btn-sec px-3 py-2 text-sm" texto="Foto" onListo={() => (cargar(), setRecargaIA((n) => n + 1))} />
+            <BotonComprobante className="btn btn-sec px-3 py-2 text-sm" texto="Foto" onListo={alCargarComprobante} />
           </div>
         </section>
 
@@ -209,7 +217,7 @@ function MisGastosPro() {
           )}
         </section>
 
-        <ComprobantesLeidos recarga={recargaIA} onListo={() => cargar()} />
+        <ComprobantesLeidos recarga={recargaIA} onListo={alCargarComprobante} />
 
         {/* Valores de movilidad */}
         {movilidad && (

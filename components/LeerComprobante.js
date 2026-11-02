@@ -26,6 +26,24 @@ const norm = (t) =>
 const UNIDADES = { u: 'u', un: 'u', uni: 'u', unid: 'u', unidad: 'u', unidades: 'u', und: 'u', uds: 'u', cu: 'u', 'c u': 'u', m: 'm', mt: 'm', mts: 'm', metro: 'm', metros: 'm', kg: 'kg', kgs: 'kg', kilo: 'kg', kilos: 'kg', l: 'l', lt: 'l', lts: 'l', litro: 'l', litros: 'l', m2: 'm²', m3: 'm³' };
 export const unidadNormal = (u) => UNIDADES[norm(u)] || (String(u || '').trim().slice(0, 12) || 'u');
 const valor = (v) => (v === null || v === undefined ? '' : String(v));
+// Importes como los escribe la gente acá: "2.010", "1.234,50", "$ 980" o "980.5"
+const importe = (v) => {
+  if (v === '' || v === null || v === undefined) return null;
+  let t = String(v).trim().replace(/US\$|\$|\s/g, '');
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+};
+// Los números que lee la IA, escritos como acá (coma decimal) para que no se confundan con miles
+const valorImporte = (n) =>
+  n === null || n === undefined || n === '' ? '' : Number.isFinite(Number(n)) ? Number(n).toLocaleString('es-UY', { useGrouping: false, maximumFractionDigits: 4 }) : String(n);
+const mesDe = (iso) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString('es-UY', { month: 'long', year: 'numeric' }) : '');
+const fechaRara = (iso) => {
+  if (!iso) return false;
+  const d = (new Date(`${iso}T12:00:00`) - new Date(`${hoyISO()}T12:00:00`)) / 86400000;
+  return d > 1 || d < -45;
+};
 const hoyISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Montevideo' });
 const idNuevo = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 const aBase64 = (blob) =>
@@ -54,7 +72,7 @@ function cantidadStock(it, m) {
   const pres = (m.presentaciones || []).find((p) => norm(p.nombre) && (norm(p.nombre).includes(norm(it.unidad)) || norm(it.descripcion).includes(norm(p.nombre))));
   return pres && unidadNormal(it.unidad) !== m.unidad ? r2(c * Number(pres.factor)) : c;
 }
-const importeItem = (it) => r2((numero(it.cantidad) ?? 1) * (numero(it.precio_unitario) ?? 0) * (1 - (numero(it.descuento_pct) ?? 0) / 100));
+const importeItem = (it) => r2((numero(it.cantidad) ?? 1) * (importe(it.precio_unitario) ?? 0) * (1 - (numero(it.descuento_pct) ?? 0) / 100));
 
 /**
  * Foto de una factura, e-ticket, remito o comprobante → la IA lo lee → se revisa → gasto o compra (proveedor, precios y stock).
@@ -147,14 +165,14 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
       numero: d.numero || '',
       tipo_documento: d.tipo_documento || '',
       moneda: d.moneda === 'USD' ? 'USD' : 'UYU',
-      cotizacion: valor(cot),
-      total: valor(total),
+      cotizacion: valorImporte(cot),
+      total: valorImporte(total),
       gasto: {
         categoria: categorias.includes(d.categoria_gasto) ? d.categoria_gasto : tipo === 'compra' ? 'Insumos' : 'Otros',
         descripcion: [d.descripcion_gasto, d.proveedor?.nombre].filter(Boolean).join(' · ').slice(0, 200),
-        monto: valor(total),
+        monto: valorImporte(total),
         litros: valor(d.litros),
-        precio_unitario: valor(d.precio_litro),
+        precio_unitario: valorImporte(d.precio_litro),
       },
       proveedor: {
         id: prov?.id || '',
@@ -177,7 +195,7 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
           descripcion: it.descripcion || '',
           cantidad: valor(it.cantidad ?? 1),
           unidad: it.unidad || 'u',
-          precio_unitario: valor(it.precio_unitario),
+          precio_unitario: valorImporte(it.precio_unitario),
           descuento_pct: valor(it.descuento_pct),
           iva_pct: it.iva_pct ?? 22,
           al_stock: it.es_material !== false,
@@ -247,7 +265,7 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
   }
 
   const sumaItems = f ? r2(f.items.filter((it) => it.incluir).reduce((s, it) => s + importeItem(it), 0)) : 0;
-  const cot = numero(f?.cotizacion);
+  const cot = importe(f?.cotizacion);
   const aPesos = (n) => (f?.moneda === 'USD' ? (cot ? r2(n * cot) : null) : n);
   const provElegido = f?.proveedor.id ? extra.proveedores.find((p) => p.id === f.proveedor.id) : null;
   const pideCotizacion = f && (f.moneda === 'USD' || (f.tipo === 'compra' && provElegido && provElegido.moneda !== f.moneda));
@@ -257,7 +275,7 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
     setDuplicado('');
     if (f.tipo === 'compra' && !f.proveedor.id && !f.proveedor.nombre.trim()) return setError('Poné el nombre del proveedor.');
     if (pideCotizacion && !cot) return setError('Poné la cotización del dólar.');
-    const montoGasto = f.tipo === 'gasto' || f.sumar_gasto ? numero(f.gasto.monto) : null;
+    const montoGasto = f.tipo === 'gasto' || f.sumar_gasto ? importe(f.gasto.monto) : null;
     if ((f.tipo === 'gasto' || f.sumar_gasto) && (montoGasto === null || montoGasto < 0)) return setError('Poné el monto en pesos.');
     const stockOn = f.tipo === 'compra' && f.al_stock && extra.gestiona;
     const datos = {
@@ -267,13 +285,13 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
       tipo_documento: f.tipo_documento,
       moneda: f.moneda,
       cotizacion: cot,
-      total: numero(f.total),
+      total: importe(f.total),
       gasto: {
         categoria: f.gasto.categoria,
         descripcion: f.gasto.descripcion.trim(),
         monto: montoGasto,
         litros: numero(f.gasto.litros),
-        precio_unitario: numero(f.gasto.precio_unitario),
+        precio_unitario: importe(f.gasto.precio_unitario),
       },
       proveedor: { ...f.proveedor, nombre: f.proveedor.nombre.trim() },
       precios_con_iva: f.precios_con_iva,
@@ -286,7 +304,7 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
         descripcion: it.descripcion.trim(),
         cantidad: numero(it.cantidad),
         unidad: it.unidad,
-        precio_unitario: numero(it.precio_unitario),
+        precio_unitario: importe(it.precio_unitario),
         descuento_pct: numero(it.descuento_pct),
         iva_pct: numero(it.iva_pct),
         al_stock: stockOn && it.al_stock,
@@ -303,9 +321,10 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
       return setError(mensajeError(err));
     }
     if (cot) guardarCotizacion(cot);
-    setHecho(data);
+    const r = { ...(data || {}), fecha: f.fecha };
+    setHecho(r);
     setPaso('listo');
-    onListo?.(data);
+    onListo?.(r);
   }
 
   async function descartar() {
@@ -331,6 +350,7 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
       </div>
     ) : paso === 'revisar' && f ? (
       <div className="space-y-2">
+        {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
         {duplicado && (
           <div className="rounded-xl bg-amber-400/10 p-3 text-sm text-amber-200">
             {duplicado}
@@ -357,7 +377,7 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
   return (
     <Modal abierto onCerrar={onCerrar} titulo={paso === 'revisar' ? 'Revisá lo que leyó la IA' : 'Leer comprobante con IA'} pie={pie}>
       <div className="space-y-4">
-        {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
+        {error && paso !== 'revisar' && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
 
         {paso === 'elegir' && (
           <>
@@ -483,6 +503,11 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
                 <span className="etiqueta">Total</span>
                 <input inputMode="decimal" className="campo min-w-0" value={f.total} onChange={(e) => set({ total: e.target.value })} />
               </label>
+              {fechaRara(f.fecha) && (
+                <p className="col-span-2 rounded-xl bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
+                  Revisá la fecha: va a quedar en {mesDe(f.fecha)}.
+                </p>
+              )}
               {pideCotizacion && (
                 <label className="col-span-2 block">
                   <span className="etiqueta">Cotización del dólar</span>
@@ -570,7 +595,7 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
                   <p className="text-right text-xs text-tinta-400">
                     Suma de los artículos: <b className="text-tinta-100">{dinero(sumaItems, f.moneda)}</b>
                     {f.precios_con_iva ? ' con IVA' : ' sin IVA'}
-                    {numero(f.total) ? ` · Total del comprobante: ${dinero(numero(f.total), f.moneda)}` : ''}
+                    {importe(f.total) ? ` · Total del comprobante: ${dinero(importe(f.total), f.moneda)}` : ''}
                   </p>
                 </section>
 
@@ -586,8 +611,8 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
                         className="h-5 w-5 shrink-0 accent-menta-500"
                         checked={f.sumar_gasto}
                         onChange={(e) => {
-                          const monto = aPesos(numero(f.total) ?? sumaItems);
-                          set({ sumar_gasto: e.target.checked, gasto: { ...f.gasto, monto: valor(monto ?? f.gasto.monto) } });
+                          const monto = aPesos(importe(f.total) ?? sumaItems);
+                          set({ sumar_gasto: e.target.checked, gasto: { ...f.gasto, monto: monto != null ? valorImporte(monto) : f.gasto.monto } });
                         }}
                       />
                     </label>
@@ -615,6 +640,7 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
               <div>
                 <p className="font-bold">{hecho.tipo === 'gasto' ? 'Gasto guardado' : 'Compra guardada'}</p>
                 <p className="text-sm text-tinta-200">{hecho.resumen}</p>
+                {hecho.gasto_id && hecho.fecha && <p className="mt-1 text-xs text-tinta-400">Queda en Mis gastos de {mesDe(hecho.fecha)}.</p>}
                 {hecho.materiales_nuevos > 0 && (
                   <p className="mt-1 text-xs text-tinta-400">
                     {hecho.materiales_nuevos} {hecho.materiales_nuevos === 1 ? 'material nuevo quedó' : 'materiales nuevos quedaron'} en el stock: revisá su unidad y mínimo cuando puedas.
@@ -647,7 +673,7 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
 }
 
 function BloqueGasto({ f, categorias, setGasto, aPesos }) {
-  const totalPesos = f.moneda === 'USD' ? aPesos(numero(f.total) ?? 0) : null;
+  const totalPesos = f.moneda === 'USD' ? aPesos(importe(f.total) ?? 0) : null;
   return (
     <section className="space-y-3">
       <div>
@@ -681,9 +707,9 @@ function BloqueGasto({ f, categorias, setGasto, aPesos }) {
         <input inputMode="decimal" className="campo text-lg font-bold" value={f.gasto.monto} onChange={(e) => setGasto({ monto: e.target.value })} />
         {f.moneda === 'USD' && (
           <span className="mt-1 flex items-center justify-between text-xs text-tinta-400">
-            {totalPesos ? `${dinero(numero(f.total), 'USD')} = ${dinero(totalPesos)}` : 'Poné la cotización para pasarlo a pesos'}
+            {totalPesos ? `${dinero(importe(f.total), 'USD')} = ${dinero(totalPesos)}` : 'Poné la cotización para pasarlo a pesos'}
             {totalPesos && (
-              <button type="button" className="font-semibold text-menta-400" onClick={() => setGasto({ monto: String(totalPesos) })}>
+              <button type="button" className="font-semibold text-menta-400" onClick={() => setGasto({ monto: valorImporte(totalPesos) })}>
                 Usar
               </button>
             )}
@@ -723,7 +749,7 @@ function Renglon({ it, moneda, conStock, materiales, onCambiar }) {
               {it.codigo ? `Cód. ${it.codigo}` : ''}
               {numero(it.descuento_pct) ? ` · ${numero(it.descuento_pct)}% de descuento` : ''}
             </span>
-            {numero(it.precio_unitario) !== null && <b className="text-tinta-200">{dinero(importeItem(it), moneda)}</b>}
+            {importe(it.precio_unitario) !== null && <b className="text-tinta-200">{dinero(importeItem(it), moneda)}</b>}
           </p>
           {conStock && (
             <div className="space-y-1.5 border-t border-navy-700 pt-2">

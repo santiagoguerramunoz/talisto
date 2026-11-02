@@ -79,7 +79,8 @@ const SISTEMA =
   'Leés comprobantes de Uruguay (e-Facturas y e-Tickets CFE, facturas, remitos, tickets de caja) para un profesional de oficios ' +
   '(electricistas, sanitarios, instaladores). Copiá los datos tal como figuran, sin inventar: si algo no se lee, dejalo en null. ' +
   'Los importes van como números (sin separador de miles, con punto decimal). El proveedor es quien emite el comprobante, no el cliente. ' +
-  'Si hay varias páginas o fotos, son del mismo comprobante.';
+  'Si hay varias páginas o fotos, son del mismo comprobante. ' +
+  'Las fechas en Uruguay se escriben día/mes/año: 02/11/2026 es el 2 de noviembre de 2026 (fecha = 2026-11-02).';
 
 const texto = (v, max) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
 const num = (v) => {
