@@ -177,25 +177,33 @@ async function leerConGemini(archivos, categorias) {
       cache: 'no-store',
     });
 
+  // Qué respondió Google cuando falla (queda en los registros de Vercel; nunca incluye la clave)
+  const registrar = (status, j, intento) => {
+    const msg = String(j?.error?.message || '').slice(0, 600);
+    console.error(`[comprobantes] Gemini ${MODELO_GEMINI} intento ${intento}: HTTP ${status} ${j?.error?.status || ''} ${msg}`);
+    return msg;
+  };
+  const anotar = async (resp, intento) => registrar(resp.status, await resp.clone().json().catch(() => ({})), intento);
   let r;
   try {
     r = await pedir(true);
     // si el modelo no acepta el esquema o el nivel de razonamiento, va con el esquema en el texto
     if (r.status === 400) {
-      const t = await r.clone().text();
+      const t = await anotar(r, 1);
       if (!/api key|API_KEY/i.test(t)) r = await pedir(false);
     }
-  } catch {
+  } catch (e) {
+    console.error(`[comprobantes] Gemini sin respuesta: ${e?.name || ''} ${e?.message || ''}`);
     throw new Error('La IA tardó demasiado en responder. Probá de nuevo.');
   }
   const datos = await r.json().catch(() => ({}));
   if (!r.ok) {
-    const msg = String(datos?.error?.message || '');
+    const msg = registrar(r.status, datos, 2);
     if (/api key/i.test(msg) || r.status === 401 || r.status === 403) throw new Error('La clave de la IA no es válida: revisá GEMINI_API_KEY en Vercel.');
     if (r.status === 404) throw new Error('El modelo de IA configurado no existe: revisá GEMINI_MODEL en Vercel.');
     if (r.status === 429) throw new Error('Se terminó por hoy el cupo gratis de la IA de Google (se renueva todos los días). Mientras tanto cargalo a mano.');
     if (r.status >= 500) throw new Error('La IA está con mucha demanda. Probá de nuevo en un minuto.');
-    throw new Error('No pudimos leer este archivo. Probá con otra foto, bien de frente y con luz.');
+    throw new Error(`No pudimos leer este archivo (Google: ${msg.slice(0, 180) || `error ${r.status}`}).`);
   }
   if (datos?.promptFeedback?.blockReason) throw new Error('La IA no quiso procesar este archivo. Probá con otra foto.');
   const texto = (datos?.candidates?.[0]?.content?.parts || [])
@@ -210,6 +218,7 @@ async function leerConGemini(archivos, categorias) {
   try {
     json = JSON.parse(texto);
   } catch {
+    console.error(`[comprobantes] Gemini devolvió algo que no es JSON (${datos?.candidates?.[0]?.finishReason || 'sin motivo'}): ${texto.slice(0, 300)}`);
     throw new Error('La IA no devolvió los datos completos. Probá de nuevo.');
   }
   return limpiar(json);
