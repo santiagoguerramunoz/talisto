@@ -7,6 +7,7 @@ import Icon from '@/components/Icon';
 import Modal from '@/components/Modal';
 import FinanzasEncabezado from '@/components/FinanzasEncabezado';
 import BloqueoPlan from '@/components/BloqueoPlan';
+import ComprobantesLeidos, { BotonComprobante } from '@/components/ComprobantesLeidos';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
 import { esPro } from '@/lib/planes';
@@ -28,6 +29,17 @@ function Contenido() {
   const params = useSearchParams();
   const router = useRouter();
   const ver = params.get('ver') === 'proveedores' ? 'proveedores' : 'ordenes';
+  const [recargaIA, setRecargaIA] = useState(0);
+  const facturaConIA = (
+    <div className="flex items-center gap-3 rounded-2xl border border-menta-500/30 bg-menta-500/5 p-3">
+      <Icon name="camara" className="h-6 w-6 shrink-0 text-menta-300" />
+      <p className="min-w-0 flex-1 text-xs text-tinta-300">
+        <b className="block text-sm text-tinta-100">¿Llegó una factura?</b>
+        Sacale una foto: quedan el proveedor y el precio de cada artículo para tus presupuestos.
+      </p>
+      <BotonComprobante className="btn btn-menta shrink-0 px-3 py-2 text-sm" texto="Foto" onListo={() => setRecargaIA((n) => n + 1)} />
+    </div>
+  );
 
   return (
     <>
@@ -56,7 +68,9 @@ function Contenido() {
                 </button>
               ))}
             </div>
-            {ver === 'ordenes' ? <Ordenes /> : <Proveedores />}
+            {facturaConIA}
+            {ver === 'ordenes' ? <Ordenes key={recargaIA} /> : <Proveedores key={recargaIA} />}
+            <ComprobantesLeidos recarga={recargaIA} />
           </>
         )}
       </div>

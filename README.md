@@ -20,7 +20,7 @@ Next.js + Supabase + Vercel.
 ### 1. Supabase (proyecto NUEVO, no el de Metabia)
 
 1. En supabase.com creá un proyecto nuevo llamado `talisto`.
-2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql`, `supabase/08_tickets.sql`, `supabase/09_proveedores.sql`, `supabase/10_stock.sql`, `supabase/11_operacion.sql`, `supabase/12_monedas_comisiones.sql` y `supabase/13_ruta_tickets.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo; el 09 los proveedores, sus listas de precios y las órdenes de compra; el 10 el stock de la empresa, del equipo y de cada trabajo; el 11 los avisos, el cierre de los trabajos en el lugar, los pedidos de cotización y los remitos; el 12 los presupuestos en pesos, dólares o mixtos y las comisiones por venta; el 13 la ruta de los tickets: generar ticket desde el presupuesto, pedidos de materiales que aprueba Stock y el seguimiento con historial). Todos se pueden volver a correr sin problema.
+2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql`, `supabase/08_tickets.sql`, `supabase/09_proveedores.sql`, `supabase/10_stock.sql`, `supabase/11_operacion.sql`, `supabase/12_monedas_comisiones.sql`, `supabase/13_ruta_tickets.sql` y `supabase/14_comprobantes_ia.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo; el 09 los proveedores, sus listas de precios y las órdenes de compra; el 10 el stock de la empresa, del equipo y de cada trabajo; el 11 los avisos, el cierre de los trabajos en el lugar, los pedidos de cotización y los remitos; el 12 los presupuestos en pesos, dólares o mixtos y las comisiones por venta; el 13 la ruta de los tickets: generar ticket desde el presupuesto, pedidos de materiales que aprueba Stock y el seguimiento con historial; el 14 la lectura de comprobantes con IA). Todos se pueden volver a correr sin problema.
 3. **Authentication → URL Configuration**:
    - Site URL: `https://talisto-ashen.vercel.app` (para probar en tu PC podés usar `http://localhost:3000`).
    - Redirect URLs: solo `https://talisto-ashen.vercel.app/**` (y `http://localhost:3000/**` mientras pruebes en tu PC; después sacalo).
@@ -134,7 +134,16 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
 - Cuando el operario cierra el trabajo le llega el aviso de **falta cobrar** a quien maneja los presupuestos; al marcarlo cobrado se genera la comisión.
 - **Seguimiento** (Finanzas → Seguimiento): la cuenta principal y quien tenga el permiso **Seguimiento** (viene en *Gerencia general*) ven cada presupuesto con sus tickets por etapa (sin ticket, por agendar, materiales, agendado, en curso, por cobrar, cobrado) y las alertas. Cada presupuesto, ticket y pedido tiene su **Historial** (quién hizo qué y cuándo, también los movimientos de stock) y se puede **corregir** un ticket (reabrir, cancelar o volverlo a por agendar) con el motivo, que queda registrado.
 
-### 12. Seguridad
+### 12. Facturas y tickets leídos con IA (Pro y Business)
+
+- En **Mis gastos** (botón **Foto**), **Compras** y **Stock** (*Factura con IA*) se le saca una foto a una factura, e-ticket, remito o ticket (o se sube el PDF, hasta 3 páginas). La IA lo lee y se revisa antes de guardar.
+- **Gasto** (nafta, peaje, almuerzo…): va a Mis gastos con su categoría. Si está en dólares, se pasa a pesos con la cotización.
+- **Compra**: queda el **proveedor** (si ya existe, se reconoce por el RUT o el nombre) con el **precio unitario de cada artículo**, que después aparece al buscar materiales en los presupuestos. En Business, con el permiso Stock, los materiales tildados **entran al stock** con un comprobante de ingreso y su costo; los que no estaban se crean. Se puede sumar también a Mis gastos.
+- Cada comprobante queda registrado con la foto, quién lo cargó y qué se generó. Si se intenta cargar dos veces el mismo (mismo número y proveedor), avisa.
+- **Activarlo**: creá una clave en [console.anthropic.com](https://console.anthropic.com) (API Keys) y cargala en Vercel → Settings → Environment Variables como `ANTHROPIC_API_KEY`; después volvé a publicar. Se paga por uso en esa cuenta (unos centavos de dólar por comprobante): conviene ponerle un tope de gasto mensual allá. Opcional: `ANTHROPIC_MODEL` para usar otro modelo (por defecto `claude-sonnet-5-5`).
+- **Tope por mes**: lo fijás en /admin (por defecto 60 lecturas en Pro y 300 en Business por cuenta). Las que fallan no cuentan.
+
+### 13. Seguridad
 
 - La base controla todo (no la pantalla): cada cuenta solo ve y cambia lo suyo o lo que su rol permite, nadie puede pasar datos de una cuenta a otra, sin sesión solo se ve lo público, y las funciones internas no se pueden llamar desde afuera.
 - La app manda encabezados de seguridad (no se puede meter dentro de otra página, solo carga scripts propios, conexiones solo a Supabase y los mapas).
@@ -183,7 +192,7 @@ npx vercel --prod            # publica en https://talisto-ashen.vercel.app
 ## Archivos
 
 ```
-supabase/01 … 13                → base de datos (correr en orden en Supabase)
+supabase/01 … 14                → base de datos (correr en orden en Supabase)
 app/page.js                     → portada
 app/login, app/registro, app/nueva-clave
 app/inicio/page.js              → pantalla del cliente (buscador en Fase 3)
@@ -197,6 +206,7 @@ app/panel/finanzas/comisiones   → comisiones por venta: % de cada vendedor, pe
 app/panel/finanzas/seguimiento  → ruta de cada presupuesto y sus tickets, historial y correcciones
 app/panel/mi-stock/page.js      → Mi stock (cada persona del equipo)
 app/panel/avisos/page.js        → Avisos (campanita) y notificaciones en el celular
+app/api/comprobantes/leer       → lee la foto o el PDF de un comprobante con IA (servidor)
 app/api/avisos                  → manda las notificaciones push (servidor, sin servicios pagos)
 app/api/proveedores             → actualizar listas, stock al momento y mandar órdenes (servidor)
 app/panel/empresa/page.js       → Mi empresa: cuentas, roles e invitaciones

@@ -74,6 +74,7 @@ export default function Admin() {
               business_cuentas_defecto: c.business_cuentas_defecto,
             }
           : {}),
+        ...(c && 'ia_lecturas_pro' in c ? { ia_lecturas_pro: c.ia_lecturas_pro, ia_lecturas_business: c.ia_lecturas_business } : {}),
       });
       cargarProfesionales();
     })();
@@ -99,6 +100,12 @@ export default function Admin() {
               free_exportaciones_mes: Math.max(0, Math.round(Number(form.free_exportaciones_mes) || 0)),
               free_empresas_b2b: Math.max(0, Math.round(Number(form.free_empresas_b2b) || 0)),
               business_cuentas_defecto: Math.max(1, Math.round(Number(form.business_cuentas_defecto) || 1)),
+            }
+          : {}),
+        ...('ia_lecturas_pro' in form
+          ? {
+              ia_lecturas_pro: Math.max(0, Math.round(Number(form.ia_lecturas_pro) || 0)),
+              ia_lecturas_business: Math.max(0, Math.round(Number(form.ia_lecturas_business) || 0)),
             }
           : {}),
       })
@@ -196,6 +203,18 @@ export default function Admin() {
                 <label className="etiqueta" htmlFor="a-cta">Business: cuentas por empresa (por defecto)</label>
                 <input id="a-cta" type="number" min="1" className="campo" value={form.business_cuentas_defecto} onChange={(e) => setForm({ ...form, business_cuentas_defecto: e.target.value })} />
               </div>
+              {'ia_lecturas_pro' in form && (
+                <>
+                  <div>
+                    <label className="etiqueta" htmlFor="a-iap">Pro: comprobantes leídos con IA por mes</label>
+                    <input id="a-iap" type="number" min="0" className="campo" value={form.ia_lecturas_pro} onChange={(e) => setForm({ ...form, ia_lecturas_pro: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="etiqueta" htmlFor="a-iab">Business: comprobantes leídos con IA por mes</label>
+                    <input id="a-iab" type="number" min="0" className="campo" value={form.ia_lecturas_business} onChange={(e) => setForm({ ...form, ia_lecturas_business: e.target.value })} />
+                  </div>
+                </>
+              )}
             </div>
             <p className="text-xs text-tinta-500">Con precio 0 el plan no se ofrece por Mercado Pago (igual lo podés regalar).</p>
             <button className="btn btn-menta w-full sm:w-auto" onClick={guardarConfig} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar precios y límites'}</button>

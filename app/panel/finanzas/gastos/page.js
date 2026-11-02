@@ -5,6 +5,7 @@ import Icon from '@/components/Icon';
 import Modal from '@/components/Modal';
 import FormGasto from '@/components/FormGasto';
 import FinanzasEncabezado from '@/components/FinanzasEncabezado';
+import ComprobantesLeidos, { BotonComprobante } from '@/components/ComprobantesLeidos';
 import { usePanel } from '@/components/PanelContext';
 import BloqueoPlan from '@/components/BloqueoPlan';
 import { esPro } from '@/lib/planes';
@@ -54,6 +55,7 @@ function MisGastosPro() {
   const [editarCategorias, setEditarCategorias] = useState(false);
   const [movilidad, setMovilidad] = useState(null);
   const [avisoMovilidad, setAvisoMovilidad] = useState('');
+  const [recargaIA, setRecargaIA] = useState(0);
 
   const { desde, hasta } = rangoMes(periodo.anio, periodo.mes);
   const categorias = useMemo(() => categoriasDe(ajustes), [ajustes]);
@@ -130,9 +132,12 @@ function MisGastosPro() {
             <p className="text-3xl font-extrabold">{pesos(total, { decimales: false })}</p>
             <p className="text-xs text-tinta-400">{gastos.length} {gastos.length === 1 ? 'gasto' : 'gastos'}</p>
           </div>
-          <button className="btn btn-menta" onClick={() => setModal({ inicial: { fecha: fechaISO(new Date()), categoria: filtro || 'Movilidad' } })}>
-            <Icon name="mas" /> Gasto
-          </button>
+          <div className="flex shrink-0 flex-col gap-2">
+            <button className="btn btn-menta" onClick={() => setModal({ inicial: { fecha: fechaISO(new Date()), categoria: filtro || 'Movilidad' } })}>
+              <Icon name="mas" /> Gasto
+            </button>
+            <BotonComprobante className="btn btn-sec px-3 py-2 text-sm" texto="Foto" onListo={() => (cargar(), setRecargaIA((n) => n + 1))} />
+          </div>
         </section>
 
         {/* Grilla por categoría */}
@@ -203,6 +208,8 @@ function MisGastosPro() {
             </ul>
           )}
         </section>
+
+        <ComprobantesLeidos recarga={recargaIA} onListo={() => cargar()} />
 
         {/* Valores de movilidad */}
         {movilidad && (

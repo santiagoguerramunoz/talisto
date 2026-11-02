@@ -12,6 +12,7 @@ import EditorMaterial from '@/components/EditorMaterial';
 import MovimientoStock, { ACCIONES } from '@/components/MovimientoStock';
 import FilaMovimiento from '@/components/FilaMovimiento';
 import PedidosMateriales from '@/components/PedidosMateriales';
+import { BotonComprobante } from '@/components/ComprobantesLeidos';
 import { avisar } from '@/lib/avisos';
 import { supabase } from '@/lib/supabase';
 import { usePanel } from '@/components/PanelContext';
@@ -220,6 +221,7 @@ function Stock() {
                 <Icon name={ACCIONES[a].icono} className="h-3.5 w-3.5" /> {t}
               </button>
             ))}
+            <BotonComprobante className="chip border-menta-500/40 text-menta-300" texto="Factura con IA" onListo={(r) => r && cargar()} />
           </div>
         </section>
       )}
