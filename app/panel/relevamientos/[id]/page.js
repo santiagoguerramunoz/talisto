@@ -79,6 +79,7 @@ export default function FichaRelevamiento() {
         // antes se llamaba "costo estimado"
         manoObra: data.mano_obra ?? data.costo_estimado ?? '',
         estado: data.estado,
+        conMateriales: data.con_materiales !== false,
       });
     }
   }, [id, profesional.id]);
@@ -139,6 +140,8 @@ export default function FichaRelevamiento() {
       horas_estimadas: form.horas === '' ? null : Number(form.horas),
       mano_obra: numero(form.manoObra),
       estado: estadoFinal,
+      // SQL 13: solo si la columna existe
+      ...('con_materiales' in rel ? { con_materiales: !!form.conMateriales } : {}),
     };
     let { error } = await supabase.from('relevamientos').update(fila).eq('id', rel.id);
     if (faltaCol(error)) {
@@ -179,6 +182,7 @@ export default function FichaRelevamiento() {
           items: form.materiales,
           manoObra: form.manoObra,
           titulo: primeraLinea || rel.turnos?.titulo || '',
+          ...('con_materiales' in rel ? { conMateriales: !!form.conMateriales } : {}),
         })
       )
       .select('id')
@@ -409,6 +413,17 @@ export default function FichaRelevamiento() {
             <textarea id="r-medidas" rows={2} className="campo" value={form.medidas} onChange={(e) => cambiar('medidas', e.target.value)} placeholder="Ej. Pared 3,20 x 2,60 m · 12 m de cable desde el tablero" />
           </div>
         </section>
+
+        {'con_materiales' in rel && (
+          <label className="tarjeta flex items-center gap-3 p-3 text-sm">
+            <Icon name="caja" className="h-5 w-5 shrink-0 text-menta-300" />
+            <span className="min-w-0 flex-1">
+              <b className="block">El trabajo lleva materiales del stock</b>
+              <span className="text-xs text-tinta-400">Pasa al presupuesto y, al generar el ticket, sale el pedido de materiales para que lo apruebe Stock.</span>
+            </span>
+            <input type="checkbox" className="h-5 w-5 accent-[#2cc79b]" checked={!!form.conMateriales} onChange={(e) => cambiar('conMateriales', e.target.checked)} />
+          </label>
+        )}
 
         {/* Materiales con costo, margen y precio final */}
         <EditorMateriales

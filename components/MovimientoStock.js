@@ -58,8 +58,8 @@ export default function MovimientoStock({ abierto, onCerrar, onListo, cuenta, ac
     setMotivo(accion === 'ingreso' ? 'compra' : accion === 'baja' ? 'rotura' : accion === 'devolucion_trabajo' ? 'sobrante' : accion === 'conteo' ? 'conteo' : '');
     setProveedor(preset.proveedor || '');
     setReferencia('');
-    setNota('');
-    setRenglones([]);
+    setNota(preset.nota || '');
+    setRenglones(preset.renglones || []);
     setExtras([]);
     setEstado({ guardando: false, error: '' });
     if (accion === 'ingreso' || accion === 'devolucion_proveedor') {

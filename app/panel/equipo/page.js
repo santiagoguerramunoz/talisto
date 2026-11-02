@@ -69,12 +69,15 @@ function armar(ordenes, turnos, relevamientos, empresas) {
       fechaIso: fechaISO(new Date(t.inicio)),
       horaTexto: hhmm(t.inicio),
       duracion: Math.round((new Date(t.fin) - new Date(t.inicio)) / 60000),
-      titulo: t.clientes?.nombre || t.titulo || 'Turno',
+      titulo: `${t.numero ? `Nº ${String(t.numero).padStart(4, '0')} · ` : ''}${t.clientes?.nombre || t.titulo || 'Turno'}`,
       color: t.clientes?.color || '#2dd4bf',
       cuando: `${hhmm(t.inicio)}–${hhmm(t.fin)}`,
       minuto: new Date(t.inicio).getHours() * 60 + new Date(t.inicio).getMinutes(),
       lugar: lugar ? { lat: lugar.lat, lng: lugar.lng, direccion: lugar.direccion } : null,
       estado: t.estado === 'realizado' ? 'finalizado' : t.estado === 'suspendido' ? 'suspendido' : corriendo ? 'en_curso' : t.inicio_original ? 'multidia' : 'pendiente',
+      porAgendar: t.estado === 'por_agendar',
+      numero: t.numero || null,
+      presupuestoId: t.presupuesto_id || null,
       tiempos: t.tiempos || [],
       asignado: t.asignado_a || null,
       orden: t.orden_ruta,
@@ -109,7 +112,7 @@ export default function EquipoEnRuta() {
     const camposOrden =
       'id, empresa_id, numero_ticket, numero_cliente, cliente_final, telefono_contacto, direccion, lat, lng, pedido, realizado, estado, nota_estado, tiempos, minutos_manual, asignado_a, orden_ruta, hora_inicio, hora_fin, fecha';
     const camposTurno =
-      'id, tipo, titulo, inicio, fin, estado, asignado_a, orden_ruta, tiempos, resolucion, nota_estado, inicio_original, notas, clientes(nombre, color, telefono, es_empresa), direcciones(direccion, lat, lng)';
+      '*, clientes(nombre, color, telefono, es_empresa), direcciones(direccion, lat, lng)';
     const [od, oc, tu, em, po, os, ts] = await Promise.all([
       supabase.from('ordenes').select(camposOrden).eq('profesional_id', cuenta).eq('fecha', dia).not('estado', 'in', '(cancelado,suspendido)'),
       supabase.from('ordenes').select(camposOrden).eq('profesional_id', cuenta).eq('estado', 'en_curso').lt('fecha', dia),
@@ -119,12 +122,12 @@ export default function EquipoEnRuta() {
         .eq('profesional_id', cuenta)
         .gte('inicio', desde)
         .lt('inicio', hasta)
-        .not('estado', 'in', '(cancelado,suspendido)'),
+        .not('estado', 'in', '(cancelado,suspendido,por_agendar)'),
       supabase.from('clientes').select('id, nombre, color').eq('profesional_id', cuenta).eq('es_empresa', true),
       supabase.from('posiciones_equipo').select('usuario_id, lat, lng, precision_m, actualizado_en').eq('cuenta_id', cuenta),
       // Suspendidos (de cualquier día): vuelven a coordinación para reagendar
       supabase.from('ordenes').select(camposOrden).eq('profesional_id', cuenta).eq('estado', 'suspendido').order('fecha').limit(60),
-      supabase.from('turnos').select(camposTurno).eq('profesional_id', cuenta).eq('estado', 'suspendido').order('inicio').limit(60),
+      supabase.from('turnos').select(camposTurno).eq('profesional_id', cuenta).in('estado', ['suspendido', 'por_agendar']).order('inicio').limit(80),
     ]);
     const turnos = tu.data || [];
     const idsRelev = turnos.filter((t) => t.tipo === 'relevamiento').map((t) => t.id);
@@ -518,8 +521,8 @@ export default function EquipoEnRuta() {
 function FilaReagendar({ item, puede, equipo, negocio, onReagendar }) {
   const manana = fechaISO(sumarDias(new Date(), 1));
   const [abierta, setAbierta] = useState(false);
-  const [f, setF] = useState(item.fechaIso > manana ? item.fechaIso : manana);
-  const [h, setH] = useState(item.horaTexto || (item.tabla === 'turnos' ? '09:00' : ''));
+  const [f, setF] = useState(!item.porAgendar && item.fechaIso > manana ? item.fechaIso : manana);
+  const [h, setH] = useState(item.porAgendar ? '09:00' : item.horaTexto || (item.tabla === 'turnos' ? '09:00' : ''));
   const [asignado, setAsignado] = useState('');
   const [estado, setEstado] = useState({ guardando: false, error: '', listo: null });
 
@@ -560,14 +563,14 @@ function FilaReagendar({ item, puede, equipo, negocio, onReagendar }) {
           <EtiquetaCliente b2b={item.b2b} />
           <b className="mt-0.5 block truncate text-sm">{item.titulo}</b>
           <span className="block truncate text-xs text-tinta-400">
-            Era el {item.fechaIso.split('-').reverse().slice(0, 2).join('/')} · {item.cuando}
+            {item.porAgendar ? 'Ticket nuevo, sin día' : `Era el ${item.fechaIso.split('-').reverse().slice(0, 2).join('/')} · ${item.cuando}`}
             {item.lugar?.direccion ? ` · ${item.lugar.direccion}` : ''}
           </span>
           {item.nota && <span className="mt-0.5 block text-xs text-amber-200">Motivo: {item.nota}</span>}
         </span>
         {puede(item) && !abierta && (
-          <button type="button" className="btn btn-sec shrink-0 px-3 py-1.5 text-sm" onClick={() => setAbierta(true)}>
-            Reagendar
+          <button type="button" className={`btn shrink-0 px-3 py-1.5 text-sm ${item.porAgendar ? 'btn-menta' : 'btn-sec'}`} onClick={() => setAbierta(true)}>
+            {item.porAgendar ? 'Agendar' : 'Reagendar'}
           </button>
         )}
       </div>
@@ -602,7 +605,7 @@ function FilaReagendar({ item, puede, equipo, negocio, onReagendar }) {
               Cancelar
             </button>
             <button type="button" className="btn btn-menta py-2 text-sm" onClick={guardar} disabled={estado.guardando}>
-              {estado.guardando ? 'Guardando…' : 'Volver a agendar'}
+              {estado.guardando ? 'Guardando…' : item.porAgendar ? 'Agendar' : 'Volver a agendar'}
             </button>
           </div>
         </div>
@@ -619,7 +622,7 @@ function ParaReagendar({ items, puede, equipo, negocio, onReagendar }) {
     <section className="tarjeta overflow-hidden border-amber-400/50">
       <div className="flex flex-wrap items-center gap-2 border-b border-navy-800 px-4 py-3">
         <h2 className="flex items-center gap-2 font-bold text-amber-300">
-          <Icon name="pausa" className="h-4 w-4" /> Para reagendar · {items.length}
+          <Icon name="pausa" className="h-4 w-4" /> Por agendar · {items.length}
         </h2>
         {b2b > 0 && b2b < items.length && (
           <div className="ml-auto flex gap-1">
@@ -635,7 +638,7 @@ function ParaReagendar({ items, puede, equipo, negocio, onReagendar }) {
           </div>
         )}
       </div>
-      <p className="px-4 pt-2 text-xs text-tinta-400">Los suspendió el equipo en el lugar. Elegí otro día y a quién se lo pasás: le llega el aviso.</p>
+      <p className="px-4 pt-2 text-xs text-tinta-400">Tickets nuevos sin día y trabajos que el equipo suspendió en el lugar. Elegí el día y a quién se lo pasás: le llega el aviso.</p>
       <ul>
         {visibles.map((i) => (
           <FilaReagendar key={i.key} item={i} puede={puede} equipo={equipo} negocio={negocio} onReagendar={onReagendar} />

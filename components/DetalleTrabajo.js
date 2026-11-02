@@ -95,6 +95,13 @@ export default function DetalleTrabajo({ item, cuenta, onCerrar, onIniciar, onCe
             </span>
           </div>
           <h3 className="mt-1.5 text-xl font-extrabold leading-tight">{item.titulo}</h3>
+          {(item.numero || item.presupuestoNumero) && (
+            <p className="text-xs font-semibold text-tinta-400">
+              {item.numero ? `Ticket Nº ${String(item.numero).padStart(4, '0')}` : ''}
+              {item.numero && item.presupuestoNumero ? ' · ' : ''}
+              {item.presupuestoNumero ? `Presupuesto Nº ${String(item.presupuestoNumero).padStart(4, '0')}` : ''}
+            </p>
+          )}
           {item.contacto && item.contacto !== item.titulo && <p className="text-sm text-tinta-300">{item.contacto}</p>}
         </div>
 
@@ -153,6 +160,30 @@ export default function DetalleTrabajo({ item, cuenta, onCerrar, onIniciar, onCe
               )}
             </div>
           </Bloque>
+        )}
+
+        {item.pedidoMateriales && (
+          <p
+            className={`flex items-start gap-2 rounded-xl p-2.5 text-sm ${
+              item.pedidoMateriales.estado === 'aprobado'
+                ? 'bg-menta-500/10 text-menta-200'
+                : item.pedidoMateriales.estado === 'rechazado'
+                  ? 'bg-red-500/10 text-red-200'
+                  : 'bg-amber-400/10 text-amber-100'
+            }`}
+          >
+            <Icon name="caja" className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Pedido de materiales Nº {item.pedidoMateriales.numero}:{' '}
+              {item.pedidoMateriales.estado === 'pendiente'
+                ? 'esperando que Stock lo apruebe.'
+                : item.pedidoMateriales.estado === 'aprobado'
+                  ? 'aprobado. Confirmá lo que te entregan en Mi stock.'
+                  : item.pedidoMateriales.estado === 'rechazado'
+                    ? `rechazado${item.pedidoMateriales.respuesta ? `: ${item.pedidoMateriales.respuesta}` : '.'}`
+                    : 'cancelado.'}
+            </span>
+          </p>
         )}
 
         {item.materiales?.length > 0 && (

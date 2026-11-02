@@ -11,6 +11,9 @@ import DetalleMovimiento from '@/components/DetalleMovimiento';
 import EditorMaterial from '@/components/EditorMaterial';
 import MovimientoStock, { ACCIONES } from '@/components/MovimientoStock';
 import FilaMovimiento from '@/components/FilaMovimiento';
+import PedidosMateriales from '@/components/PedidosMateriales';
+import { avisar } from '@/lib/avisos';
+import { supabase } from '@/lib/supabase';
 import { usePanel } from '@/components/PanelContext';
 import { esBusiness, errorDePlan } from '@/lib/planes';
 import { pesos } from '@/lib/precios';
@@ -79,6 +82,8 @@ function Stock() {
   const [tab, setTab] = useState('existencias');
   const [accion, setAccion] = useState('');
   const [preset, setPreset] = useState({});
+  const [pedidoEnCurso, setPedidoEnCurso] = useState(null); // pedido de materiales que se está aprobando
+  const [recargaPedidos, setRecargaPedidos] = useState(0);
   const [aviso, setAviso] = useState('');
   const [ultimoMov, setUltimoMov] = useState(null);
   const [detalle, setDetalle] = useState(null);
@@ -256,6 +261,20 @@ function Stock() {
             </span>
           </div>
         </div>
+      )}
+
+      {/* Pedidos de materiales de los tickets (SQL 13) */}
+      {ctx && (
+        <PedidosMateriales
+          cuenta={cuenta}
+          ctx={ctx}
+          gestiona={gestiona}
+          recarga={recargaPedidos}
+          onEntregar={(p, { accion: a, preset: pr }) => {
+            setPedidoEnCurso(p);
+            abrirAccion(a, pr);
+          }}
+        />
       )}
 
       {/* Pendientes */}
@@ -576,10 +595,21 @@ function Stock() {
       {ctx && (
         <MovimientoStock
           abierto={!!accion}
-          onCerrar={() => setAccion('')}
-          onListo={(r) => {
+          onCerrar={() => {
+            setAccion('');
+            setPedidoEnCurso(null);
+          }}
+          onListo={async (r) => {
             setAviso(r.mensaje);
             setUltimoMov(r.id || null);
+            // Si era un pedido de materiales, queda aprobado con este comprobante
+            if (pedidoEnCurso && r.id) {
+              const { error } = await supabase.rpc('resolver_pedido_materiales', { p_id: pedidoEnCurso.id, p_estado: 'aprobado', p_movimiento: r.id, p_respuesta: null });
+              setAviso(error ? `${r.mensaje} Pero no se pudo marcar el pedido: ${error.message}` : `${r.mensaje} Pedido de materiales Nº ${pedidoEnCurso.numero} aprobado.`);
+              avisar();
+              setPedidoEnCurso(null);
+              setRecargaPedidos((n) => n + 1);
+            }
             cargar();
             if (tab === 'movimientos') cargarMovs(movs.tipo);
           }}

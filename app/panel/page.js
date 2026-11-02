@@ -8,6 +8,7 @@ import FormTrabajoB2B from '@/components/FormTrabajoB2B';
 import TrabajosEnCurso from '@/components/TrabajosEnCurso';
 import MisTickets from '@/components/MisTickets';
 import Campanita from '@/components/Campanita';
+import GenerarTicket from '@/components/GenerarTicket';
 import Link from 'next/link';
 import { useEquipoAsignable } from '@/lib/equipo';
 import { usePanel } from '@/components/PanelContext';
@@ -42,6 +43,7 @@ function AgendaCompleta({ onVerMios }) {
   const [modalBloque, setModalBloque] = useState(null);
   const [menuNuevo, setMenuNuevo] = useState(false);
   const [modalOrden, setModalOrden] = useState(null);
+  const [nuevoTicket, setNuevoTicket] = useState(false);
 
   const [desde, hasta] = useMemo(() => {
     if (vista === 'dia') return [fecha, sumarDias(fecha, 1)];
@@ -152,6 +154,15 @@ function AgendaCompleta({ onVerMios }) {
               className="btn btn-sec shadow-xl"
               onClick={() => {
                 setMenuNuevo(false);
+                setNuevoTicket(true);
+              }}
+            >
+              <Icon name="maletin" className="h-5 w-5 text-[#8cc8ff]" /> Ticket (mantenimiento, sin presupuesto)
+            </button>
+            <button
+              className="btn btn-sec shadow-xl"
+              onClick={() => {
+                setMenuNuevo(false);
                 setModalTurno({ inicial: { fecha: fechaISO(fecha), hora: '09:00', tipo: 'relevamiento' } });
               }}
             >
@@ -212,6 +223,15 @@ function AgendaCompleta({ onVerMios }) {
         inicial={modalOrden?.inicial}
         margenDefecto={ajustes.margen_materiales}
         equipo={equipo}
+      />
+      <GenerarTicket
+        abierto={nuevoTicket}
+        cuenta={profesional.id}
+        onCerrar={() => setNuevoTicket(false)}
+        onListo={() => {
+          setNuevoTicket(false);
+          recargar();
+        }}
       />
       <FormBloque
         abierto={!!modalBloque}

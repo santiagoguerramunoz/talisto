@@ -20,7 +20,7 @@ Next.js + Supabase + Vercel.
 ### 1. Supabase (proyecto NUEVO, no el de Metabia)
 
 1. En supabase.com creá un proyecto nuevo llamado `talisto`.
-2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql`, `supabase/08_tickets.sql`, `supabase/09_proveedores.sql`, `supabase/10_stock.sql`, `supabase/11_operacion.sql` y `supabase/12_monedas_comisiones.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo; el 09 los proveedores, sus listas de precios y las órdenes de compra; el 10 el stock de la empresa, del equipo y de cada trabajo; el 11 los avisos, el cierre de los trabajos en el lugar, los pedidos de cotización y los remitos; el 12 los presupuestos en pesos, dólares o mixtos y las comisiones por venta). Todos se pueden volver a correr sin problema.
+2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql`, `supabase/08_tickets.sql`, `supabase/09_proveedores.sql`, `supabase/10_stock.sql`, `supabase/11_operacion.sql`, `supabase/12_monedas_comisiones.sql` y `supabase/13_ruta_tickets.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo; el 09 los proveedores, sus listas de precios y las órdenes de compra; el 10 el stock de la empresa, del equipo y de cada trabajo; el 11 los avisos, el cierre de los trabajos en el lugar, los pedidos de cotización y los remitos; el 12 los presupuestos en pesos, dólares o mixtos y las comisiones por venta; el 13 la ruta de los tickets: generar ticket desde el presupuesto, pedidos de materiales que aprueba Stock y el seguimiento con historial). Todos se pueden volver a correr sin problema.
 3. **Authentication → URL Configuration**:
    - Site URL: `https://talisto-ashen.vercel.app` (para probar en tu PC podés usar `http://localhost:3000`).
    - Redirect URLs: solo `https://talisto-ashen.vercel.app/**` (y `http://localhost:3000/**` mientras pruebes en tu PC; después sacalo).
@@ -125,7 +125,16 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
 - En Finanzas los presupuestos en dólares cuentan por su equivalencia en pesos.
 - **Comisiones** (Business): en **Finanzas → Comisiones** la cuenta principal y quien tenga el permiso **Comisiones** (viene en el rol nuevo *Gerencia general*) eligen el % de cada vendedor y si es sobre la **venta sin IVA** o la **ganancia**. El vendedor de cada presupuesto es quien lo crea (Gerencia lo puede cambiar). Al marcar el presupuesto como **cobrado** se genera la comisión, en pesos y en dólares según los renglones, y le llega el aviso al vendedor. Se puede editar (% o monto), marcar como pagada o anular. Cada vendedor ve sus comisiones.
 
-### 11. Seguridad
+### 11. Ruta de los tickets: de la venta al cobro (Business)
+
+- **Relevamiento y presupuesto** marcan si el trabajo **lleva materiales**.
+- Al marcar el presupuesto como **Aceptado** se abre **Generar ticket** (también está el botón en la sección *Trabajo* del presupuesto, y se pueden sacar varios tickets del mismo presupuesto). El ticket sale como **B2C**, con su propio **Nº** unido al **Nº del presupuesto**. Si quien lo genera puede agendar, elige día, hora y operario; si no, queda **Por agendar** y le llega el aviso a coordinación (Equipo en ruta → *Por agendar*).
+- Tickets **sin presupuesto** (mantenimiento programado, por ejemplo): Agenda → **+** → *Ticket (mantenimiento, sin presupuesto)*.
+- Si lleva materiales sale un **pedido de materiales** que tiene que **aprobar Stock** (Finanzas → Stock, arriba). Aprobar abre la entrega ya cargada (al operario, con remito, o directo al trabajo); rechazar pide el motivo y les avisa a quien lo pidió y al operario. El operario ve los materiales y el estado del pedido en su ticket.
+- Cuando el operario cierra el trabajo le llega el aviso de **falta cobrar** a quien maneja los presupuestos; al marcarlo cobrado se genera la comisión.
+- **Seguimiento** (Finanzas → Seguimiento): la cuenta principal y quien tenga el permiso **Seguimiento** (viene en *Gerencia general*) ven cada presupuesto con sus tickets por etapa (sin ticket, por agendar, materiales, agendado, en curso, por cobrar, cobrado) y las alertas. Cada presupuesto, ticket y pedido tiene su **Historial** (quién hizo qué y cuándo, también los movimientos de stock) y se puede **corregir** un ticket (reabrir, cancelar o volverlo a por agendar) con el motivo, que queda registrado.
+
+### 12. Seguridad
 
 - La base controla todo (no la pantalla): cada cuenta solo ve y cambia lo suyo o lo que su rol permite, nadie puede pasar datos de una cuenta a otra, sin sesión solo se ve lo público, y las funciones internas no se pueden llamar desde afuera.
 - La app manda encabezados de seguridad (no se puede meter dentro de otra página, solo carga scripts propios, conexiones solo a Supabase y los mapas).
@@ -174,7 +183,7 @@ npx vercel --prod            # publica en https://talisto-ashen.vercel.app
 ## Archivos
 
 ```
-supabase/01 … 12                → base de datos (correr en orden en Supabase)
+supabase/01 … 13                → base de datos (correr en orden en Supabase)
 app/page.js                     → portada
 app/login, app/registro, app/nueva-clave
 app/inicio/page.js              → pantalla del cliente (buscador en Fase 3)
@@ -185,6 +194,7 @@ app/panel/finanzas/compras      → órdenes de compra y proveedores
 app/panel/finanzas/proveedores  → ficha del proveedor y su lista de precios
 app/panel/finanzas/stock        → stock: existencias, movimientos, materiales, lugares y ficha con kardex
 app/panel/finanzas/comisiones   → comisiones por venta: % de cada vendedor, pendientes y pagadas
+app/panel/finanzas/seguimiento  → ruta de cada presupuesto y sus tickets, historial y correcciones
 app/panel/mi-stock/page.js      → Mi stock (cada persona del equipo)
 app/panel/avisos/page.js        → Avisos (campanita) y notificaciones en el celular
 app/api/avisos                  → manda las notificaciones push (servidor, sin servicios pagos)

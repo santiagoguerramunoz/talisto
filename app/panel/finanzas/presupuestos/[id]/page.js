@@ -23,6 +23,8 @@ import { linkWhatsapp, mensajeError } from '@/lib/util';
 import { esBusiness, esPro } from '@/lib/planes';
 import { avisar } from '@/lib/avisos';
 import BloqueoPlan from '@/components/BloqueoPlan';
+import GenerarTicket, { numeroTicket } from '@/components/GenerarTicket';
+import Historial from '@/components/Historial';
 
 const texto = (v) => (v === null || v === undefined ? '' : String(v));
 
@@ -43,6 +45,8 @@ function formDesde(p) {
     cotizacion: texto(p.cotizacion),
     mano_obra_moneda: p.mano_obra_moneda || 'UYU',
     vendedor_id: p.vendedor_id || '',
+    con_materiales: p.con_materiales !== false,
+    conMaterialesColumna: 'con_materiales' in p, // SQL 13
   };
 }
 
@@ -59,6 +63,7 @@ function filaDesde(f, conMonedas = false) {
     mano_obra_texto: f.mano_obra_texto.trim() || 'Mano de obra',
     iva_porcentaje: Math.min(100, Math.max(0, numero(f.iva_porcentaje) ?? 22)),
     notas: f.notas.trim() || null,
+    ...(f.conMaterialesColumna ? { con_materiales: !!f.con_materiales } : {}),
     // Moneda (SQL 12): solo se manda si se usa, así sigue andando sin el SQL
     ...(conMonedas || f.moneda !== 'UYU'
       ? {
@@ -113,6 +118,11 @@ function EditorPresupuestoPro() {
   const [pdfListo, setPdfListo] = useState(null); // si el celular pide tocar de nuevo para compartir
   const [vendedores, setVendedores] = useState(null); // quien maneja comisiones puede elegir el vendedor
   const [comision, setComision] = useState(null);
+  const [tickets, setTickets] = useState(null); // tickets generados desde este presupuesto (SQL 13)
+  const [generar, setGenerar] = useState(false);
+  const [verHistorial, setVerHistorial] = useState(false);
+  const panelP = usePanel();
+  const veSeguimiento = !panelP.empresa || panelP.yo?.id === profesional.id || (panelP.permisos || []).includes('seguimiento');
   const business = esBusiness(usePanel().plan?.plan);
 
   const cargar = useCallback(async () => {
@@ -133,9 +143,15 @@ function EditorPresupuestoPro() {
     setComision(data || null);
   }, [id]);
 
+  const cargarTickets = useCallback(async () => {
+    const { data, error } = await supabase.rpc('tickets_de_presupuesto', { p_presupuesto: id });
+    setTickets(error ? null : data || []);
+  }, [id]);
+
   useEffect(() => {
     cargar();
-  }, [cargar]);
+    cargarTickets();
+  }, [cargar, cargarTickets]);
 
   // Comisiones (SQL 12, Business): vendedores y la comisión de este presupuesto
   useEffect(() => {
@@ -435,6 +451,17 @@ function EditorPresupuestoPro() {
           )}
         </section>
 
+        {form.conMaterialesColumna && (
+          <label className="tarjeta flex items-center gap-3 p-3 text-sm">
+            <Icon name="caja" className="h-5 w-5 shrink-0 text-menta-300" />
+            <span className="min-w-0 flex-1">
+              <b className="block">El trabajo lleva materiales del stock</b>
+              <span className="text-xs text-tinta-400">Al generar el ticket sale el pedido de materiales para que lo apruebe Stock.</span>
+            </span>
+            <input type="checkbox" className="h-5 w-5 accent-[#2cc79b]" checked={!!form.con_materiales} onChange={(e) => cambiar('con_materiales', e.target.checked)} />
+          </label>
+        )}
+
         {/* Ítems con costo y margen */}
         <EditorMateriales
           moneda={form.moneda}
@@ -664,7 +691,12 @@ function EditorPresupuestoPro() {
               <button
                 key={valor}
                 type="button"
-                onClick={() => p.estado !== valor && guardar({ estado: valor }, valor === 'aceptado' ? '¡Aceptado! Ya cuenta como ingreso en Finanzas.' : 'Estado guardado.')}
+                onClick={async () => {
+                  if (p.estado === valor) return;
+                  const ok = await guardar({ estado: valor }, valor === 'aceptado' ? '¡Aceptado! Ya cuenta como ingreso en Finanzas.' : 'Estado guardado.');
+                  // Al aceptarlo se abre Generar ticket (si todavía no tiene)
+                  if (ok && valor === 'aceptado' && tickets && tickets.length === 0) setGenerar(true);
+                }}
                 className={`chip ${p.estado === valor ? 'chip-activo' : ''}`}
                 disabled={ocupado}
               >
@@ -697,6 +729,50 @@ function EditorPresupuestoPro() {
             </div>
           )}
         </section>
+
+        {/* El trabajo: tickets generados desde este presupuesto */}
+        {tickets && (p.estado === 'aceptado' || tickets.length > 0) && (
+          <section>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="titulo-seccion">Trabajo</h2>
+              {veSeguimiento && (
+                <button type="button" className="chip text-xs" onClick={() => setVerHistorial(true)}>
+                  <Icon name="reloj" className="h-3.5 w-3.5" /> Historial
+                </button>
+              )}
+            </div>
+            <div className="tarjeta space-y-2 p-4">
+              {tickets.length === 0 ? (
+                <p className="text-sm text-tinta-300">Todavía no tiene ticket. Generalo para que se agende y le llegue al operario.</p>
+              ) : (
+                <ul className="divide-y divide-navy-800">
+                  {tickets.map((t) => (
+                    <li key={t.id} className="flex items-center gap-3 py-2 text-sm">
+                      <Icon name="maletin" className="h-4 w-4 shrink-0 text-[#8cc8ff]" />
+                      <span className="min-w-0 flex-1">
+                        <b className="block">Ticket Nº {numeroTicket(t.numero)}{t.titulo ? ` · ${t.titulo}` : ''}</b>
+                        <span className="text-xs text-tinta-400">
+                          {t.estado === 'por_agendar'
+                            ? 'Por agendar'
+                            : `${new Date(t.inicio).toLocaleString('es-UY', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}${t.asignado ? ` · ${t.asignado}` : ' · sin asignar'}`}
+                          {t.pedido ? ` · materiales ${t.pedido.estado === 'pendiente' ? 'esperando a Stock' : t.pedido.estado}` : ''}
+                        </span>
+                      </span>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${t.estado === 'realizado' ? 'bg-menta-500/15 text-menta-300' : t.estado === 'cancelado' ? 'bg-navy-700 text-tinta-400' : t.estado === 'suspendido' ? 'bg-red-500/15 text-red-300' : t.en_curso ? 'bg-[#0a84ff]/20 text-[#8cc8ff]' : 'bg-amber-400/15 text-amber-300'}`}>
+                        {t.estado === 'realizado' ? 'Terminado' : t.estado === 'cancelado' ? 'Cancelado' : t.estado === 'suspendido' ? 'Suspendido' : t.estado === 'por_agendar' ? 'Por agendar' : t.en_curso ? 'En curso' : 'Agendado'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {p.estado === 'aceptado' && (
+                <button type="button" className={`btn w-full ${tickets.length ? 'btn-sec' : 'btn-menta'}`} onClick={() => setGenerar(true)}>
+                  <Icon name="maletin" className="h-4 w-4" /> {tickets.length ? 'Generar otro ticket' : 'Generar ticket'}
+                </button>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Vendedor y comisión (Business) */}
         {business && (vendedores || comision || p.vendedor_id) && (
@@ -764,6 +840,25 @@ function EditorPresupuestoPro() {
           <Icon name="borrar" /> Eliminar presupuesto
         </button>
       </div>
+
+      <GenerarTicket
+        abierto={generar}
+        cuenta={profesional.id}
+        presupuesto={{ ...p, ...filaDesde(form, 'moneda' in p), id: p.id, numero: p.numero, cliente_id: form.cliente_id || null }}
+        onCerrar={() => setGenerar(false)}
+        onListo={() => {
+          setGenerar(false);
+          cargarTickets();
+          cargar();
+        }}
+      />
+      <Historial
+        abierto={verHistorial}
+        cuenta={profesional.id}
+        presupuestoId={p.id}
+        titulo={`Historial · Presupuesto Nº ${numeroPresupuesto(p.numero)}`}
+        onCerrar={() => setVerHistorial(false)}
+      />
 
       <FormTurno
         abierto={!!modalTurno}
