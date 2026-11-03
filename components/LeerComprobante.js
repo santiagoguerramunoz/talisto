@@ -13,6 +13,8 @@ import { dinero, numero, r2 } from '@/lib/precios';
 import { cotizacionGuardada, guardarCotizacion } from '@/lib/proveedores';
 import { normalizarMaterial } from '@/lib/stock';
 import { mensajeError } from '@/lib/util';
+import { avisar } from '@/lib/avisos';
+import { TIPOS_ALERTA } from '@/lib/compras';
 
 const TIPOS_OK = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 const MAX_PDF = 2.8 * 1024 * 1024;
@@ -265,6 +267,13 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
   }
 
   const sumaItems = f ? r2(f.items.filter((it) => it.incluir).reduce((s, it) => s + importeItem(it), 0)) : 0;
+  // Validación antes de guardar: artículos sin precio y sumas que no cierran con el total (lo decide una persona)
+  const sinPrecio = f && f.tipo === 'compra' ? f.items.filter((it) => it.incluir && it.descripcion.trim() && importe(it.precio_unitario) === null).length : 0;
+  const totalLeido = f ? importe(f.total) : null;
+  const sumaConIva = f
+    ? r2(f.items.reduce((s, it) => s + importeItem(it) * (f.precios_con_iva ? 1 : 1 + (numero(it.iva_pct) ?? 22) / 100), 0))
+    : 0;
+  const noCierra = f && f.tipo === 'compra' && totalLeido > 0 && sumaConIva > 0 && Math.abs(sumaConIva - totalLeido) / totalLeido > 0.03;
   const cot = importe(f?.cotizacion);
   const aPesos = (n) => (f?.moneda === 'USD' ? (cot ? r2(n * cot) : null) : n);
   const provElegido = f?.proveedor.id ? extra.proveedores.find((p) => p.id === f.proveedor.id) : null;
@@ -322,6 +331,12 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
     }
     if (cot) guardarCotizacion(cot);
     const r = { ...(data || {}), fecha: f.fecha };
+    if (r.tipo === 'compra') {
+      // Lo que detectó la inteligencia de compras (aumentos, más barato en otro, datos a revisar)
+      const { data: al } = await supabase.rpc('alertas_de_comprobante', { p_comprobante: lectura.id });
+      r.alertas = Array.isArray(al) ? al : [];
+      avisar();
+    }
     setHecho(r);
     setPaso('listo');
     onListo?.(r);
@@ -597,6 +612,18 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
                     {f.precios_con_iva ? ' con IVA' : ' sin IVA'}
                     {importe(f.total) ? ` · Total del comprobante: ${dinero(importe(f.total), f.moneda)}` : ''}
                   </p>
+                  {noCierra && (
+                    <p className="rounded-xl bg-amber-400/10 p-2.5 text-xs text-amber-100">
+                      La suma de los artículos{f.precios_con_iva ? '' : ' con IVA'} ({dinero(sumaConIva, f.moneda)}) no coincide con el total ({dinero(totalLeido, f.moneda)}). Revisá cantidades,
+                      precios y descuentos con el comprobante antes de guardar.
+                    </p>
+                  )}
+                  {sinPrecio > 0 && (
+                    <p className="rounded-xl bg-amber-400/10 p-2.5 text-xs text-amber-100">
+                      {sinPrecio === 1 ? 'Un artículo no tiene precio' : `${sinPrecio} artículos no tienen precio`}: no se inventa, queda fuera del historial de precios. Si lo ves en el comprobante,
+                      completalo.
+                    </p>
+                  )}
                 </section>
 
                 {puedeGastos && (
@@ -641,6 +668,19 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
                 <p className="font-bold">{hecho.tipo === 'gasto' ? 'Gasto guardado' : 'Compra guardada'}</p>
                 <p className="text-sm text-tinta-200">{hecho.resumen}</p>
                 {hecho.gasto_id && hecho.fecha && <p className="mt-1 text-xs text-tinta-400">Queda en Mis gastos de {mesDe(hecho.fecha)}.</p>}
+                {hecho.alertas?.length > 0 && (
+                  <ul className="mt-2 space-y-1.5">
+                    {hecho.alertas.map((a, i) => {
+                      const t = TIPOS_ALERTA[a.tipo] || TIPOS_ALERTA.aumento;
+                      return (
+                        <li key={i} className="rounded-xl bg-navy-900/70 p-2 text-xs text-tinta-200">
+                          <span className={`mr-1.5 inline-flex rounded-full px-1.5 py-0.5 text-[10.5px] font-bold ${t.clase}`}>{t.texto}</span>
+                          {a.mensaje}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
                 {hecho.materiales_nuevos > 0 && (
                   <p className="mt-1 text-xs text-tinta-400">
                     {hecho.materiales_nuevos} {hecho.materiales_nuevos === 1 ? 'material nuevo quedó' : 'materiales nuevos quedaron'} en el stock: revisá su unidad y mínimo cuando puedas.
@@ -662,6 +702,11 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
               {hecho.movimiento_id && (
                 <Link href={`/panel/finanzas/stock?mov=${hecho.movimiento_id}`} className="btn btn-sec py-2.5 text-sm" onClick={onCerrar}>
                   Ver el ingreso
+                </Link>
+              )}
+              {hecho.tipo === 'compra' && plan?.plan === 'business' && (
+                <Link href="/panel/finanzas/inteligencia" className="btn btn-sec py-2.5 text-sm" onClick={onCerrar}>
+                  Comparar precios
                 </Link>
               )}
             </div>

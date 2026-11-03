@@ -14,6 +14,7 @@ const TABS = [
   { href: '/panel/finanzas/gastos', texto: 'Gastos', pro: true, permisos: ['gastos', 'importes'] },
   { href: '/panel/finanzas/compras', texto: 'Compras', pro: true, permisos: ['compras'], tambien: ['/panel/finanzas/proveedores'] },
   { href: '/panel/finanzas/stock', texto: 'Stock', business: true, permisos: ['stock', 'compras'] },
+  { href: '/panel/finanzas/inteligencia', texto: 'Inteligencia', business: true, permisos: ['compras', 'importes', 'stock', 'seguimiento'] },
   { href: '/panel/finanzas/comisiones', texto: 'Comisiones', business: true, permisos: ['comisiones', 'presupuestos'] },
   { href: '/panel/finanzas/seguimiento', texto: 'Seguimiento', business: true, permisos: ['seguimiento'] },
 ];

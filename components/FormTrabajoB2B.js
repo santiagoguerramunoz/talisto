@@ -491,6 +491,7 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
           margenDefecto={margenDefecto}
           titulo="Materiales"
           cuenta={esPro(panel?.plan?.plan) ? profesionalId : null}
+          inteligencia={esBusiness(panel?.plan?.plan)}
           textoAgregar="Añadir materiales"
           vacio="Si tuviste que comprar materiales para la tarea, agregalos acá con el proveedor y su precio."
         />

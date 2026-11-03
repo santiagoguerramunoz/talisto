@@ -473,6 +473,9 @@ function EditorPresupuestoPro() {
           vacio="Agregá los materiales con su costo: el margen calcula el precio final de cada ítem. Con Proveedores los buscás en las listas de precios."
           cuenta={profesional.id}
           revision={revision}
+          inteligencia={business}
+          bloqueado={p.estado === 'aceptado'}
+          cotizacion={form.cotizacion}
         />
 
         <CompraMateriales

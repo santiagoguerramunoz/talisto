@@ -7,6 +7,7 @@ import Icon from '@/components/Icon';
 import DetalleMovimiento from '@/components/DetalleMovimiento';
 import EditorMaterial from '@/components/EditorMaterial';
 import { usePanel } from '@/components/PanelContext';
+import { PreciosMaterial } from '@/components/PreciosCompra';
 import { supabase } from '@/lib/supabase';
 import { TIPOS_MOV, cant, conUnidad, desglose, fechaHora, numeroMov, rpcStock, textoError } from '@/lib/stock';
 
@@ -139,6 +140,8 @@ export default function FichaMaterial() {
             </p>
           )}
         </section>
+
+        {veCostos && <PreciosMaterial materialId={m.id} cuenta={cuenta} />}
 
         <section>
           <h2 className="titulo-seccion mb-2">Dónde está</h2>

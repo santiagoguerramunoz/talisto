@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
 import Modal from '@/components/Modal';
 import { usePanel } from '@/components/PanelContext';
+import { ComprasProveedor } from '@/components/PreciosCompra';
 import { supabase } from '@/lib/supabase';
 import { mensajeError } from '@/lib/util';
 import { haceCuanto } from '@/lib/equipo';
@@ -151,6 +152,8 @@ export default function Proveedor() {
         )}
 
         <Productos v={v} puedeEditar={puedeEditar} onCambio={cargar} />
+
+        <ComprasProveedor proveedorId={v.id} cuenta={profesional.id} />
 
         {/* Datos del proveedor */}
         <section className="tarjeta space-y-3 p-4">

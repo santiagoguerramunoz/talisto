@@ -20,7 +20,7 @@ Next.js + Supabase + Vercel.
 ### 1. Supabase (proyecto NUEVO, no el de Metabia)
 
 1. En supabase.com creá un proyecto nuevo llamado `talisto`.
-2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql`, `supabase/08_tickets.sql`, `supabase/09_proveedores.sql`, `supabase/10_stock.sql`, `supabase/11_operacion.sql`, `supabase/12_monedas_comisiones.sql`, `supabase/13_ruta_tickets.sql` y `supabase/14_comprobantes_ia.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo; el 09 los proveedores, sus listas de precios y las órdenes de compra; el 10 el stock de la empresa, del equipo y de cada trabajo; el 11 los avisos, el cierre de los trabajos en el lugar, los pedidos de cotización y los remitos; el 12 los presupuestos en pesos, dólares o mixtos y las comisiones por venta; el 13 la ruta de los tickets: generar ticket desde el presupuesto, pedidos de materiales que aprueba Stock y el seguimiento con historial; el 14 la lectura de comprobantes con IA). Todos se pueden volver a correr sin problema.
+2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql`, `supabase/08_tickets.sql`, `supabase/09_proveedores.sql`, `supabase/10_stock.sql`, `supabase/11_operacion.sql`, `supabase/12_monedas_comisiones.sql`, `supabase/13_ruta_tickets.sql`, `supabase/14_comprobantes_ia.sql` y `supabase/15_inteligencia_compras.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo; el 09 los proveedores, sus listas de precios y las órdenes de compra; el 10 el stock de la empresa, del equipo y de cada trabajo; el 11 los avisos, el cierre de los trabajos en el lugar, los pedidos de cotización y los remitos; el 12 los presupuestos en pesos, dólares o mixtos y las comisiones por venta; el 13 la ruta de los tickets: generar ticket desde el presupuesto, pedidos de materiales que aprueba Stock y el seguimiento con historial; el 14 la lectura de comprobantes con IA; el 15 la inteligencia de compras: historial de precios, comparador de proveedores y alertas). Todos se pueden volver a correr sin problema.
 3. **Authentication → URL Configuration**:
    - Site URL: `https://talisto-ashen.vercel.app` (para probar en tu PC podés usar `http://localhost:3000`).
    - Redirect URLs: solo `https://talisto-ashen.vercel.app/**` (y `http://localhost:3000/**` mientras pruebes en tu PC; después sacalo).
@@ -144,7 +144,18 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
 - Para que siga siendo gratis: no actives la facturación en ese proyecto de Google. Cuando se termina el cupo del día la app avisa y no cobra nada.
 - **Tope por mes**: lo fijás en /admin (por defecto 60 lecturas en Pro y 300 en Business por cuenta). Las que fallan no cuentan.
 
-### 13. Seguridad
+### 13. Inteligencia de compras (Business)
+
+- **Historial de precios**: cada compra registrada (comprobante leído con IA o orden de compra recibida) deja el precio de cada artículo con su proveedor, cantidad, costo unitario sin IVA, fecha y el documento que lo respalda (se abre desde la ficha). Lo que ya se había cargado antes del SQL 15 también entra. Los renglones sin precio no se inventan: quedan afuera y se avisa para revisar.
+- **Nada se borra**: si un precio estaba mal, se **anula** con el motivo (queda en el historial y en la bitácora). Un documento repetido (mismo proveedor, número, fecha y precio) no duplica precios.
+- **Productos equivalentes**: se comparan solo los que son iguales (el mismo material del stock, el mismo producto del proveedor o la misma descripción con sus medidas y la misma unidad). *Cat 5e* no se mezcla con *Cat 6*, ni el rollo con el metro. Si dos son el mismo producto, en la ficha se tocan **Es el mismo** o **Unir con otro artículo** (si la unidad es distinta, pide cuántos trae, por ejemplo 305 m por rollo).
+- **Comparador y recomendación**: en **Finanzas → Inteligencia**, en la ficha del proveedor, en la del material del stock y desde el presupuesto: el más económico, la diferencia en $ y %, el último precio, la fecha, la evolución y el stock solo si el proveedor lo informó. La recomendación dice expresamente cuando no hay datos de disponibilidad, confiabilidad, envío o condiciones (las condiciones salen de las *Notas* del proveedor).
+- **Alertas** (con los avisos de siempre, a quienes tienen Compras o Stock): aumentos y bajas desde el % que elijas (10 % por defecto, se cambia al final del panel), otro proveedor más barato, sumas que no cierran con el total del comprobante, datos incompletos y precios viejos (sin compras en 90 días, una vez por semana). El flete queda en el historial pero no se compara como un producto.
+- **Presupuestos y tickets**: cada renglón muestra el último costo y el mejor precio registrado, con **Usar** para tomarlo y el aviso si es viejo; abajo, cuánto costarían los materiales con los mejores precios y cómo queda la ganancia. Nunca cambia solo un presupuesto: en los aceptados se ve pero no se ofrece cambiar.
+- Lo ven la cuenta principal y quienes tienen Compras, Importes, Stock o Seguimiento; ninguna empresa ve los precios de otra. Las cuentas Pro también guardan su historial: si pasan a Business ya lo tienen.
+- **Pruebas**: `supabase/pruebas/15_inteligencia_compras_pruebas.sql` crea dos empresas de prueba, compra como lo hace la app y verifica equivalentes, aumentos y bajas, duplicados, historial, aislamiento, presupuestos y datos incompletos. Se corre en el SQL Editor y **no guarda nada**: termina con el mensaje "PRUEBAS OK" (sale como error a propósito para deshacer todo).
+
+### 14. Seguridad
 
 - La base controla todo (no la pantalla): cada cuenta solo ve y cambia lo suyo o lo que su rol permite, nadie puede pasar datos de una cuenta a otra, sin sesión solo se ve lo público, y las funciones internas no se pueden llamar desde afuera.
 - La app manda encabezados de seguridad (no se puede meter dentro de otra página, solo carga scripts propios, conexiones solo a Supabase y los mapas).
@@ -153,6 +164,7 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
 - Las comisiones solo se cambian con las funciones de la base: el % y los pagos los manejan la cuenta principal y el permiso Comisiones; cada vendedor solo ve las suyas.
 - Los avisos los arma la base (cada uno le llega solo a quien corresponde) y el servidor solo los entrega a los servicios de notificaciones de Google, Apple, Mozilla y Microsoft, cifrados de punta a punta.
 - Los links de los proveedores solo se consultan desde el servidor, con https, nunca a direcciones internas y con tiempo y tamaño máximos. Las claves de sus API quedan en una tabla que la app no puede leer.
+- El historial de precios solo lo escribe la base (al registrar una compra o recibir una orden): desde la app se lee y, con permiso, se anula con motivo; no se puede editar ni borrar.
 - El stock solo se mueve con las funciones de la base, de a una operación por empresa, y nunca queda en negativo. Los comprobantes y asientos no se pueden modificar ni borrar desde la app (solo se borran si se borra la cuenta entera).
 
 ## Trabajar desde tu PC (Windows)
@@ -193,7 +205,8 @@ npx vercel --prod            # publica en https://talisto-ashen.vercel.app
 ## Archivos
 
 ```
-supabase/01 … 14                → base de datos (correr en orden en Supabase)
+supabase/01 … 15                → base de datos (correr en orden en Supabase)
+supabase/pruebas                → pruebas de la base (no guardan nada)
 app/page.js                     → portada
 app/login, app/registro, app/nueva-clave
 app/inicio/page.js              → pantalla del cliente (buscador en Fase 3)
@@ -205,6 +218,7 @@ app/panel/finanzas/proveedores  → ficha del proveedor y su lista de precios
 app/panel/finanzas/stock        → stock: existencias, movimientos, materiales, lugares y ficha con kardex
 app/panel/finanzas/comisiones   → comisiones por venta: % de cada vendedor, pendientes y pagadas
 app/panel/finanzas/seguimiento  → ruta de cada presupuesto y sus tickets, historial y correcciones
+app/panel/finanzas/inteligencia → inteligencia de compras: indicadores, alertas, comparador y ahorro
 app/panel/mi-stock/page.js      → Mi stock (cada persona del equipo)
 app/panel/avisos/page.js        → Avisos (campanita) y notificaciones en el celular
 app/api/comprobantes/leer       → lee la foto o el PDF de un comprobante con IA (servidor)

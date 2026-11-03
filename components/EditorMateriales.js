@@ -3,8 +3,11 @@
 import { useState } from 'react';
 import Icon from './Icon';
 import BuscadorProductos from './BuscadorProductos';
+import FichaArticulo from './FichaArticulo';
+import { useVeCompras } from './PreciosCompra';
 import { dinero, margenDePrecio, monedaLinea, numero, precioConMargen, r2, totalesMateriales } from '@/lib/precios';
 import { estadoStock, importe, lineaDesdeProducto } from '@/lib/proveedores';
+import { costoEnMoneda, haceDias, usePreciosCompra } from '@/lib/compras';
 
 export const MATERIAL_VACIO = { item: '', cantidad: '1', unidad: 'u', proveedor: '', costo: '', margen: '', precio: '' };
 
@@ -25,6 +28,9 @@ export default function EditorMateriales({
   cuenta = null, // con la cuenta: buscar en las listas de los proveedores
   revision = null, // { producto_id: { stock, precio, … } } después de revisar stock y precios
   moneda = 'UYU', // presupuestos: 'UYU' | 'USD' | 'mixto' (cada renglón en su moneda)
+  inteligencia = false, // Business: último costo y mejor precio registrado de cada renglón (SQL 15)
+  bloqueado = false, // presupuesto aceptado: se muestra, pero no se ofrece cambiar costos
+  cotizacion = null, // para pasar a dólares los precios registrados en pesos
 }) {
   const lista = materiales || [];
   const mixto = moneda === 'mixto';
@@ -34,6 +40,49 @@ export default function EditorMateriales({
     .map((k) => ({ k, ...totalesMateriales(lista.filter((m) => monedaDe(m) === k)) }))
     .filter((x) => x.items > 0 || (!mixto && x.k === monedaDe({})));
   const [buscando, setBuscando] = useState(false);
+  const [articulo, setArticulo] = useState(null);
+  const precios = usePreciosCompra(cuenta, lista, inteligencia && !!cuenta);
+  const veFicha = useVeCompras();
+  // Lo que costarían los materiales con los mejores precios registrados (por moneda)
+  const estimados = !precios
+    ? []
+    : ['UYU', 'USD']
+        .map((k) => {
+          let actual = 0;
+          let mejor = 0;
+          let venta = 0;
+          let con = 0;
+          let viejos = 0;
+          let items = 0;
+          lista.forEach((m, i) => {
+            if (monedaDe(m) !== k || !String(m.item || '').trim()) return;
+            items += 1;
+            const cant = numero(m.cantidad) ?? 0;
+            const propio = numero(m.costo);
+            const info = precios[i];
+            const best = info?.mejor ? costoEnMoneda(info.mejor.precio_uyu, k, cotizacion) : null;
+            if (info?.desactualizado) viejos += 1;
+            if (best !== null) con += 1;
+            venta += cant * (numero(m.precio) ?? 0);
+            actual += cant * (propio ?? best ?? 0);
+            mejor += cant * (best !== null ? Math.min(best, propio ?? best) : propio ?? 0);
+          });
+          return { k, actual: r2(actual), mejor: r2(mejor), venta: r2(venta), con, viejos, items };
+        })
+        .filter((x) => x.con > 0);
+
+  // "Usar" el mejor precio registrado: cambia el costo y el proveedor del renglón (nunca solo)
+  function usarPrecio(i, info) {
+    const costo = costoEnMoneda(info.mejor.precio_uyu, monedaDe(lista[i]), cotizacion);
+    if (costo === null) return;
+    onChange(
+      lista.map((m, k) => {
+        if (k !== i) return m;
+        const margen = numero(m.margen) === null ? String(margenDefecto) : m.margen;
+        return { ...m, costo: String(costo), margen, precio: String(precioConMargen(costo, margen) ?? ''), proveedor: info.mejor.proveedor || m.proveedor, proveedor_id: info.mejor.proveedor_id || m.proveedor_id };
+      })
+    );
+  }
 
   // Del catálogo: si ya está en la lista, suma uno
   function agregarProducto(p, { cotizacion }) {
@@ -110,6 +159,10 @@ export default function EditorMateriales({
             const info = m.producto_id && revision ? revision[m.producto_id] : null;
             const stock = info ? estadoStock(info, m.cantidad) : null;
             const cambioPrecio = info && info.moneda !== 'USD' && numero(m.costo) !== null && Math.abs(Number(info.precio) - numero(m.costo)) >= 0.01;
+            const pc = precios?.[i];
+            const mejorAca = pc?.mejor ? costoEnMoneda(pc.mejor.precio_uyu, monedaDe(m), cotizacion) : null;
+            const ultimoAca = pc?.ultimo ? costoEnMoneda(pc.ultimo.precio_uyu, monedaDe(m), cotizacion) : null;
+            const conviene = mejorAca !== null && (numero(m.costo) === null || mejorAca < numero(m.costo) - 0.009);
             return (
               <li key={i} className="rounded-xl border border-navy-700 bg-navy-850 p-2.5">
                 <div className="flex items-center gap-2">
@@ -143,6 +196,31 @@ export default function EditorMateriales({
                         onClick={() => cambiar(i, 'costo', String(info.precio))}
                       >
                         Precio hoy {importe(info.precio, info.moneda)}: actualizar
+                      </button>
+                    )}
+                  </p>
+                )}
+                {pc && (
+                  <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1 text-[11px] text-tinta-400">
+                    <span className="inline-flex items-center gap-1 font-semibold text-[#8cc8ff]">
+                      <Icon name="grafico" className="h-3 w-3" /> Compras
+                    </span>
+                    {pc.ultimo && ultimoAca !== null && (
+                      <span>Último costo {dinero(ultimoAca, monedaDe(m))} ({pc.ultimo.proveedor}, {haceDias(pc.ultimo.fecha)})</span>
+                    )}
+                    {pc.mejor && mejorAca !== null && (pc.mejor.proveedor !== pc.ultimo?.proveedor || mejorAca !== ultimoAca) && (
+                      <span className="text-menta-300">Mejor: {dinero(mejorAca, monedaDe(m))} en {pc.mejor.proveedor}</span>
+                    )}
+                    {conviene && !bloqueado && (
+                      <button type="button" className="font-semibold text-menta-300 underline" onClick={() => usarPrecio(i, pc)}>
+                        Usar
+                      </button>
+                    )}
+                    {monedaDe(m) === 'USD' && !(numero(cotizacion) > 0) && <span>Poné la cotización para verlo en dólares</span>}
+                    {pc.desactualizado && <span className="font-semibold text-amber-300">Precio de hace {pc.dias} días: puede estar desactualizado</span>}
+                    {veFicha && pc.opciones > 0 && (
+                      <button type="button" className="font-semibold text-tinta-300 underline" onClick={() => setArticulo(pc.articulo_id)}>
+                        {pc.opciones > 1 ? `Ver ${pc.opciones} proveedores` : 'Ver historial'}
                       </button>
                     )}
                   </p>
@@ -203,6 +281,35 @@ export default function EditorMateriales({
             </div>
           </div>
         ))}
+      {estimados.length > 0 && (
+        <div className="mt-2 space-y-1.5 rounded-xl border border-[#0a84ff]/30 bg-[#0a84ff]/10 p-2.5 text-xs text-tinta-200">
+          <p className="flex items-center gap-1.5 font-semibold text-[#8cc8ff]">
+            <Icon name="grafico" className="h-3.5 w-3.5" /> Costo de materiales según tus compras
+          </p>
+          {estimados.map((e) => (
+            <div key={e.k}>
+              <p>
+                {estimados.length > 1 || mixto ? <b>{e.k === 'USD' ? 'En US$: ' : 'En $: '}</b> : null}
+                Con estos costos <b>{dinero(e.actual, e.k)}</b>
+                {e.mejor < e.actual - 0.009 ? (
+                  <>
+                    {' '}· con los mejores precios registrados <b className="text-menta-300">{dinero(e.mejor, e.k)}</b> (ahorrás {dinero(e.actual - e.mejor, e.k)}
+                    {e.venta > 0 ? `; la ganancia de materiales pasa de ${dinero(e.venta - e.actual, e.k)} a ${dinero(e.venta - e.mejor, e.k)}` : ''})
+                  </>
+                ) : (
+                  ' · ya usás el mejor precio registrado.'
+                )}
+              </p>
+              <p className="text-tinta-400">
+                {e.con} de {e.items} {e.items === 1 ? 'renglón tiene' : 'renglones tienen'} precios de compra registrados (sin IVA).
+                {e.viejos > 0 ? ` ${e.viejos} con precio viejo: confirmalo con el proveedor.` : ''}
+              </p>
+            </div>
+          ))}
+          {bloqueado && <p className="text-tinta-400">El presupuesto ya está aceptado: sus costos no se cambian.</p>}
+        </div>
+      )}
+      {articulo && <FichaArticulo articuloId={articulo} cuenta={cuenta} onCerrar={() => setArticulo(null)} />}
       {cuenta && (
         <BuscadorProductos abierto={buscando} onCerrar={() => setBuscando(false)} onElegir={agregarProducto} cuenta={cuenta} />
       )}
