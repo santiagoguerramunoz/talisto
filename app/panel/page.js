@@ -9,6 +9,7 @@ import TrabajosEnCurso from '@/components/TrabajosEnCurso';
 import MisTickets from '@/components/MisTickets';
 import Campanita from '@/components/Campanita';
 import GenerarTicket from '@/components/GenerarTicket';
+import LeerOrdenTrabajo from '@/components/LeerOrdenTrabajo';
 import Link from 'next/link';
 import { useEquipoAsignable } from '@/lib/equipo';
 import { usePanel } from '@/components/PanelContext';
@@ -20,6 +21,7 @@ import {
 import { ESTADOS, monto } from '@/lib/util';
 import { ESTADOS_TRABAJO, esFinalizado, estadoTrabajo } from '@/lib/trabajos';
 import { useAjustes } from '@/lib/ajustes';
+import { puedeLeerOrdenes } from '@/lib/planes';
 
 const HORA_PX = 64;
 const GUTTER = '3.25rem';
@@ -35,7 +37,8 @@ export default function Agenda() {
 }
 
 function AgendaCompleta({ onVerMios }) {
-  const { profesional, empresa } = usePanel();
+  const panel = usePanel();
+  const { profesional, empresa } = panel;
   const equipo = useEquipoAsignable();
   const [vista, setVista] = useState('dia');
   const [fecha, setFecha] = useState(() => inicioDia(new Date()));
@@ -44,6 +47,7 @@ function AgendaCompleta({ onVerMios }) {
   const [menuNuevo, setMenuNuevo] = useState(false);
   const [modalOrden, setModalOrden] = useState(null);
   const [nuevoTicket, setNuevoTicket] = useState(false);
+  const [leerOrden, setLeerOrden] = useState(false);
 
   const [desde, hasta] = useMemo(() => {
     if (vista === 'dia') return [fecha, sumarDias(fecha, 1)];
@@ -168,6 +172,17 @@ function AgendaCompleta({ onVerMios }) {
             >
               <Icon name="relevamiento" className="h-5 w-5 text-marca-naranja" /> Relevamiento
             </button>
+            {empresas.length > 0 && puedeLeerOrdenes(panel) && (
+              <button
+                className="btn btn-sec shadow-xl"
+                onClick={() => {
+                  setMenuNuevo(false);
+                  setLeerOrden(true);
+                }}
+              >
+                <Icon name="camara" className="h-5 w-5 text-menta-400" /> Orden de trabajo con IA
+              </button>
+            )}
             {empresas.map((e) => (
               <button
                 key={e.id}
@@ -223,6 +238,13 @@ function AgendaCompleta({ onVerMios }) {
         inicial={modalOrden?.inicial}
         margenDefecto={ajustes.margen_materiales}
         equipo={equipo}
+      />
+      <LeerOrdenTrabajo
+        abierto={leerOrden}
+        onCerrar={() => setLeerOrden(false)}
+        onListo={recargar}
+        cuenta={profesional.id}
+        empresas={empresas}
       />
       <GenerarTicket
         abierto={nuevoTicket}

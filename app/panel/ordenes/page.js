@@ -2,23 +2,26 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
 import FormTrabajoB2B from '@/components/FormTrabajoB2B';
+import CierrePlanilla from '@/components/CierrePlanilla';
+import LeerOrdenTrabajo from '@/components/LeerOrdenTrabajo';
 import { Reloj } from '@/components/ControlTiempo';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
 import { cargarClientes } from '@/lib/clientes';
 import { useAlVolver } from '@/lib/useAlVolver';
 import { useAjustes } from '@/lib/ajustes';
-import { MESES, fechaCorta, fechaISO } from '@/lib/fechas';
+import { fechaCorta, fechaISO, sumarMeses } from '@/lib/fechas';
 import { equivalenteOrden, importeOrden, nombreArchivoLiquidacion, planillaLiquidacion, textoHorario, totalesOrdenes } from '@/lib/liquidacion';
+import { esMesCompleto, estadoPlanilla, leerCierres, nombrePlanilla, planillaDeFecha, rangoPlanilla, textoRango, textoRangoLargo } from '@/lib/periodos';
 import { pesos } from '@/lib/precios';
 import { horasMinutos, minutosTrabajo, sesionAbierta, textoMinutos } from '@/lib/tiempos';
 import { ESTADOS_ABIERTOS, ESTADOS_TRABAJO, esFinalizado, estadoTrabajo } from '@/lib/trabajos';
 import { TIPO_XLSX } from '@/lib/xlsx';
 import { mensajeError, monto } from '@/lib/util';
-import { esPro, registrarExportacion } from '@/lib/planes';
+import { esPro, puedeLeerOrdenes, registrarExportacion } from '@/lib/planes';
 import { AvisoPlan } from '@/components/BloqueoPlan';
 
 const num = (n) => Number(n || 0).toLocaleString('es-UY', { maximumFractionDigits: 2 });
@@ -69,19 +72,18 @@ function TarjetaTrabajo({ o, onAbrir }) {
 
 function Trabajos() {
   const params = useSearchParams();
-  const { profesional, plan, recargarPlan, empresa: enEmpresa } = usePanel();
+  const { profesional, plan, recargarPlan, empresa: enEmpresa, yo, permisos } = usePanel();
   const { ajustes } = useAjustes(profesional.id);
   const [empresas, setEmpresas] = useState(null);
   const [errorPlan, setErrorPlan] = useState(null);
   const [pendiente, setPendiente] = useState(null); // planilla ya contada, lista para compartir
   const [empresaId, setEmpresaId] = useState(params.get('empresa') || '');
-  const [periodo, setPeriodo] = useState(() => {
-    const h = new Date();
-    return { anio: h.getFullYear(), mes: h.getMonth() + 1 };
-  });
+  const [periodoElegido, setPeriodoElegido] = useState(null); // null: la planilla abierta hoy
   const [ordenes, setOrdenes] = useState([]);
   const [abiertos, setAbiertos] = useState([]);
   const [modal, setModal] = useState(null);
+  const [editarCierre, setEditarCierre] = useState(false);
+  const [leerOrden, setLeerOrden] = useState(false);
   const [precioMes, setPrecioMes] = useState('');
   const [aviso, setAviso] = useState({});
   const [faltaSql, setFaltaSql] = useState(false);
@@ -97,11 +99,21 @@ function Trabajos() {
   }, [profesional.id]);
 
   const empresa = (empresas || []).find((e) => e.id === empresaId);
-  const desde = `${periodo.anio}-${String(periodo.mes).padStart(2, '0')}-01`;
-  const hasta = periodo.mes === 12 ? `${periodo.anio + 1}-01-01` : `${periodo.anio}-${String(periodo.mes + 1).padStart(2, '0')}-01`;
+  // La planilla va de cierre a cierre (por defecto, el mes calendario)
+  const hoy = fechaISO(new Date());
+  const cierres = leerCierres(empresa?.cierre_planilla);
+  const periodo = periodoElegido || planillaDeFecha(cierres, hoy);
+  const rango = rangoPlanilla(cierres, periodo);
+  const { desde, hasta } = rango;
+  const nombre = nombrePlanilla(periodo);
+  const puedeLeerOrden = puedeLeerOrdenes({ plan, empresa: enEmpresa, yo, profesional, permisos });
 
+  // Espera a la empresa: sin ella no se sabe de qué fecha a qué fecha va la planilla
+  const empresaLista = !!empresa;
+  const pedido = useRef(0);
   const cargar = useCallback(async () => {
-    if (!empresaId) return;
+    if (!empresaLista) return;
+    const numero = ++pedido.current;
     const [mes, abiertosR] = await Promise.all([
       supabase
         .from('ordenes')
@@ -120,6 +132,7 @@ function Trabajos() {
         .in('estado', ESTADOS_ABIERTOS)
         .order('fecha'),
     ]);
+    if (numero !== pedido.current) return; // llegó una respuesta más nueva
     if (mes.error) {
       if (/does not exist|could not find/i.test(mes.error.message || '')) setFaltaSql(true);
       else setAviso({ error: mensajeError(mes.error) });
@@ -127,7 +140,7 @@ function Trabajos() {
     }
     setOrdenes(mes.data || []);
     setAbiertos(abiertosR.data || []);
-  }, [profesional.id, empresaId, desde, hasta]);
+  }, [profesional.id, empresaLista, empresaId, desde, hasta]);
 
   useEffect(() => {
     cargar();
@@ -143,10 +156,12 @@ function Trabajos() {
   const totales = totalesOrdenes(finalizados);
 
   function moverMes(delta) {
-    setPeriodo(({ anio, mes }) => {
-      const d = new Date(anio, mes - 1 + delta, 1);
-      return { anio: d.getFullYear(), mes: d.getMonth() + 1 };
-    });
+    setPeriodoElegido(sumarMeses(periodo, delta));
+  }
+
+  function elegirEmpresa(id) {
+    setEmpresaId(id);
+    setPeriodoElegido(null);
   }
 
   async function aplicarPrecio() {
@@ -165,7 +180,7 @@ function Trabajos() {
     ]);
     if (r1.error || r2.error) return setAviso({ error: mensajeError(r1.error || r2.error) });
     setEmpresas((lista) => lista.map((e) => (e.id === empresaId ? { ...e, precio_acondicionamiento: precio } : e)));
-    setAviso({ ok: `Precio de ${monto(precio)} por puesta aplicado a los trabajos de ${MESES[periodo.mes - 1]} y guardado para los próximos.` });
+    setAviso({ ok: `Precio de ${monto(precio)} por puesta aplicado a los trabajos de la planilla de ${nombre} y guardado para los próximos.` });
     cargar();
   }
 
@@ -175,6 +190,7 @@ function Trabajos() {
       ordenes: finalizados,
       anio: periodo.anio,
       mes: periodo.mes,
+      rango: esMesCompleto(rango) ? null : textoRangoLargo(rango),
       profesional: profesional.nombre_publico,
     });
     return new File([bytes], nombreArchivoLiquidacion(empresa, periodo.anio, periodo.mes), { type: TIPO_XLSX });
@@ -253,7 +269,7 @@ function Trabajos() {
         {empresas.length > 1 && (
           <div className="mt-3 flex gap-1.5 overflow-x-auto">
             {empresas.map((e) => (
-              <button key={e.id} onClick={() => setEmpresaId(e.id)} className={`chip shrink-0 ${e.id === empresaId ? 'chip-activo' : ''}`}>
+              <button key={e.id} onClick={() => elegirEmpresa(e.id)} className={`chip shrink-0 ${e.id === empresaId ? 'chip-activo' : ''}`}>
                 {e.nombre}
               </button>
             ))}
@@ -261,9 +277,15 @@ function Trabajos() {
         )}
         {empresa && (
           <div className="mt-3 flex items-center gap-2">
-            <button onClick={() => moverMes(-1)} className="btn btn-sec px-2.5 py-2" aria-label="Mes anterior"><Icon name="izq" /></button>
-            <button onClick={() => moverMes(1)} className="btn btn-sec px-2.5 py-2" aria-label="Mes siguiente"><Icon name="der" /></button>
-            <p className="flex-1 px-1 font-bold capitalize">{MESES[periodo.mes - 1]} {periodo.anio}</p>
+            <button onClick={() => moverMes(-1)} className="btn btn-sec px-2.5 py-2" aria-label="Planilla anterior"><Icon name="izq" /></button>
+            <button onClick={() => moverMes(1)} className="btn btn-sec px-2.5 py-2" aria-label="Planilla siguiente"><Icon name="der" /></button>
+            <div className="min-w-0 flex-1 px-1">
+              <p className="truncate font-bold leading-tight">{nombre}</p>
+              <p className="truncate text-xs text-tinta-400">Del {textoRango(rango)}</p>
+            </div>
+            <button onClick={() => setEditarCierre(true)} className="btn btn-sec shrink-0 px-3 py-2 text-sm">
+              <Icon name="agenda" className="h-4 w-4" /> Cierre
+            </button>
           </div>
         )}
       </header>
@@ -286,10 +308,16 @@ function Trabajos() {
           </div>
         ) : (
           <>
-            {/* Abiertos de otros meses: en curso, suspendidos o multi día */}
+            {puedeLeerOrden && (
+              <button className="btn btn-sec w-full" onClick={() => setLeerOrden(true)}>
+                <Icon name="camara" className="h-5 w-5 text-menta-400" /> Cargar orden de trabajo con IA
+              </button>
+            )}
+
+            {/* Abiertos de otras planillas: en curso, suspendidos o multi día */}
             {abiertosFuera.length > 0 && (
               <section>
-                <h2 className="titulo-seccion mb-2">Sin terminar de otros meses</h2>
+                <h2 className="titulo-seccion mb-2">Sin terminar de otras planillas</h2>
                 <ul className="lista-pc space-y-2">
                   {abiertosFuera.map((o) => (
                     <li key={o.id}><TarjetaTrabajo o={o} onAbrir={(x) => setModal({ orden: x })} /></li>
@@ -298,9 +326,12 @@ function Trabajos() {
               </section>
             )}
 
-            {/* Liquidación del mes */}
+            {/* Liquidación de la planilla */}
             <section className="tarjeta p-4">
-              <p className="titulo-seccion">Liquidación del mes</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="titulo-seccion">Liquidación</p>
+                <p className="shrink-0 text-xs font-semibold text-tinta-300">{estadoPlanilla(rango, hoy)}</p>
+              </div>
               <div className="mt-3 grid grid-cols-4 gap-2 text-center">
                 {[
                   [num(totales.acondicionamientos), 'Puestas'],
@@ -365,21 +396,21 @@ function Trabajos() {
               <p className="titulo-seccion">Precio por puesta</p>
               <div className="mt-3 flex gap-2">
                 <input type="number" inputMode="decimal" min="0" className="campo" value={precioMes} onChange={(e) => setPrecioMes(e.target.value)} placeholder="UYU" aria-label="Precio por puesta" />
-                <button className="btn btn-sec shrink-0" onClick={aplicarPrecio}>Aplicar al mes</button>
+                <button className="btn btn-sec shrink-0" onClick={aplicarPrecio}>Aplicar a la planilla</button>
               </div>
               <p className="mt-2 text-xs text-tinta-400">
-                Cambia el precio de todos los trabajos de {MESES[periodo.mes - 1]} y queda para los nuevos. 1 MOE = {num(empresa.factor_moe ?? 1.75)} puestas.
+                Cambia el precio de todos los trabajos de la planilla de {nombre} y queda para los nuevos. 1 MOE = {num(empresa.factor_moe ?? 1.75)} puestas.
               </p>
             </section>
 
             {aviso.error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{aviso.error}</p>}
             {aviso.ok && <p className="rounded-xl bg-menta-500/10 p-3 text-sm text-menta-300">{aviso.ok}</p>}
 
-            {/* Lista del mes */}
+            {/* Lista de la planilla */}
             <section>
-              <h2 className="titulo-seccion mb-2">Trabajos de {MESES[periodo.mes - 1]}</h2>
+              <h2 className="titulo-seccion mb-2">Trabajos de la planilla ({textoRango(rango)})</h2>
               {ordenes.length === 0 ? (
-                <p className="tarjeta p-4 text-sm text-tinta-400">No hay trabajos cargados este mes.</p>
+                <p className="tarjeta p-4 text-sm text-tinta-400">No hay trabajos cargados en esta planilla.</p>
               ) : (
                 <ul className="lista-pc space-y-2">
                   {ordenes.map((o) => (
@@ -389,7 +420,7 @@ function Trabajos() {
               )}
               {ordenes.length > 0 && (
                 <p className="mt-2 text-xs text-tinta-500">
-                  {num(ordenes.reduce((s, o) => s + (esFinalizado(o) ? equivalenteOrden(o) : 0), 0))} puestas equivalentes finalizadas en el mes.
+                  {num(ordenes.reduce((s, o) => s + (esFinalizado(o) ? equivalenteOrden(o) : 0), 0))} puestas equivalentes finalizadas en la planilla.
                 </p>
               )}
             </section>
@@ -406,6 +437,23 @@ function Trabajos() {
         orden={modal?.orden}
         inicial={modal?.inicial}
         margenDefecto={ajustes.margen_materiales}
+      />
+      <CierrePlanilla
+        abierto={editarCierre}
+        onCerrar={() => setEditarCierre(false)}
+        onGuardado={(cierre_planilla) => {
+          setEmpresas((lista) => lista.map((e) => (e.id === empresaId ? { ...e, cierre_planilla } : e)));
+        }}
+        empresa={empresa}
+        periodo={periodo}
+      />
+      <LeerOrdenTrabajo
+        abierto={leerOrden}
+        onCerrar={() => setLeerOrden(false)}
+        onListo={cargar}
+        cuenta={profesional.id}
+        empresas={empresas}
+        empresaId={empresaId}
       />
     </>
   );

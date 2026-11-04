@@ -196,7 +196,7 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
       return false;
     }
     if (!f.numero_ticket.trim() && !f.numero_cliente.trim()) {
-      setError('Poné al menos el número de ticket o el número de cliente.');
+      setError('Poné al menos el número de orden o ticket, o el número de cliente.');
       return false;
     }
     if (f.conHorario && f.hasta && minutos(f.hasta) <= minutos(f.desde)) {
@@ -358,11 +358,11 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
 
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="etiqueta" htmlFor="o-cli">Nº de cliente</label>
+            <label className="etiqueta" htmlFor="o-cli">Nº de cliente / Bykom</label>
             <input id="o-cli" className="campo" value={form.numero_cliente} onChange={(e) => cambiar('numero_cliente', e.target.value)} placeholder="Ej. 55310" />
           </div>
           <div>
-            <label className="etiqueta" htmlFor="o-tk">Nº de ticket</label>
+            <label className="etiqueta" htmlFor="o-tk">Nº de orden / ticket</label>
             <input id="o-tk" className="campo" value={form.numero_ticket} onChange={(e) => cambiar('numero_ticket', e.target.value)} placeholder="Ej. 88812" />
           </div>
         </div>
