@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from './Icon';
+import TextoEspera from './TextoEspera';
 import Modal from './Modal';
 import { usePanel } from './PanelContext';
 import { supabase } from '@/lib/supabase';
@@ -447,7 +448,7 @@ export default function LeerComprobante({ abierto, onCerrar, onListo, retomar = 
           <div className="grid place-items-center gap-3 py-10 text-center">
             <span className="h-10 w-10 animate-spin rounded-full border-4 border-navy-700 border-t-menta-400" />
             <p className="font-semibold">Leyendo el comprobante…</p>
-            <p className="text-xs text-tinta-400">Tarda unos segundos.</p>
+            <TextoEspera className="text-xs text-tinta-400" />
           </div>
         )}
 

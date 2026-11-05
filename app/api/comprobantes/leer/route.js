@@ -5,7 +5,7 @@ import { pedirJsonGemini } from '@/lib/gemini';
 import { clienteUsuario } from '@/lib/servidor';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 180; // Gemini gratis puede tardar: ver lib/gemini.js
 
 const TIPOS = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 const MAX_BASE64 = 4_000_000; // ~3 MB de archivos (el pedido entero tiene que pasar los 4,5 MB de Vercel)

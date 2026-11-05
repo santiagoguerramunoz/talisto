@@ -143,6 +143,7 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
 - **Activarlo (Google Gemini, tiene uso gratis)**: creá una clave en [aistudio.google.com](https://aistudio.google.com) (Get API key) y cargala en Vercel → Settings → Environment Variables como `GEMINI_API_KEY`; después volvé a publicar. Usa `gemini-3.8-flash` (se cambia con `GEMINI_MODEL`). Ojo: en el uso gratis Google puede usar las fotos y lo leído para mejorar sus productos (y revisarlo personas) y hay un cupo diario por proyecto, compartido por todas las cuentas de TaListo!. Si algún día activás la facturación en AI Studio (misma clave, sin cambiar nada acá), los datos dejan de usarse y el cupo sube, pero pasa a cobrar por uso.
 - Para que siga siendo gratis: no actives la facturación en ese proyecto de Google. Cuando se termina el cupo del día la app avisa y no cobra nada.
 - **Tope por mes**: lo fijás en /admin (por defecto 60 lecturas en Pro y 300 en Business por cuenta). Las que fallan no cuentan.
+- **Si Google tarda**: arranca con Gemini 3.8 Flash. Si a los 25 segundos no contestó, suma Gemini 3.5 Flash-Lite sin cortar al primero; después 3.6 Flash y 3.1 Flash-Lite. Gana el primero que responda bien, y se espera hasta casi 3 minutos. Si un modelo falla enseguida, el siguiente entra al momento. `GEMINI_MODEL` cambia el primero de la lista.
 
 ### 13. Órdenes de trabajo con IA (Pro y Business)
 

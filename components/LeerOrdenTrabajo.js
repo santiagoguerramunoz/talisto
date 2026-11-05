@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
 import Modal from './Modal';
 import SelectorUbicacion from './SelectorUbicacion';
+import TextoEspera from './TextoEspera';
 import { supabase } from '@/lib/supabase';
 import { avisar } from '@/lib/avisos';
 import { useEquipoAsignable } from '@/lib/equipo';
@@ -507,7 +508,7 @@ export default function LeerOrdenTrabajo({ abierto, onCerrar, onListo, cuenta, e
           <div className="py-10 text-center">
             <Icon name="documento" className="mx-auto h-9 w-9 animate-pulse text-menta-400" />
             <p className="mt-3 font-bold">Leyendo la orden…</p>
-            <p className="mt-1 text-sm text-tinta-400">Tarda unos segundos.</p>
+            <TextoEspera className="mt-1 text-sm text-tinta-400" />
           </div>
         )}
 
