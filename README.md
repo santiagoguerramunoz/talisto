@@ -20,7 +20,7 @@ Next.js + Supabase + Vercel.
 ### 1. Supabase (proyecto NUEVO, no el de Metabia)
 
 1. En supabase.com creá un proyecto nuevo llamado `talisto`.
-2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql`, `supabase/08_tickets.sql`, `supabase/09_proveedores.sql`, `supabase/10_stock.sql`, `supabase/11_operacion.sql`, `supabase/12_monedas_comisiones.sql`, `supabase/13_ruta_tickets.sql`, `supabase/14_comprobantes_ia.sql`, `supabase/15_inteligencia_compras.sql`, `supabase/16_ordenes_ia_cierres.sql` y `supabase/17_codigo_bykom.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo; el 09 los proveedores, sus listas de precios y las órdenes de compra; el 10 el stock de la empresa, del equipo y de cada trabajo; el 11 los avisos, el cierre de los trabajos en el lugar, los pedidos de cotización y los remitos; el 12 los presupuestos en pesos, dólares o mixtos y las comisiones por venta; el 13 la ruta de los tickets: generar ticket desde el presupuesto, pedidos de materiales que aprueba Stock y el seguimiento con historial; el 14 la lectura de comprobantes con IA; el 15 la inteligencia de compras: historial de precios, comparador de proveedores y alertas; el 16 las órdenes de trabajo leídas con IA y el cierre de planillas por cliente; el 17 el código Bykom de los tickets). Todos se pueden volver a correr sin problema.
+2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql`, `supabase/08_tickets.sql`, `supabase/09_proveedores.sql`, `supabase/10_stock.sql`, `supabase/11_operacion.sql`, `supabase/12_monedas_comisiones.sql`, `supabase/13_ruta_tickets.sql`, `supabase/14_comprobantes_ia.sql`, `supabase/15_inteligencia_compras.sql`, `supabase/16_ordenes_ia_cierres.sql`, `supabase/17_codigo_bykom.sql` y `supabase/18_listas_pdf_ia.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo; el 09 los proveedores, sus listas de precios y las órdenes de compra; el 10 el stock de la empresa, del equipo y de cada trabajo; el 11 los avisos, el cierre de los trabajos en el lugar, los pedidos de cotización y los remitos; el 12 los presupuestos en pesos, dólares o mixtos y las comisiones por venta; el 13 la ruta de los tickets: generar ticket desde el presupuesto, pedidos de materiales que aprueba Stock y el seguimiento con historial; el 14 la lectura de comprobantes con IA; el 15 la inteligencia de compras: historial de precios, comparador de proveedores y alertas; el 16 las órdenes de trabajo leídas con IA y el cierre de planillas por cliente; el 17 el código Bykom de los tickets; el 18 las listas de precios en PDF leídas con IA). Todos se pueden volver a correr sin problema.
 3. **Authentication → URL Configuration**:
    - Site URL: `https://talisto-ashen.vercel.app` (para probar en tu PC podés usar `http://localhost:3000`).
    - Redirect URLs: solo `https://talisto-ashen.vercel.app/**` (y `http://localhost:3000/**` mientras pruebes en tu PC; después sacalo).
@@ -156,6 +156,15 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
 - Lo hace quien tiene el permiso de agendar tickets. Comparte el **tope por mes** con los comprobantes y las lecturas que fallan no cuentan. De cada lectura se guarda quién y cuándo; los datos quedan solo en los tickets cargados.
 - Usa la misma clave `GEMINI_API_KEY`. Ojo: en el uso gratis Google pide no mandar datos personales o confidenciales, y las órdenes traen nombre, dirección y teléfono de los clientes finales. Para usarla con órdenes reales conviene activar la facturación en AI Studio (misma clave, sin cambiar nada acá): así Google no usa esos datos para mejorar sus productos.
 
+### Listas de precios en PDF con IA (Pro y Business)
+
+- En la ficha del proveedor, **Lista de precios** → *Leer PDF o fotos con IA*. Hasta 80 páginas o 30 fotos.
+- La app parte el PDF en **tandas de 2 páginas** y lee 2 tandas a la vez. Si una tanda no sale completa o tarda demasiado, la vuelve a leer de a una página; si falla igual, se reintenta solo esa. Las que ya se leyeron no se repiten.
+- Se revisa antes de cargar: cantidad de productos, una muestra, avisos de la IA y si la moneda o el IVA de la lista no coinciden con el proveedor. Los repetidos (mismo código, o misma descripción sin código) quedan una vez.
+- Por defecto **solo suma productos y actualiza precios**. Si se marca *Es la lista completa* (solo cuando se leyeron todas las páginas), lo que no está en la lista deja de aparecer, igual que con el Excel.
+- **Toda la lista cuenta como 1 lectura** del tope del mes, y solo si se pudo leer alguna tanda (SQL 18).
+- Lo puede hacer quien edita el proveedor (en una empresa, el permiso de compras).
+
 ### 14. Cierre de planillas por cliente B2B
 
 - En **Trabajos B2B**, botón **Cierre** (o en la ficha del cliente): cada empresa cierra el día que quiera. Si cierra el 25, la planilla de noviembre va del 26/10 al 25/11 y el 26 abre sola la de diciembre. Sin configurar sigue siendo el mes calendario.
@@ -225,7 +234,7 @@ npx vercel --prod            # publica en https://talisto-ashen.vercel.app
 ## Archivos
 
 ```
-supabase/01 … 17                → base de datos (correr en orden en Supabase)
+supabase/01 … 18                → base de datos (correr en orden en Supabase)
 supabase/pruebas                → pruebas de la base (no guardan nada)
 app/page.js                     → portada
 app/login, app/registro, app/nueva-clave
@@ -243,6 +252,7 @@ app/panel/mi-stock/page.js      → Mi stock (cada persona del equipo)
 app/panel/avisos/page.js        → Avisos (campanita) y notificaciones en el celular
 app/api/comprobantes/leer       → lee la foto o el PDF de un comprobante con IA (servidor)
 app/api/ordenes/leer            → lee una orden de trabajo con IA y devuelve los tickets para revisar (servidor)
+app/api/proveedores/leer-lista  → lee una tanda de la lista de precios de un proveedor (PDF o foto) con IA (servidor)
 app/api/avisos                  → manda las notificaciones push (servidor, sin servicios pagos)
 app/api/proveedores             → actualizar listas, stock al momento y mandar órdenes (servidor)
 app/panel/empresa/page.js       → Mi empresa: cuentas, roles e invitaciones

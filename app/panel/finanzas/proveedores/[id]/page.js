@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
+import LeerListaPdf from '@/components/LeerListaPdf';
 import Modal from '@/components/Modal';
 import { usePanel } from '@/components/PanelContext';
 import { ComprasProveedor } from '@/components/PreciosCompra';
@@ -294,6 +295,10 @@ function ListaDePrecios({ v, form, cambiar, guardar, avisar, recargar, ocupado }
       <p className="text-xs text-tinta-400">{FUENTES[form.fuente]?.ayuda}</p>
 
       {form.fuente === 'planilla' && <SubirPlanilla v={v} avisar={avisar} recargar={recargar} guardarFuente={() => (v.fuente !== 'planilla' ? guardar({}, '') : true)} />}
+
+      {(form.fuente === 'planilla' || form.fuente === 'manual') && (
+        <LeerListaPdf v={v} avisar={avisar} recargar={recargar} guardarFuente={() => (v.fuente !== form.fuente ? guardar({}, '') : true)} />
+      )}
 
       {remoto && (
         <div className="space-y-3">
