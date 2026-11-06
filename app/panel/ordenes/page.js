@@ -35,11 +35,12 @@ function TarjetaTrabajo({ o, onAbrir }) {
     <button onClick={() => onAbrir(o)} className={`tarjeta w-full p-3 text-left hover:bg-navy-850 ${estado === 'cancelado' ? 'opacity-50' : ''}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate font-bold">
-            {o.numero_ticket ? `Ticket ${o.numero_ticket}` : 'Sin ticket'}
-            {o.numero_cliente && <span className="font-normal text-tinta-400"> · Cliente {o.numero_cliente}</span>}
-            {o.codigo_bykom && <span className="font-normal text-tinta-400"> · Bykom {o.codigo_bykom}</span>}
-          </p>
+          <p className="truncate font-bold">{o.numero_ticket ? `Ticket ${o.numero_ticket}` : 'Sin ticket'}</p>
+          {(o.numero_cliente || o.codigo_bykom) && (
+            <p className="truncate text-xs font-semibold text-tinta-300">
+              {[o.numero_cliente && `Cliente ${o.numero_cliente}`, o.codigo_bykom && `Bykom ${o.codigo_bykom}`].filter(Boolean).join(' · ')}
+            </p>
+          )}
           <p className="truncate text-xs text-tinta-400">
             {o.fecha_inicio && o.fecha_inicio !== o.fecha ? `${fechaCorta(`${o.fecha_inicio}T00:00`)} al ` : ''}
             {fechaCorta(`${o.fecha}T00:00`)}

@@ -97,11 +97,12 @@ function Ficha({ f, empresas, asignables, onCambiar }) {
           aria-label={`Cargar ${f.numero_ticket || 'esta orden'}`}
         />
         <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onCambiar({ abierta: !f.abierta })} aria-expanded={abierta}>
-          <span className="block truncate font-bold">
-            {f.numero_ticket ? `Orden ${f.numero_ticket}` : 'Sin nº de orden'}
-            {f.numero_cliente && <span className="font-normal text-tinta-400"> · Cliente {f.numero_cliente}</span>}
-            {f.codigo_bykom && <span className="font-normal text-tinta-400"> · Bykom {f.codigo_bykom}</span>}
-          </span>
+          <span className="block truncate font-bold">{f.numero_ticket ? `Orden ${f.numero_ticket}` : 'Sin nº de orden'}</span>
+          {(f.numero_cliente || f.codigo_bykom) && (
+            <span className="block truncate text-sm font-semibold text-tinta-200">
+              {[f.numero_cliente && `Cliente ${f.numero_cliente}`, f.codigo_bykom && `Bykom ${f.codigo_bykom}`].filter(Boolean).join(' · ')}
+            </span>
+          )}
           <span className="block truncate text-sm text-tinta-300">
             {f.fecha ? fechaCorta(`${f.fecha}T00:00`) : 'Sin fecha'} · {horario}
             {empresa && empresas.length > 1 ? ` · ${empresa.nombre}` : ''}
