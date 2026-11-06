@@ -63,7 +63,8 @@ function armarLista(datos, fechaIso) {
       id: o.id,
       tipo: 'ticket',
       b2b: true,
-      titulo: [o.empresa, o.numero_ticket ? `Tk ${o.numero_ticket}` : o.numero_cliente ? `Cliente ${o.numero_cliente}` : null].filter(Boolean).join(' · '),
+      titulo: [o.empresa, o.numero_ticket ? `Tk ${o.numero_ticket}` : null].filter(Boolean).join(' · '),
+      codigos: [o.numero_cliente ? `Cliente ${o.numero_cliente}` : null, o.codigo_bykom ? `Bykom ${o.codigo_bykom}` : null].filter(Boolean).join(' · '),
       contacto: o.cliente_final,
       telefono: o.telefono,
       color: o.color || '#94a3b8',
@@ -539,6 +540,7 @@ function Tarjeta({ item, numero, ocupado, bloqueado, onVer, onIniciar, onCerrarC
             </span>
           </span>
           <span className="mt-1 block truncate font-bold leading-tight">{item.titulo}</span>
+          {item.codigos && <span className="mt-0.5 block truncate text-xs font-semibold text-tinta-300">{item.codigos}</span>}
           <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-tinta-400">
             <Icon name={tipo.icono} className="h-3.5 w-3.5" /> {tipo.texto}
             {item.numero ? ` Nº ${String(item.numero).padStart(4, '0')}` : ''} · <b className="text-tinta-200">{item.cuando}</b>

@@ -50,6 +50,7 @@ function armarFila(o, empresas, empresaId) {
     empresa_id: empresa?.id || '',
     numero_ticket: o.numero_orden,
     numero_cliente: o.numero_cliente,
+    codigo_bykom: o.codigo_bykom,
     cliente_final: o.cliente,
     telefono: o.telefono,
     fecha: o.fecha,
@@ -72,7 +73,6 @@ function armarFila(o, empresas, empresaId) {
 function faltaDe(f) {
   if (!f.empresa_id) return 'Elegí el cliente B2B.';
   if (!f.fecha) return 'La orden no dice qué día: elegí la fecha.';
-  if (!f.numero_ticket.trim() && !f.numero_cliente.trim()) return 'Poné el número de orden o el número de cliente.';
   if (f.hasta && !f.desde) return 'Poné la hora de inicio.';
   if (f.desde && f.hasta && f.hasta <= f.desde) return 'La hora de fin tiene que ser después de la de inicio.';
   return '';
@@ -100,6 +100,7 @@ function Ficha({ f, empresas, asignables, onCambiar }) {
           <span className="block truncate font-bold">
             {f.numero_ticket ? `Orden ${f.numero_ticket}` : 'Sin nº de orden'}
             {f.numero_cliente && <span className="font-normal text-tinta-400"> · Cliente {f.numero_cliente}</span>}
+            {f.codigo_bykom && <span className="font-normal text-tinta-400"> · Bykom {f.codigo_bykom}</span>}
           </span>
           <span className="block truncate text-sm text-tinta-300">
             {f.fecha ? fechaCorta(`${f.fecha}T00:00`) : 'Sin fecha'} · {horario}
@@ -128,16 +129,21 @@ function Ficha({ f, empresas, asignables, onCambiar }) {
               </select>
             </div>
           )}
+          <div>
+            <label className="etiqueta" htmlFor={id('tk')}>Nº de orden / ticket</label>
+            <input id={id('tk')} className="campo" value={f.numero_ticket} onChange={(e) => onCambiar({ numero_ticket: e.target.value })} placeholder="No figura en la orden" />
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="etiqueta" htmlFor={id('tk')}>Nº de orden / ticket</label>
-              <input id={id('tk')} className="campo" value={f.numero_ticket} onChange={(e) => onCambiar({ numero_ticket: e.target.value })} />
+              <label className="etiqueta" htmlFor={id('cli')}>Código de cliente</label>
+              <input id={id('cli')} className="campo" value={f.numero_cliente} onChange={(e) => onCambiar({ numero_cliente: e.target.value })} placeholder="No figura" />
             </div>
             <div>
-              <label className="etiqueta" htmlFor={id('cli')}>Nº de cliente / Bykom</label>
-              <input id={id('cli')} className="campo" value={f.numero_cliente} onChange={(e) => onCambiar({ numero_cliente: e.target.value })} />
+              <label className="etiqueta" htmlFor={id('bykom')}>Código Bykom</label>
+              <input id={id('bykom')} className="campo" maxLength={60} value={f.codigo_bykom} onChange={(e) => onCambiar({ codigo_bykom: e.target.value })} placeholder="No figura" />
             </div>
           </div>
+          <p className="text-xs text-tinta-400">Si falta un código se carga igual y lo completás después en el ticket.</p>
           <div>
             <label className="etiqueta" htmlFor={id('fecha')}>Fecha</label>
             <input id={id('fecha')} type="date" className="campo" value={f.fecha} onChange={(e) => onCambiar({ fecha: e.target.value })} />
@@ -334,7 +340,7 @@ export default function LeerOrdenTrabajo({ abierto, onCerrar, onListo, cuenta, e
   }
 
   // Cada ticket se carga igual que uno hecho a mano: con la misma tarifa y su historial
-  function filaTicket(f, conTelefono) {
+  function filaTicket(f, conTelefono, conBykom) {
     const e = empresas.find((x) => x.id === f.empresa_id);
     const fila = {
       profesional_id: cuenta,
@@ -357,6 +363,7 @@ export default function LeerOrdenTrabajo({ abierto, onCerrar, onListo, cuenta, e
       estado: 'pendiente',
     };
     if (conTelefono) fila.telefono_contacto = f.telefono.trim().slice(0, 40) || null;
+    if (conBykom) fila.codigo_bykom = f.codigo_bykom.trim().slice(0, 60) || null;
     if (conEquipo) fila.asignado_a = f.asignado_a || null;
     return fila;
   }
@@ -373,7 +380,8 @@ export default function LeerOrdenTrabajo({ abierto, onCerrar, onListo, cuenta, e
       return setError('Algunas ya estaban cargadas y quedaron sin tildar. Tildalas si querés cargarlas igual.');
     }
     const conTelefono = incluidas.some((f) => f.telefono.trim());
-    const { error: err } = await supabase.from('ordenes').insert(incluidas.map((f) => filaTicket(f, conTelefono)));
+    const conBykom = incluidas.some((f) => f.codigo_bykom.trim());
+    const { error: err } = await supabase.from('ordenes').insert(incluidas.map((f) => filaTicket(f, conTelefono, conBykom)));
     setGuardando(false);
     if (err) return setError(mensajeError(err));
     lectura.current += 1;

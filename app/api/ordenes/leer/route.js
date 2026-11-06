@@ -66,7 +66,8 @@ export async function POST(request) {
         sistema: SISTEMA_ORDEN,
         esquema: ESQUEMA_ORDEN,
         etiqueta: 'ordenes',
-      })
+      }),
+      archivos.length ? '' : texto
     );
   } catch (e) {
     await db.rpc('terminar_lectura_orden', { p_id: inicio.id, p_ordenes: null, p_error: e.message });

@@ -44,6 +44,7 @@ function formDesde(orden, empresas, inicial) {
       id: orden.id,
       empresa_id: orden.empresa_id,
       numero_cliente: orden.numero_cliente || '',
+      codigo_bykom: orden.codigo_bykom || '',
       numero_ticket: orden.numero_ticket || '',
       ticketOriginal: orden.numero_ticket || '',
       fecha: orden.fecha,
@@ -77,6 +78,7 @@ function formDesde(orden, empresas, inicial) {
     id: null,
     empresa_id: empresa?.id || '',
     numero_cliente: '',
+    codigo_bykom: '',
     numero_ticket: '',
     ticketOriginal: '',
     fecha: inicial?.fecha || fechaISO(new Date()),
@@ -195,10 +197,6 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
       setError('Elegí el cliente B2B.');
       return false;
     }
-    if (!f.numero_ticket.trim() && !f.numero_cliente.trim()) {
-      setError('Poné al menos el número de orden o ticket, o el número de cliente.');
-      return false;
-    }
     if (f.conHorario && f.hasta && minutos(f.hasta) <= minutos(f.desde)) {
       setError('La hora de fin tiene que ser después de la de inicio.');
       return false;
@@ -246,6 +244,8 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
     };
     // Teléfono del cliente final (SQL 11): solo se manda si hay algo que guardar
     if ((f.telefono_contacto || '').trim() || orden?.telefono_contacto) fila.telefono_contacto = (f.telefono_contacto || '').trim().slice(0, 40) || null;
+    // Código Bykom (SQL 17): solo se manda si hay algo que guardar
+    if ((f.codigo_bykom || '').trim() || orden?.codigo_bykom) fila.codigo_bykom = (f.codigo_bykom || '').trim().slice(0, 60) || null;
     if (conEquipo) fila.asignado_a = f.asignado_a || null;
     if (tiempoDelEquipo) {
       // El cronómetro lo maneja quien hace el trabajo. Lo que esa persona completa al cerrar
@@ -356,14 +356,18 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
           </p>
         ) : null}
 
+        <div>
+          <label className="etiqueta" htmlFor="o-tk">Nº de orden / ticket</label>
+          <input id="o-tk" className="campo" value={form.numero_ticket} onChange={(e) => cambiar('numero_ticket', e.target.value)} placeholder="Ej. 88812" />
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="etiqueta" htmlFor="o-cli">Nº de cliente / Bykom</label>
+            <label className="etiqueta" htmlFor="o-cli">Código de cliente</label>
             <input id="o-cli" className="campo" value={form.numero_cliente} onChange={(e) => cambiar('numero_cliente', e.target.value)} placeholder="Ej. 55310" />
           </div>
           <div>
-            <label className="etiqueta" htmlFor="o-tk">Nº de orden / ticket</label>
-            <input id="o-tk" className="campo" value={form.numero_ticket} onChange={(e) => cambiar('numero_ticket', e.target.value)} placeholder="Ej. 88812" />
+            <label className="etiqueta" htmlFor="o-bykom">Código Bykom</label>
+            <input id="o-bykom" className="campo" maxLength={60} autoCapitalize="characters" value={form.codigo_bykom} onChange={(e) => cambiar('codigo_bykom', e.target.value)} placeholder="Ej. AB-12/3" />
           </div>
         </div>
 

@@ -38,6 +38,7 @@ function TarjetaTrabajo({ o, onAbrir }) {
           <p className="truncate font-bold">
             {o.numero_ticket ? `Ticket ${o.numero_ticket}` : 'Sin ticket'}
             {o.numero_cliente && <span className="font-normal text-tinta-400"> · Cliente {o.numero_cliente}</span>}
+            {o.codigo_bykom && <span className="font-normal text-tinta-400"> · Bykom {o.codigo_bykom}</span>}
           </p>
           <p className="truncate text-xs text-tinta-400">
             {o.fecha_inicio && o.fecha_inicio !== o.fecha ? `${fechaCorta(`${o.fecha_inicio}T00:00`)} al ` : ''}
