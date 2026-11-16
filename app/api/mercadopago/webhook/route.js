@@ -1,8 +1,8 @@
-import { aplicarSuscripcion, firmaValida, mp, mpConfigurado } from '@/lib/servidor';
+import { aplicarPagoMatch, aplicarSuscripcion, firmaValida, mp, mpConfigurado } from '@/lib/servidor';
 
 export const dynamic = 'force-dynamic';
 
-// Notificaciones de Mercado Pago (Tus integraciones > Webhooks > "Planes y suscripciones")
+// Notificaciones de Mercado Pago (Tus integraciones > Webhooks > "Planes y suscripciones" y "Pagos")
 // URL: https://<tu-dominio>/api/mercadopago/webhook
 export async function POST(request) {
   const url = new URL(request.url);
@@ -17,6 +17,10 @@ export async function POST(request) {
   try {
     if (tipo === 'subscription_preapproval' || tipo === 'preapproval') {
       await aplicarSuscripcion(await mp(`/preapproval/${id}`));
+    } else if (tipo === 'payment') {
+      // TaListo! Match: el estado real del pago se consulta siempre a Mercado Pago
+      const pago = await mp(`/v1/payments/${id}`);
+      await aplicarPagoMatch(pago);
     } else if (tipo === 'subscription_authorized_payment' || tipo === 'authorized_payment') {
       const pago = await mp(`/authorized_payments/${id}`);
       if (pago?.preapproval_id) await aplicarSuscripcion(await mp(`/preapproval/${pago.preapproval_id}`));

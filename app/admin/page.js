@@ -82,17 +82,10 @@ export default function Admin() {
 
   async function guardarConfig() {
     setEstado({});
-    const precio = Number(form.precio_visita);
-    const comision = Number(form.comision_visita);
-    if (!(precio >= 0) || !(comision >= 0)) return setEstado({ error: 'Los montos tienen que ser números positivos.' });
-    if (comision > precio) return setEstado({ error: 'La comisión no puede ser mayor que el precio de la visita.' });
     setGuardando(true);
     const { data, error } = await supabase
       .from('configuracion')
       .update({
-        precio_visita: precio,
-        comision_visita: comision,
-        duracion_visita_min: Number(form.duracion_visita_min) || 60,
         ...('precio_pro' in form
           ? {
               precio_pro: Math.max(0, Number(form.precio_pro) || 0),
@@ -116,7 +109,7 @@ export default function Admin() {
     if (error) return setEstado({ error: mensajeError(error) });
     if (!data) return setEstado({ error: 'No se guardó: revisá que tu usuario tenga permisos de admin.' });
     setConfig(data);
-    setEstado({ ok: 'Configuración guardada. Se aplica a las visitas nuevas; las ya agendadas mantienen su precio.' });
+    setEstado({ ok: 'Precios y límites guardados.' });
   }
 
   async function alternar(pro, campo) {
@@ -127,7 +120,6 @@ export default function Admin() {
 
   if (!perfil || !form) return <div className="grid min-h-dvh place-items-center text-tinta-400">Cargando…</div>;
 
-  const neto = (Number(form.precio_visita) || 0) - (Number(form.comision_visita) || 0);
   const q = busqueda.trim().toLowerCase();
   const filtrados = q
     ? profesionales.filter((p) => p.nombre_publico.toLowerCase().includes(q) || (p.perfiles?.email || '').toLowerCase().includes(q))
@@ -149,33 +141,19 @@ export default function Admin() {
       <h1 className="mt-6 flex items-center gap-2 text-2xl font-extrabold"><Icon name="escudo" className="h-6 w-6 text-menta-400" /> Administración</h1>
 
       <section className="mt-6">
-        <h2 className="titulo-seccion mb-2">Visita técnica y comisión</h2>
-        <div className="tarjeta space-y-4 p-4">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div>
-              <label className="etiqueta" htmlFor="a-precio">Precio de la visita (UYU)</label>
-              <input id="a-precio" type="number" min="0" className="campo" value={form.precio_visita} onChange={(e) => setForm({ ...form, precio_visita: e.target.value })} />
-            </div>
-            <div>
-              <label className="etiqueta" htmlFor="a-comision">Comisión TaListo! (UYU)</label>
-              <input id="a-comision" type="number" min="0" className="campo" value={form.comision_visita} onChange={(e) => setForm({ ...form, comision_visita: e.target.value })} />
-            </div>
-            <div>
-              <label className="etiqueta" htmlFor="a-duracion">Duración de la visita (min)</label>
-              <input id="a-duracion" type="number" min="15" max="480" step="15" className="campo" value={form.duracion_visita_min} onChange={(e) => setForm({ ...form, duracion_visita_min: e.target.value })} />
-            </div>
-          </div>
-          <p className="rounded-xl bg-navy-850 p-3 text-sm text-tinta-300">
-            El cliente paga <b className="text-tinta-100">{monto(form.precio_visita)}</b> · el profesional recibe{' '}
-            <b className="text-menta-300">{monto(neto)}</b> · TaListo! se queda con <b className="text-tinta-100">{monto(form.comision_visita)}</b>
-          </p>
-          {config?.actualizado_en && (
-            <p className="text-xs text-tinta-500">Última modificación: {new Date(config.actualizado_en).toLocaleString('es-UY')}</p>
-          )}
-          {estado.error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{estado.error}</p>}
-          {estado.ok && <p className="rounded-xl bg-menta-500/10 p-3 text-sm text-menta-300">{estado.ok}</p>}
-          <button className="btn btn-menta w-full sm:w-auto" onClick={guardarConfig} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar configuración'}</button>
-        </div>
+        <h2 className="titulo-seccion mb-2">TaListo! Match</h2>
+        <Link href="/admin/match" className="tarjeta flex items-center gap-3 p-4 hover:border-navy-600">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-menta-500/15 text-menta-300"><Icon name="match" /></span>
+          <span className="min-w-0 flex-1">
+            <b className="block">Configuración comercial, operaciones y liquidaciones</b>
+            <span className="text-sm text-tinta-300">
+              Visita técnica {monto(config?.precio_visita)}
+              {config?.visita_neto_profesional !== undefined ? ` · el profesional recibe ${monto(config.visita_neto_profesional)}` : ''}
+              {config?.trabajo_comision_pct !== undefined ? ` · comisión por trabajo ${Number(config.trabajo_comision_pct).toLocaleString('es-UY')} %` : ''}
+            </span>
+          </span>
+          <Icon name="der" className="h-5 w-5 text-tinta-400" />
+        </Link>
       </section>
 
       <section className="mt-8">
@@ -217,6 +195,8 @@ export default function Admin() {
               )}
             </div>
             <p className="text-xs text-tinta-500">Con precio 0 el plan no se ofrece por Mercado Pago (igual lo podés regalar).</p>
+            {estado.error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{estado.error}</p>}
+            {estado.ok && <p className="rounded-xl bg-menta-500/10 p-3 text-sm text-menta-300">{estado.ok}</p>}
             <button className="btn btn-menta w-full sm:w-auto" onClick={guardarConfig} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar precios y límites'}</button>
           </div>
         ) : (

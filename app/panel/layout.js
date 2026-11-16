@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/Icon';
 import { PanelContext } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
+import { registrarEvento } from '@/lib/match';
 import { cargarPlan } from '@/lib/planes';
 import { SECCIONES, cargarEspacios, espacioGuardado, guardarEspacio, invitacionPendiente, tiene, usable } from '@/lib/empresa';
 import BarraLateral from '@/components/BarraLateral';
@@ -20,6 +21,7 @@ const NAV = [
   { href: '/panel/clientes', icono: 'clientes', texto: 'Clientes' },
   { href: '/panel/mapa', icono: 'mapa', texto: 'Mapa' },
   { href: '/panel/finanzas', icono: 'grafico', texto: 'Finanzas' },
+  { href: '/panel/match', icono: 'match', texto: 'Match' },
   { href: '/panel/perfil', icono: 'perfil', texto: 'Perfil' },
 ];
 
@@ -35,6 +37,20 @@ function seccionDe(pathname) {
 export default function PanelLayout({ children }) {
   const router = useRouter();
   const pathname = usePathname();
+  // Actividad para las estadísticas del admin: solo qué sección se abrió (nunca contenido)
+  useEffect(() => {
+    const t = pathname === '/panel' ? 'abrio_agenda'
+      : pathname.startsWith('/panel/tickets') || pathname.startsWith('/panel/equipo') ? 'abrio_tickets'
+      : pathname.startsWith('/panel/finanzas/stock') || pathname.startsWith('/panel/mi-stock') ? 'abrio_stock'
+      : pathname.startsWith('/panel/finanzas/compras') || pathname.startsWith('/panel/finanzas/proveedores') ? 'abrio_compras'
+      : pathname.startsWith('/panel/finanzas/presupuestos') ? 'abrio_presupuestos'
+      : pathname.startsWith('/panel/finanzas') ? 'abrio_finanzas'
+      : pathname.startsWith('/panel/match') ? 'abrio_match'
+      : pathname.startsWith('/panel/clientes') ? 'abrio_clientes'
+      : pathname.startsWith('/panel/empresa') ? 'abrio_equipo' : null;
+    registrarEvento('sesion');
+    if (t) registrarEvento(t);
+  }, [pathname]);
   const [estado, setEstado] = useState({ cargando: true, user: null, perfil: null, profesional: null, plan: null });
 
   const cargar = useCallback(async () => {

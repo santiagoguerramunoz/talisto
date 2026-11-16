@@ -20,7 +20,7 @@ Next.js + Supabase + Vercel.
 ### 1. Supabase (proyecto NUEVO, no el de Metabia)
 
 1. En supabase.com creá un proyecto nuevo llamado `talisto`.
-2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql`, `supabase/08_tickets.sql`, `supabase/09_proveedores.sql`, `supabase/10_stock.sql`, `supabase/11_operacion.sql`, `supabase/12_monedas_comisiones.sql`, `supabase/13_ruta_tickets.sql`, `supabase/14_comprobantes_ia.sql`, `supabase/15_inteligencia_compras.sql`, `supabase/16_ordenes_ia_cierres.sql`, `supabase/17_codigo_bykom.sql` y `supabase/18_listas_pdf_ia.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo; el 09 los proveedores, sus listas de precios y las órdenes de compra; el 10 el stock de la empresa, del equipo y de cada trabajo; el 11 los avisos, el cierre de los trabajos en el lugar, los pedidos de cotización y los remitos; el 12 los presupuestos en pesos, dólares o mixtos y las comisiones por venta; el 13 la ruta de los tickets: generar ticket desde el presupuesto, pedidos de materiales que aprueba Stock y el seguimiento con historial; el 14 la lectura de comprobantes con IA; el 15 la inteligencia de compras: historial de precios, comparador de proveedores y alertas; el 16 las órdenes de trabajo leídas con IA y el cierre de planillas por cliente; el 17 el código Bykom de los tickets; el 18 las listas de precios en PDF leídas con IA). Todos se pueden volver a correr sin problema.
+2. **SQL Editor → New query**: pegá todo `supabase/01_talisto_fase1.sql` y tocá **Run**. Después hacé lo mismo, en orden, con `supabase/02_relevamientos.sql`, `supabase/03_ordenes_empresa.sql`, `supabase/04_trabajos_finanzas.sql`, `supabase/05_planes.sql`, `supabase/06_empresas.sql`, `supabase/07_seguridad.sql`, `supabase/08_tickets.sql`, `supabase/09_proveedores.sql`, `supabase/10_stock.sql`, `supabase/11_operacion.sql`, `supabase/12_monedas_comisiones.sql`, `supabase/13_ruta_tickets.sql`, `supabase/14_comprobantes_ia.sql`, `supabase/15_inteligencia_compras.sql`, `supabase/16_ordenes_ia_cierres.sql`, `supabase/17_codigo_bykom.sql`, `supabase/18_listas_pdf_ia.sql` y `supabase/19_match.sql` (el 03 agrega la dirección propia de los relevamientos; el 04 los trabajos B2B con tiempo y materiales, presupuestos, Mis gastos y los datos del negocio; el 05 los planes Free, Pro y Business con sus límites; el 06 la empresa Business con cuentas del equipo, roles e invitaciones; el 07 el refuerzo de seguridad; el 08 los tickets y rutas del equipo; el 09 los proveedores, sus listas de precios y las órdenes de compra; el 10 el stock de la empresa, del equipo y de cada trabajo; el 11 los avisos, el cierre de los trabajos en el lugar, los pedidos de cotización y los remitos; el 12 los presupuestos en pesos, dólares o mixtos y las comisiones por venta; el 13 la ruta de los tickets: generar ticket desde el presupuesto, pedidos de materiales que aprueba Stock y el seguimiento con historial; el 14 la lectura de comprobantes con IA; el 15 la inteligencia de compras: historial de precios, comparador de proveedores y alertas; el 16 las órdenes de trabajo leídas con IA y el cierre de planillas por cliente; el 17 el código Bykom de los tickets; el 18 las listas de precios en PDF leídas con IA; el 19 TaListo! Match: solicitudes, visitas técnicas cobradas por Mercado Pago, liquidaciones, devoluciones, reclamos y registro de actividad). Todos se pueden volver a correr sin problema.
 3. **Authentication → URL Configuration**:
    - Site URL: `https://talisto-ashen.vercel.app` (para probar en tu PC podés usar `http://localhost:3000`).
    - Redirect URLs: solo `https://talisto-ashen.vercel.app/**` (y `http://localhost:3000/**` mientras pruebes en tu PC; después sacalo).
@@ -70,7 +70,8 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
   - `MP_ACCESS_TOKEN`: Mercado Pago → Tus integraciones → tu aplicación → Credenciales de producción → Access Token.
   - `SUPABASE_SERVICE_ROLE_KEY`: Supabase → Project Settings → API Keys → `service_role` (secreta: solo en Vercel).
   - `MP_WEBHOOK_SECRET` (recomendada): la clave secreta que te da Mercado Pago al configurar el webhook.
-  - En Mercado Pago → Tus integraciones → Webhooks, URL de producción `https://talisto-ashen.vercel.app/api/mercadopago/webhook` con el evento **Planes y suscripciones**.
+  - En Mercado Pago → Tus integraciones → Webhooks, URL de producción `https://talisto-ashen.vercel.app/api/mercadopago/webhook` con los eventos **Planes y suscripciones** y **Pagos** (Pagos es para TaListo! Match).
+  - `CRON_SECRET` (recomendada, para Match): cualquier texto largo inventado por vos. Vercel lo usa para llamar una vez por día a la tarea que vence reservas sin pagar y confirma visitas.
   - Después de cargar las variables, hacé **Redeploy** en Vercel. Hasta entonces el botón de suscribirse dice "Muy pronto".
 
 ### 6. Tickets y rutas del equipo (Business)
@@ -184,7 +185,18 @@ En **Perfil** te aparece el botón **Admin** (o entrá a `/admin`).
 - Lo ven la cuenta principal y quienes tienen Compras, Importes, Stock o Seguimiento; ninguna empresa ve los precios de otra. Las cuentas Pro también guardan su historial: si pasan a Business ya lo tienen.
 - **Pruebas**: `supabase/pruebas/15_inteligencia_compras_pruebas.sql` crea dos empresas de prueba, compra como lo hace la app y verifica equivalentes, aumentos y bajas, duplicados, historial, aislamiento, presupuestos y datos incompletos. Se corre en el SQL Editor y **no guarda nada**: termina con el mensaje "PRUEBAS OK" (sale como error a propósito para deshacer todo).
 
-### 16. Seguridad
+### 16. TaListo! Match (etapa 1: visitas técnicas)
+
+- **Cliente** (`/inicio`): pide una visita (rubro, qué pasa, fotos o videos, zona y horario preferido) o elige un profesional de la lista. Los profesionales compatibles (rubro, departamento y barrio) reciben la solicitud y la aceptan o rechazan; el cliente elige uno y un horario libre de su agenda y paga la visita por Mercado Pago. Antes de contratar se le muestran las diferencias entre la visita, el trabajo con garantía (próxima etapa) y contratar por fuera.
+- **Profesional** (`/panel/match`): activa Match, elige rubros y zonas, carga la cuenta bancaria, responde solicitudes, ve las visitas (la dirección y el teléfono del cliente aparecen recién con el pago), marca la visita como hecha con su diagnóstico, puede indicar que el cliente siguió por fuera, y ve lo retenido, lo que falta liquidar, lo cobrado, las retenciones y sus calificaciones verificadas. La visita queda también en su agenda. En Business, con el permiso **Match**.
+- **Plata**: el cliente paga en la cuenta de Mercado Pago de TaListo!. Se retiene hasta que el cliente confirma la visita (o se confirma sola pasado el plazo, salvo reclamo). Después, desde `/admin/match` → **A liquidar**, hacés la transferencia y la registrás con su referencia. Reparto por defecto: el cliente paga $ 1.500, TaListo! retiene $ 200 al cliente y $ 200 al profesional, y el profesional recibe $ 1.100. El costo de Mercado Pago se reparte (50 % el profesional, 50 % TaListo!, configurable). Ningún pago se marca como hecho sin la confirmación real de Mercado Pago, y un pago repetido no se cuenta dos veces.
+- **Devoluciones y reclamos**: las calcula el sistema según las reglas (cancelación con o sin anticipación, penalización al profesional) y quedan pendientes hasta que las aprobás; recién ahí se devuelven por Mercado Pago.
+- **Configuración comercial** (`/admin/match`): precio y reparto de la visita (no deja guardar si no cuadra), comisión por trabajo general, por rubro y por cuenta, costo de MP, plazos, cancelaciones, devoluciones, garantía y reclamos, rubros (crear, editar, desactivar, ordenar) e historial de cada cambio con quién, cuándo, antes y después. Solo el admin puede cambiarla (lo controla la base) y nunca toca operaciones ya hechas.
+- **Actividad**: se registra solo qué hizo cada usuario (por ejemplo, "publicó una solicitud" o "abrió Stock"), nunca contenido, para las estadísticas de la etapa 3.
+- **Pruebas**: `supabase/pruebas/19_match_pruebas.sql` (12 grupos: configuración solo del admin, compatibles, reserva sin doble cobro, pago idempotente, reparto de los $ 1.500, confirmación automática, cancelaciones y devoluciones, pagos tardíos, contratación por fuera, liquidación, aislamiento y actividad). No guarda nada.
+- **Próximas etapas**: 2) trabajo con garantía (presupuesto en TaListo!, pago, comisión del 5 %, garantía y reclamos del trabajo); 3) panel de Match con indicadores y dinero, estadísticas de usuarios y actividad (DAU/WAU/MAU, uso por funcionalidad, cronología por usuario) y embudo de conversión.
+
+### 17. Seguridad
 
 - La base controla todo (no la pantalla): cada cuenta solo ve y cambia lo suyo o lo que su rol permite, nadie puede pasar datos de una cuenta a otra, sin sesión solo se ve lo público, y las funciones internas no se pueden llamar desde afuera.
 - La app manda encabezados de seguridad (no se puede meter dentro de otra página, solo carga scripts propios, conexiones solo a Supabase y los mapas).
@@ -234,7 +246,7 @@ npx vercel --prod            # publica en https://talisto-ashen.vercel.app
 ## Archivos
 
 ```
-supabase/01 … 18                → base de datos (correr en orden en Supabase)
+supabase/01 … 19                → base de datos (correr en orden en Supabase)
 supabase/pruebas                → pruebas de la base (no guardan nada)
 app/page.js                     → portada
 app/login, app/registro, app/nueva-clave
@@ -248,6 +260,10 @@ app/panel/finanzas/stock        → stock: existencias, movimientos, materiales,
 app/panel/finanzas/comisiones   → comisiones por venta: % de cada vendedor, pendientes y pagadas
 app/panel/finanzas/seguimiento  → ruta de cada presupuesto y sus tickets, historial y correcciones
 app/panel/finanzas/inteligencia → inteligencia de compras: indicadores, alertas, comparador y ahorro
+app/panel/match                 → TaListo! Match del profesional: solicitudes, visitas, cobros y perfil
+app/match                       → TaListo! Match del cliente: pedir visita, profesionales y seguimiento
+app/admin/match                 → configuración comercial, operaciones, liquidaciones, devoluciones y reclamos
+app/api/match                   → pagar con Mercado Pago, devoluciones y tarea diaria (servidor)
 app/panel/mi-stock/page.js      → Mi stock (cada persona del equipo)
 app/panel/avisos/page.js        → Avisos (campanita) y notificaciones en el celular
 app/api/comprobantes/leer       → lee la foto o el PDF de un comprobante con IA (servidor)
