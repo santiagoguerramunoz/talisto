@@ -13,7 +13,7 @@ import { Estrellas, MENSAJE_FALTA_SQL, diaLargo, fecha, hora, mayus, registrarEv
 // Perfil público del profesional con sus valoraciones verificadas (solo de visitas y trabajos hechos por TaListo!)
 export default function PerfilProfesional() {
   const { id } = useParams();
-  const { cargando } = useSesionCliente();
+  const { cargando, usuario } = useSesionCliente();
   const [d, setD] = useState(null);
   const [error, setError] = useState('');
 
@@ -57,7 +57,9 @@ export default function PerfilProfesional() {
                   ? <>Próximo horario libre: <b>{mayus(diaLargo(d.proximo))}</b> a las {hora(d.proximo)}</>
                   : 'No tiene horarios libres esta semana.'}
             </p>
-            {d.disponible && (
+            {p.id === usuario?.id ? (
+              <p className="rounded-xl bg-navy-850 p-3 text-center text-sm text-tinta-300">Este es tu perfil público: así te ven los clientes.</p>
+            ) : d.disponible && (
               <Link href={`/match/nueva?profesional=${p.id}`} className="btn btn-menta w-full py-3">
                 Pedirle una visita técnica
               </Link>

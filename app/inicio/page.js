@@ -25,10 +25,6 @@ export default function InicioCliente() {
 
   useEffect(() => {
     if (cargando) return;
-    if (perfil?.rol === 'profesional') {
-      router.replace('/panel');
-      return;
-    }
     (async () => {
       const [{ data: r }, { data: c }, { data: s, error: e }] = await Promise.all([
         supabase.from('categorias').select('id, nombre, sinonimos, orden').eq('activa', true).order('orden'),
@@ -40,7 +36,7 @@ export default function InicioCliente() {
       if (e) setError(sinMatch(e) ? MENSAJE_FALTA_SQL : mensajeError(e));
       setSolicitudes(s || []);
     })();
-  }, [cargando, perfil, router]);
+  }, [cargando]);
 
   const encontrados = useMemo(() => {
     const q = texto
@@ -82,18 +78,30 @@ export default function InicioCliente() {
   if (cargando || !perfil) return <div className="grid min-h-dvh place-items-center text-tinta-400">Cargando…</div>;
   const activas = (solicitudes || []).filter((s) => ['abierta', 'reservada', 'en_curso'].includes(s.estado));
   const anteriores = (solicitudes || []).filter((s) => !['abierta', 'reservada', 'en_curso'].includes(s.estado));
+  const esPro = perfil.rol === 'profesional';
 
   return (
     <MarcoCliente
       acciones={
-        <button onClick={salir} className="rounded-full p-2 text-tinta-400 hover:text-tinta-100" aria-label="Cerrar sesión">
-          <Icon name="salir" />
-        </button>
+        esPro ? (
+          <Link href="/panel" className="chip shrink-0 text-xs">
+            <Icon name="agenda" className="h-4 w-4" /> Mi panel
+          </Link>
+        ) : (
+          <button onClick={salir} className="rounded-full p-2 text-tinta-400 hover:text-tinta-100" aria-label="Cerrar sesión">
+            <Icon name="salir" />
+          </button>
+        )
       }
     >
       <section className="pt-6">
         <h1 className="text-2xl font-extrabold md:text-3xl">Hola{perfil.nombre ? `, ${perfil.nombre.split(' ')[0]}` : ''} 👋</h1>
         <p className="mt-1 text-tinta-300">¿Qué necesitás arreglar o instalar?</p>
+        {esPro && (
+          <p className="mt-2 rounded-xl bg-navy-850 p-3 text-xs text-tinta-300">
+            Acá contratás como cliente: pedís una visita, la pagás y seguís tus pedidos. Tu panel de profesional sigue igual.
+          </p>
+        )}
         <div className="relative mt-4">
           <Icon name="buscar" className="pointer-events-none absolute top-1/2 left-3.5 h-5 w-5 -translate-y-1/2 text-tinta-500" />
           <input
@@ -163,6 +171,7 @@ export default function InicioCliente() {
             <Icon name="escudo" /> Panel de administración
           </button>
         )}
+        {!esPro && (
         <div className="tarjeta p-5">
           <p className="font-bold">¿Tenés un oficio o sos profesional?</p>
           <p className="mt-1 text-sm text-tinta-300">Recibí clientes nuevos con TaListo! Match y organizá tu agenda, presupuestos y cobros.</p>
@@ -170,6 +179,7 @@ export default function InicioCliente() {
             {activando ? 'Activando…' : 'Quiero ofrecer mis servicios'}
           </button>
         </div>
+        )}
       </div>
       {config && <p className="mt-6 text-center text-xs text-tinta-500">Visita técnica {pesos(config.precio_visita)} · pagás por Mercado Pago</p>}
     </MarcoCliente>

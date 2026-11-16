@@ -44,6 +44,14 @@ export default function Perfil() {
 
       <div className="space-y-8 px-4 pt-4">
         <MiPlan plan={plan} />
+        <Link href="/inicio" className="tarjeta flex items-center gap-3 p-4 hover:bg-navy-850">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-menta-500/15 text-menta-300"><Icon name="buscar" /></span>
+          <span className="min-w-0 flex-1">
+            <b className="block">Contratar un servicio</b>
+            <span className="block text-xs text-tinta-400">¿Necesitás otro profesional? Pedí una visita como cliente y seguí tus pedidos.</span>
+          </span>
+          <Icon name="der" className="h-4 w-4 shrink-0 text-tinta-500" />
+        </Link>
         <EspacioTrabajo />
         <ElegirVista />
         <BotonInstalar variante="tarjeta" />

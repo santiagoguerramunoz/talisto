@@ -66,9 +66,12 @@ function Match() {
           <h1 className="flex-1 text-2xl font-extrabold">Match</h1>
           {perfil && (
             <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${perfil.disponible ? 'bg-menta-500/15 text-menta-300' : 'bg-navy-800 text-tinta-400'}`}>
-              {perfil.disponible ? 'Recibiendo solicitudes' : 'Pausado'}
+              {perfil.disponible ? <><span className="sm:hidden">Activo</span><span className="hidden sm:inline">Recibiendo solicitudes</span></> : 'Pausado'}
             </span>
           )}
+          <Link href="/inicio" className="chip shrink-0 text-xs" title="Pedí un técnico para vos, como cliente">
+            <Icon name="buscar" className="h-4 w-4" /> Contratar
+          </Link>
         </div>
         <nav className="-mx-4 mt-2 flex gap-1 overflow-x-auto px-4 pb-1 text-sm font-bold">
           {PESTANAS.map(([v, t]) => (
