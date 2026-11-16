@@ -13,7 +13,7 @@ import { mensajeError } from '@/lib/util';
 import {
   ESTADO_SOLICITUD, Estado, Estrellas, MENSAJE_FALTA_SQL, diaLargo, fecha, fechaHora, hora, irAPagar, pesos, sinMatch,
   subirArchivos,
-  mayus,
+  mayus, cuandoTexto,
 } from '@/lib/match';
 
 export default function SolicitudPagina() {
@@ -100,13 +100,27 @@ function Solicitud() {
   const ops = d.operaciones || [];
   const visita = ops.find((o) => o.tipo === 'visita' && o.estado !== 'cancelado') || ops.find((o) => o.tipo === 'visita');
   const aPagar = ops.find((o) => o.estado === 'pendiente_pago' && new Date(o.vence_pago_en) > new Date());
+  const primero = s.modo === 'primero';
+  const buscando = primero && visita?.estado === 'buscando_tecnico';
+  const sinPagar = primero && s.estado === 'abierta' && !s.publicada_en && !aPagar;
+
+  async function pagarPrimero() {
+    setOcupado(true);
+    setError('');
+    const { data, error: err } = await supabase.rpc('pagar_primero', { p_solicitud: s.id });
+    if (err) {
+      setOcupado(false);
+      return setError(mensajeError(err));
+    }
+    await pagar(data.operacion);
+  }
 
   return (
     <MarcoCliente titulo={s.titulo} volver="/inicio">
       <div className="space-y-4 pt-4 md:grid md:grid-cols-[1fr_20rem] md:gap-5 md:space-y-0">
         <div className="space-y-4">
           {aviso && <p className="rounded-xl bg-menta-500/10 p-3 text-sm text-menta-200">{aviso}</p>}
-          {params.get('nueva') !== null && s.estado === 'abierta' && (
+          {params.get('nueva') !== null && s.estado === 'abierta' && !primero && (
             <p className="rounded-xl bg-[#0a84ff]/10 p-3 text-sm text-[#cfe6ff]">
               {Number(params.get('nueva')) > 0
                 ? `Listo: se la mandamos a ${params.get('nueva')} ${Number(params.get('nueva')) === 1 ? 'profesional' : 'profesionales'} de tu zona. Te avisamos cuando acepten.`
@@ -118,24 +132,58 @@ function Solicitud() {
           {aPagar && (
             <section className="rounded-2xl border border-amber-400/40 bg-amber-400/10 p-4">
               <p className="font-bold">Falta pagar la visita</p>
-              <p className="mt-1 text-sm text-tinta-200">
-                {aPagar.profesional?.nombre} · {aPagar.turno ? `${diaLargo(aPagar.turno.inicio)}, ${hora(aPagar.turno.inicio)}` : ''}. Guardamos el horario
-                hasta las {hora(aPagar.vence_pago_en)}.
-              </p>
+              {primero ? (
+                <p className="mt-1 text-sm text-tinta-200">
+                  El primero disponible · {cuandoTexto(s)}. Cuando pagues, tu pedido aparece en el mapa de los técnicos del rubro.
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-tinta-200">
+                  {aPagar.profesional?.nombre} · {aPagar.turno ? `${diaLargo(aPagar.turno.inicio)}, ${hora(aPagar.turno.inicio)}` : ''}. Guardamos el horario
+                  hasta las {hora(aPagar.vence_pago_en)}.
+                </p>
+              )}
               <div className="mt-3 flex gap-2">
                 <button className="btn btn-menta flex-1" disabled={ocupado} onClick={() => pagar(aPagar.id)}>
                   Pagar {pesos(aPagar.importe)} con Mercado Pago
                 </button>
-                <button className="btn btn-sec" disabled={ocupado} onClick={() => rpc('cancelar_visita', { p_op: aPagar.id, p_motivo: 'Elijo otro horario' }, 'Horario liberado.')}>
-                  Cambiar
-                </button>
+                {!primero && (
+                  <button className="btn btn-sec" disabled={ocupado} onClick={() => rpc('cancelar_visita', { p_op: aPagar.id, p_motivo: 'Elijo otro horario' }, 'Horario liberado.')}>
+                    Cambiar
+                  </button>
+                )}
               </div>
             </section>
           )}
 
-          {visita && visita.estado !== 'pendiente_pago' && <TarjetaVisita op={visita} config={d.config} ocupado={ocupado} rpc={rpc} setModal={setModal} />}
+          {sinPagar && (
+            <section className="rounded-2xl border border-amber-400/40 bg-amber-400/10 p-4">
+              <p className="font-bold">Falta pagar para publicar tu pedido</p>
+              <p className="mt-1 text-sm text-tinta-200">El primero disponible · {cuandoTexto(s)}.</p>
+              <button className="btn btn-menta mt-3 w-full" disabled={ocupado} onClick={pagarPrimero}>
+                Pagar {pesos(d.config.precio_visita)} con Mercado Pago
+              </button>
+            </section>
+          )}
 
-          {s.estado === 'abierta' && !aPagar && (
+          {buscando && (
+            <section className="tarjeta space-y-2 border-[#0a84ff]/40 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="font-bold">Esperando que un técnico lo tome</h2>
+                <Estado valor="buscando_tecnico" />
+              </div>
+              <p className="text-sm text-tinta-200">
+                Tu pedido está en el mapa de los técnicos de {s.rubro}. El primero que lo tome te visita <b>{cuandoTexto(s).toLowerCase()}</b> y te avisamos a qué hora llega.
+              </p>
+              <p className="text-xs text-tinta-400">
+                Pagaste {pesos(visita.importe)}{visita.pagado_en ? ` el ${fechaHora(visita.pagado_en)}` : ''}. Si nadie lo toma antes de las{' '}
+                {hora(s.limite_toma)} del {fecha(s.limite_toma)}, te devolvemos todo.
+              </p>
+            </section>
+          )}
+
+          {visita && !['pendiente_pago', 'buscando_tecnico'].includes(visita.estado) && <TarjetaVisita op={visita} config={d.config} ocupado={ocupado} rpc={rpc} setModal={setModal} />}
+
+          {s.estado === 'abierta' && !aPagar && !primero && (
             <section>
               <h2 className="titulo-seccion mb-2">
                 {d.propuestas.length ? 'Profesionales que pueden ir' : 'Esperando respuestas'}
@@ -186,9 +234,17 @@ function Solicitud() {
               {[s.direccion, s.localidad, s.departamento].filter(Boolean).join(', ')}
               {s.referencia ? ` · ${s.referencia}` : ''}
             </p>
+            {primero && <p className="text-xs font-semibold text-menta-300">El primero disponible · {cuandoTexto(s)}</p>}
             {s.estado === 'abierta' && !aPagar && (
-              <button className="text-xs font-semibold text-tinta-400 underline" disabled={ocupado} onClick={() => window.confirm('¿Cancelar la solicitud?') && rpc('cancelar_solicitud', { p_id: s.id }, 'Solicitud cancelada.')}>
-                Cancelar solicitud
+              <button
+                className="text-xs font-semibold text-tinta-400 underline"
+                disabled={ocupado}
+                onClick={() =>
+                  window.confirm(buscando ? '¿Cancelar el pedido? Te devolvemos todo lo que pagaste.' : '¿Cancelar la solicitud?') &&
+                  rpc('cancelar_solicitud', { p_id: s.id }, buscando ? 'Pedido cancelado. Te devolvemos el pago por Mercado Pago.' : 'Solicitud cancelada.')
+                }
+              >
+                {buscando ? 'Cancelar el pedido' : 'Cancelar solicitud'}
               </button>
             )}
           </section>

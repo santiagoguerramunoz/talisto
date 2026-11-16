@@ -374,6 +374,10 @@ const GRUPOS = [
     ['acreditar_visita', 'Descontar la visita del trabajo contratado', 'si'],
   ]],
   ['Mercado Pago', [['mp_costo_profesional_pct', 'Parte del costo de MP que paga el profesional (%)']]],
+  ['El primero disponible', [
+    ['primero_activo', 'Los clientes pueden pedir "el primero disponible"', 'si'],
+    ['primero_horas', 'Horas para que alguien lo tome (pedidos para hoy)'],
+  ]],
   ['Plazos', [
     ['pago_minutos', 'Minutos para pagar una reserva'],
     ['solicitud_dias', 'Días que una solicitud queda abierta'],

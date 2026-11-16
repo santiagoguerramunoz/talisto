@@ -25,7 +25,7 @@ export async function POST(request) {
     const pref = await mp('/checkout/preferences', {
       method: 'POST',
       body: {
-        items: [{ id: op.id, title: op.titulo, description: `TaListo! Match · ${op.profesional}`, quantity: 1, unit_price: Number(op.importe), currency_id: 'UYU' }],
+        items: [{ id: op.id, title: op.titulo, description: `TaListo! Match · ${op.profesional || 'el primero disponible'}`, quantity: 1, unit_price: Number(op.importe), currency_id: 'UYU' }],
         external_reference: `match:${op.id}`,
         payer: op.email ? { email: op.email } : undefined,
         back_urls: { success: volver('ok'), failure: volver('error'), pending: volver('pendiente') },

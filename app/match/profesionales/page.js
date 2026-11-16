@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Icon from '@/components/Icon';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import MarcoCliente, { useSesionCliente } from '@/components/MarcoCliente';
@@ -70,7 +71,15 @@ function Profesionales() {
           </Link>
         </div>
       )}
-      <ul className="mt-4 grid gap-2 md:grid-cols-2">
+      <Link href={`/match/nueva?modo=primero${rubro ? `&rubro=${rubro}` : ''}`} className="tarjeta mt-4 flex items-center gap-3 border-menta-500/40 p-4 hover:border-menta-400">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-menta-500/15 text-menta-300"><Icon name="match" /></span>
+        <span className="min-w-0 flex-1">
+          <b className="block">El primero disponible</b>
+          <span className="text-xs text-tinta-300">No elijas a nadie: pagás la visita y te atiende el primer técnico del rubro que la toma, hoy o el día que digas.</span>
+        </span>
+        <Icon name="der" className="h-5 w-5 shrink-0 text-tinta-400" />
+      </Link>
+      <ul className="mt-3 grid gap-2 md:grid-cols-2">
         {(lista || []).map((p) => (
           <li key={p.id} className="tarjeta p-4">
             <TarjetaProfesional p={p} />

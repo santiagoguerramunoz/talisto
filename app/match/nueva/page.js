@@ -4,9 +4,18 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import Icon from '@/components/Icon';
 import MarcoCliente, { useSesionCliente } from '@/components/MarcoCliente';
+import SelectorUbicacion from '@/components/SelectorUbicacion';
 import { supabase } from '@/lib/supabase';
 import { DEPARTAMENTOS, mensajeError } from '@/lib/util';
-import { MENSAJE_FALTA_SQL, PREFERENCIAS, pesos, sinMatch, subirArchivos } from '@/lib/match';
+import { FRANJAS, MENSAJE_FALTA_SQL, PREFERENCIAS, irAPagar, pesos, sinMatch, subirArchivos } from '@/lib/match';
+
+const hoyISO = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Montevideo' });
+const masDias = (iso, n) => {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const esTardeHoy = () => Number(new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Montevideo', hour: '2-digit', hour12: false })) >= 19;
 
 export default function NuevaSolicitudPagina() {
   return (
@@ -23,6 +32,10 @@ function NuevaSolicitud() {
   const { cargando } = useSesionCliente();
   const [rubros, setRubros] = useState([]);
   const [precio, setPrecio] = useState(null);
+  const [primeroActivo, setPrimeroActivo] = useState(true);
+  const [modo, setModo] = useState(params.get('modo') === 'primero' ? 'primero' : 'invitar');
+  const [cuando, setCuando] = useState({ tipo: esTardeHoy() ? 'dia' : 'hoy', fecha: masDias(hoyISO(), 1), franja: 'cualquiera' });
+  const [ubic, setUbic] = useState({ direccion: '', lat: null, lng: null });
   const [dirigida, setDirigida] = useState(null);
   const [f, setF] = useState({
     categoria_id: params.get('rubro') || '',
@@ -43,10 +56,14 @@ function NuevaSolicitud() {
     (async () => {
       const [{ data: r }, { data: c }] = await Promise.all([
         supabase.from('categorias').select('id, nombre').eq('activa', true).order('orden'),
-        supabase.from('configuracion').select('precio_visita').eq('id', 1).maybeSingle(),
+        supabase.from('configuracion').select('*').eq('id', 1).maybeSingle(),
       ]);
       setRubros(r || []);
       setPrecio(c?.precio_visita ?? null);
+      if (c && c.primero_activo === false) {
+        setPrimeroActivo(false);
+        setModo('invitar');
+      }
       const pro = params.get('profesional');
       if (pro) {
         const { data } = await supabase.rpc('perfil_match', { p_id: pro });
@@ -69,17 +86,33 @@ function NuevaSolicitud() {
     if (!f.categoria_id) return setError('Elegí el rubro.');
     if (f.titulo.trim().length < 3) return setError('Poné un título corto (por ejemplo: "Salta la llave general").');
     if (f.descripcion.trim().length < 10) return setError('Contá un poco más del problema para que el profesional sepa qué llevar.');
+    const primero = modo === 'primero' && !dirigida;
+    if (primero && (!ubic.direccion.trim() || ubic.lat === null)) {
+      return setError('Poné la dirección y marcala en el mapa (buscala, tocá el mapa o "Estoy acá"): así los técnicos ven la zona.');
+    }
     try {
       let rutas = [];
       if (archivos.length) {
         setEnviando('Subiendo fotos y videos…');
         rutas = await subirArchivos(archivos, crypto.randomUUID());
       }
-      setEnviando('Buscando profesionales…');
+      setEnviando(primero ? 'Preparando el pago…' : 'Buscando profesionales…');
+      const extra = primero
+        ? { modo: 'primero', direccion: ubic.direccion, lat: ubic.lat, lng: ubic.lng, cuando: cuando.tipo, fecha: cuando.tipo === 'dia' ? cuando.fecha : null, franja: cuando.tipo === 'dia' ? cuando.franja : null }
+        : { lat: ubic.lat, lng: ubic.lng, direccion: ubic.direccion || f.direccion };
       const { data, error: err } = await supabase.rpc('crear_solicitud', {
-        p: { ...f, categoria_id: Number(f.categoria_id), archivos: rutas, dirigida_a: dirigida?.id || null },
+        p: { ...f, ...extra, categoria_id: Number(f.categoria_id), archivos: rutas, dirigida_a: dirigida?.id || null },
       });
       if (err) throw err;
+      if (data.operacion) {
+        setEnviando('Abriendo Mercado Pago…');
+        try {
+          await irAPagar(data.operacion);
+        } catch (e2) {
+          router.replace(`/match/solicitud/${data.id}`);
+        }
+        return;
+      }
       router.replace(`/match/solicitud/${data.id}?nueva=${data.invitados}`);
     } catch (err) {
       setEnviando('');
@@ -97,6 +130,22 @@ function NuevaSolicitud() {
             <p className="rounded-xl bg-menta-500/10 p-3 text-sm text-menta-200">
               Le pedís la visita a <b>{dirigida.nombre}</b>. Si no puede, podés publicarla para todos.
             </p>
+          )}
+          {!dirigida && primeroActivo && (
+            <div>
+              <span className="etiqueta">¿Cómo elegís el técnico?</span>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  ['invitar', 'Recibir propuestas', 'Los técnicos de tu zona responden y elegís uno con su horario. Pagás al elegir.'],
+                  ['primero', 'El primero disponible', 'Pagás ahora y te atiende el primer técnico del rubro que lo toma. Si nadie lo toma a tiempo, te devolvemos todo.'],
+                ].map(([v, t, d]) => (
+                  <button key={v} type="button" onClick={() => setModo(v)} className={`rounded-2xl border p-3 text-left ${modo === v ? 'border-menta-400 bg-menta-500/10' : 'border-navy-700 bg-navy-850'}`}>
+                    <b className="flex items-center gap-1.5 text-sm">{v === 'primero' && <Icon name="match" className="h-4 w-4 text-menta-300" />}{t}</b>
+                    <span className="mt-1 block text-[11px] leading-snug text-tinta-400">{d}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
           <label className="block">
             <span className="etiqueta">Rubro</span>
@@ -146,7 +195,9 @@ function NuevaSolicitud() {
                 </label>
               )}
             </div>
-            <p className="mt-1 text-xs text-tinta-500">Las ven solo los profesionales que invitamos a tu solicitud.</p>
+            <p className="mt-1 text-xs text-tinta-500">
+              {modo === 'primero' && !dirigida ? 'Las ven solo los técnicos que pueden tomar tu pedido.' : 'Las ven solo los profesionales que invitamos a tu solicitud.'}
+            </p>
           </div>
         </div>
 
@@ -165,29 +216,54 @@ function NuevaSolicitud() {
               <input className="campo" value={f.localidad} onChange={cambiar('localidad')} maxLength={80} placeholder="Ej.: Pocitos" />
             </label>
           </div>
-          <label className="block">
-            <span className="etiqueta">Dirección</span>
-            <input className="campo" value={f.direccion} onChange={cambiar('direccion')} maxLength={200} placeholder="Calle, número y apartamento" />
-          </label>
+          <div>
+            <span className="etiqueta">Dirección{modo === 'primero' && !dirigida ? ' (marcala en el mapa)' : ''}</span>
+            <SelectorUbicacion valor={ubic} onChange={setUbic} alto={180} placeholder="Calle, número y apartamento" />
+          </div>
           <label className="block">
             <span className="etiqueta">Referencia (opcional)</span>
             <input className="campo" value={f.referencia} onChange={cambiar('referencia')} maxLength={200} placeholder="Timbre, portería, entre calles…" />
           </label>
           <p className="flex gap-2 rounded-xl bg-navy-850 p-3 text-xs text-tinta-300">
             <Icon name="candado" className="h-4 w-4 shrink-0 text-menta-300" />
-            La dirección exacta la ve solo el profesional que elijas, después de pagar la visita.
+            {modo === 'primero' && !dirigida
+              ? 'Antes de tomar tu pedido, los técnicos ven solo el barrio. La dirección exacta y tu teléfono los ve recién el que lo toma.'
+              : 'La dirección exacta la ve solo el profesional que elijas, después de pagar la visita.'}
           </p>
-          <div>
-            <span className="etiqueta">¿Cuándo te queda mejor?</span>
-            <div className="flex flex-wrap gap-2">
-              {PREFERENCIAS.map(([v, t]) => (
-                <button key={v} type="button" onClick={() => setF({ ...f, preferencia: v })} className={`chip ${f.preferencia === v ? 'chip-activo' : ''}`}>
-                  {t}
+          {modo === 'primero' && !dirigida ? (
+            <div className="space-y-2">
+              <span className="etiqueta">¿Para cuándo?</span>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" disabled={esTardeHoy()} onClick={() => setCuando({ ...cuando, tipo: 'hoy' })} className={`chip ${cuando.tipo === 'hoy' ? 'chip-activo' : ''}`}>
+                  Hoy, lo antes posible
                 </button>
-              ))}
+                <button type="button" onClick={() => setCuando({ ...cuando, tipo: 'dia' })} className={`chip ${cuando.tipo === 'dia' ? 'chip-activo' : ''}`}>
+                  Otro día
+                </button>
+              </div>
+              {esTardeHoy() && <p className="text-xs text-tinta-400">Para hoy se puede pedir hasta las 19 h.</p>}
+              {cuando.tipo === 'dia' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="date" className="campo" min={hoyISO()} max={masDias(hoyISO(), 30)} value={cuando.fecha} onChange={(e) => setCuando({ ...cuando, fecha: e.target.value })} />
+                  <select className="campo" value={cuando.franja} onChange={(e) => setCuando({ ...cuando, franja: e.target.value })}>
+                    {FRANJAS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
-          </div>
-          <label className="flex items-center gap-3 rounded-xl bg-navy-850 p-3 text-sm">
+          ) : (
+            <div>
+              <span className="etiqueta">¿Cuándo te queda mejor?</span>
+              <div className="flex flex-wrap gap-2">
+                {PREFERENCIAS.map(([v, t]) => (
+                  <button key={v} type="button" onClick={() => setF({ ...f, preferencia: v })} className={`chip ${f.preferencia === v ? 'chip-activo' : ''}`}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <label className={`items-center gap-3 rounded-xl bg-navy-850 p-3 text-sm ${modo === 'primero' && !dirigida ? 'hidden' : 'flex'}`}>
             <input type="checkbox" checked={f.urgente} onChange={cambiar('urgente')} className="h-5 w-5 accent-[#2dd4bf]" />
             <span>
               <b>Es urgente</b>
@@ -196,10 +272,12 @@ function NuevaSolicitud() {
           </label>
           {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
           <button className="btn btn-menta w-full py-3.5 text-base" disabled={!!enviando}>
-            {enviando || 'Publicar solicitud'}
+            {enviando || (modo === 'primero' && !dirigida ? `Pagar ${precio !== null ? pesos(precio) : 'la visita'} y publicar` : 'Publicar solicitud')}
           </button>
           <p className="text-center text-xs text-tinta-400">
-            Publicar es gratis. Pagás la visita {precio !== null ? `(${pesos(precio)}) ` : ''}recién cuando elegís un profesional y un horario.
+            {modo === 'primero' && !dirigida
+              ? 'Pagás con Mercado Pago (tarjeta o saldo). TaListo! retiene el pago hasta que confirmás la visita; si nadie toma tu pedido a tiempo o lo cancelás antes, te lo devolvemos.'
+              : `Publicar es gratis. Pagás la visita ${precio !== null ? `(${pesos(precio)}) ` : ''}recién cuando elegís un profesional y un horario.`}
           </p>
         </div>
       </form>

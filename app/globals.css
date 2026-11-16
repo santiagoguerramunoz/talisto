@@ -210,6 +210,20 @@ body {
 }
 
 /* Relevamiento pendiente: cuadrado naranja con portapapeles (o número de parada) */
+/* TaListo! Match: pedido "el primero disponible" (zona aproximada) */
+.pin-match {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: #4fe0b6;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 6px rgb(79 224 182 / 0.25), 0 3px 10px rgb(0 0 0 / 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pin-match.pin-urgente { background: #ff8a5c; box-shadow: 0 0 0 6px rgb(255 138 92 / 0.28), 0 3px 10px rgb(0 0 0 / 0.45); }
+.pin-match svg { width: 17px; height: 17px; fill: #06101f; stroke: none; }
 .pin-relev {
   position: relative;
   width: 32px;

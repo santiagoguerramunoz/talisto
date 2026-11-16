@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import Icon from '@/components/Icon';
 import Mapa from '@/components/Mapa';
+import ServiciosDisponibles from '@/components/ServiciosDisponibles';
 import { usePanel } from '@/components/PanelContext';
 import { useDatosAgenda } from '@/lib/useDatosAgenda';
 import { useUbicacion } from '@/lib/useUbicacion';
@@ -58,9 +59,14 @@ function Insignia({ evento, children }) {
 }
 
 export default function MapaDelDia() {
-  const { profesional } = usePanel();
+  const { profesional, empresa, yo, permisos } = usePanel();
+  // "El primero disponible": los pedidos de clientes para tomar (los Free ven la invitación a Pro)
+  const veServicios = !empresa || yo?.id === profesional?.id || (permisos || []).includes('match');
   const [fecha, setFecha] = useState(() => inicioDia(new Date()));
   const [modo, setModo] = useState('dia');
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('ver') === 'servicios') setModo('servicios');
+  }, []);
   const [desdeMi, setDesdeMi] = useState(true);
   const [modoOrden, setModoOrden] = useState('horario');
   const [keysManual, setKeysManual] = useState([]);
@@ -219,10 +225,11 @@ export default function MapaDelDia() {
       <header className="sticky top-0 z-30 border-b border-navy-800 bg-navy-950/95 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-extrabold">Mapa</h1>
-          <div className="grid grid-cols-2 rounded-xl bg-navy-900 p-1 text-sm font-bold">
+          <div className={`grid ${veServicios ? 'grid-cols-3' : 'grid-cols-2'} rounded-xl bg-navy-900 p-1 text-sm font-bold`}>
             {[
               ['dia', 'Del día'],
               ['todos', 'Clientes'],
+              ...(veServicios ? [['servicios', 'Pedidos']] : []),
             ].map(([v, t]) => (
               <button key={v} onClick={() => setModo(v)} className={`rounded-lg px-3 py-1.5 ${modo === v ? 'bg-navy-700 text-tinta-100' : 'text-tinta-400'}`}>
                 {t}
@@ -254,7 +261,9 @@ export default function MapaDelDia() {
           </p>
         )}
 
-        {modo === 'dia' ? (
+        {modo === 'servicios' && veServicios ? (
+          <ServiciosDisponibles cuenta={profesional?.id} ubicacion={hayYo ? ubicacion : null} propsMapa={propsMapaYo} alto={380} />
+        ) : modo === 'dia' ? (
           <>
             <Mapa key="dia" alto={380} puntos={[...puntosDia, ...puntosPendientesDia]} trazado={rutaCalles.trazado} ruta {...propsMapaYo} />
             {puntosPendientesDia.length > 0 && (
@@ -449,7 +458,7 @@ export default function MapaDelDia() {
           </>
         )}
 
-        {pendientes.length > 0 && (
+        {pendientes.length > 0 && modo !== 'servicios' && (
           <>
             <h2 className="titulo-seccion mt-6 mb-2 flex items-center gap-2">
               <Icon name="relevamiento" className="h-4 w-4 text-marca-naranja" /> Relevamientos pendientes

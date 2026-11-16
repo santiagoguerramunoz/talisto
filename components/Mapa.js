@@ -9,7 +9,18 @@ const valido = (p) => p && p.lat !== null && p.lng !== null && Number.isFinite(N
 const PORTAPAPELES =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h4"/></svg>';
 
+const RAYO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>';
+
 function iconoPin(L, p) {
+  if (p.forma === 'match') {
+    return L.divIcon({
+      className: '',
+      html: `<div class="pin-match${p.urgente ? ' pin-urgente' : ''}">${RAYO}</div>`,
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+      popupAnchor: [0, -18],
+    });
+  }
   if (p.forma === 'persona') {
     return L.divIcon({
       className: '',
@@ -66,6 +77,7 @@ export default function Mapa({
   onActivarBrujula,
   zoomInicial = 12,
   encuadrarSiempre = true,
+  onPunto, // al tocar un punto que tiene id (por ejemplo, un pedido de Match)
 }) {
   const divRef = useRef(null);
   const mapRef = useRef(null);
@@ -73,6 +85,8 @@ export default function Mapa({
   const capasRef = useRef({});
   const yoRef = useRef({ marcador: null, circulo: null });
   const clickRef = useRef(onClickMapa);
+  const puntoRef = useRef(onPunto);
+  puntoRef.current = onPunto;
   const puntosRef = useRef(puntos);
   const trazadoRef = useRef(trazado);
   const ubicacionRef = useRef(ubicacion);
@@ -150,6 +164,7 @@ export default function Mapa({
     lista.forEach((p) => {
       const marcador = L.marker([p.lat, p.lng], { icon: iconoPin(L, p), zIndexOffset: p.forma === 'persona' ? 500 : p.forma === 'relevamiento' ? 200 : 0 }).addTo(capas.puntos);
       if (p.popup) marcador.bindPopup(escapar(p.popup).replace(/\n/g, '<br>'));
+      if (p.id) marcador.on('click', () => puntoRef.current?.(p.id));
     });
 
     if (!encuadrarSiempre && encuadradoRef.current) return;

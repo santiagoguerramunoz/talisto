@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import Icon from '@/components/Icon';
 import ArchivosMatch from '@/components/ArchivosMatch';
+import ServiciosDisponibles from '@/components/ServiciosDisponibles';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
 import { DEPARTAMENTOS, mensajeError } from '@/lib/util';
@@ -12,6 +13,7 @@ import { Estado, Estrellas, MENSAJE_FALTA_SQL, PREFERENCIAS, diaLargo, fecha, ho
 
 const PESTANAS = [
   ['solicitudes', 'Solicitudes'],
+  ['pedidos', 'Para tomar'],
   ['visitas', 'Visitas'],
   ['cobros', 'Cobros'],
   ['calificaciones', 'Calificaciones'],
@@ -94,6 +96,15 @@ function Match() {
               </button>
             )}
             {ver === 'solicitudes' && <Solicitudes datos={datos} onCambio={cargar} />}
+            {ver === 'pedidos' && (
+              <>
+                <p className="text-sm text-tinta-300">
+                  Clientes que pidieron &ldquo;el primero disponible&rdquo; en tus rubros. Ya pagaron la visita: el primero que la toma, la atiende.{' '}
+                  <Link href="/panel/mapa?ver=servicios" className="font-bold text-menta-300">Ver en el mapa</Link>
+                </p>
+                <ServiciosDisponibles cuenta={cuenta} conMapa={false} />
+              </>
+            )}
             {ver === 'visitas' && <Visitas datos={datos} onCambio={cargar} />}
             {ver === 'cobros' && <Cobros datos={datos} esDueno={yo?.id === cuenta} onIrPerfil={() => cambiar('perfil')} />}
             {ver === 'calificaciones' && <Calificaciones datos={datos} onCambio={cargar} />}
