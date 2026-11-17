@@ -32,6 +32,8 @@ function NuevaSolicitud() {
   const { cargando } = useSesionCliente();
   const [rubros, setRubros] = useState([]);
   const [precio, setPrecio] = useState(null);
+  const [urgencia, setUrgencia] = useState(null); // { precio, activa } (SQL 21)
+  const [cotiz, setCotiz] = useState(null); // precio de "el primero disponible" para lo elegido
   const [primeroActivo, setPrimeroActivo] = useState(true);
   const [modo, setModo] = useState(params.get('modo') === 'primero' ? 'primero' : 'invitar');
   const [cuando, setCuando] = useState({ tipo: esTardeHoy() ? 'dia' : 'hoy', fecha: masDias(hoyISO(), 1), franja: 'cualquiera' });
@@ -60,6 +62,7 @@ function NuevaSolicitud() {
       ]);
       setRubros(r || []);
       setPrecio(c?.precio_visita ?? null);
+      if (c?.precio_urgencia !== undefined && c.urgencia_activa) setUrgencia({ precio: c.precio_urgencia });
       if (c && c.primero_activo === false) {
         setPrimeroActivo(false);
         setModo('invitar');
@@ -71,6 +74,25 @@ function NuevaSolicitud() {
       }
     })();
   }, [params]);
+
+  // Precio de "el primero disponible": depende de cuándo (fuera del horario normal es urgencia) y de si es urgente
+  const esPrimero = modo === 'primero' && !dirigida;
+  useEffect(() => {
+    if (!esPrimero || !urgencia) return undefined;
+    let vivo = true;
+    supabase
+      .rpc('cotizar_primero', {
+        p_cuando: cuando.tipo,
+        p_fecha: cuando.tipo === 'dia' ? cuando.fecha : null,
+        p_franja: cuando.tipo === 'dia' ? cuando.franja : null,
+        p_urgente: f.urgente,
+      })
+      .then(({ data }) => vivo && setCotiz(data || null));
+    return () => {
+      vivo = false;
+    };
+  }, [esPrimero, urgencia, cuando.tipo, cuando.fecha, cuando.franja, f.urgente]);
+  const precioPrimero = cotiz?.importe ?? (f.urgente && urgencia ? urgencia.precio : precio);
 
   const cambiar = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
 
@@ -263,21 +285,37 @@ function NuevaSolicitud() {
               </div>
             </div>
           )}
-          <label className={`items-center gap-3 rounded-xl bg-navy-850 p-3 text-sm ${modo === 'primero' && !dirigida ? 'hidden' : 'flex'}`}>
+          <label className="flex items-center gap-3 rounded-xl bg-navy-850 p-3 text-sm">
             <input type="checkbox" checked={f.urgente} onChange={cambiar('urgente')} className="h-5 w-5 accent-[#2dd4bf]" />
             <span>
-              <b>Es urgente</b>
-              <span className="block text-xs text-tinta-400">Le damos prioridad a los profesionales que atienden urgencias.</span>
+              <b>Es urgente{urgencia ? ` · ${pesos(urgencia.precio)}` : ''}</b>
+              <span className="block text-xs text-tinta-400">
+                {urgencia
+                  ? 'Se cobra la tarifa de urgencia y le damos prioridad a los profesionales que atienden urgencias, también fuera de horario.'
+                  : 'Le damos prioridad a los profesionales que atienden urgencias.'}
+              </span>
             </span>
           </label>
+          {esPrimero && cotiz?.urgencia && !f.urgente && (
+            <p className="rounded-xl bg-[#ff8a5c]/10 p-3 text-xs text-[#ffc2a8]">
+              Lo que elegiste es fuera del horario normal: se cobra como urgencia ({pesos(cotiz.importe)}) y lo toman técnicos que atienden urgencias.
+            </p>
+          )}
+          {esPrimero && cotiz?.pasada && <p className="rounded-xl bg-amber-400/10 p-3 text-xs text-amber-100">Esa franja ya pasó: elegí otra.</p>}
           {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
           <button className="btn btn-menta w-full py-3.5 text-base" disabled={!!enviando}>
-            {enviando || (modo === 'primero' && !dirigida ? `Pagar ${precio !== null ? pesos(precio) : 'la visita'} y publicar` : 'Publicar solicitud')}
+            {enviando || (esPrimero ? `Pagar ${precioPrimero !== null && precioPrimero !== undefined ? pesos(precioPrimero) : 'la visita'} y publicar` : 'Publicar solicitud')}
           </button>
           <p className="text-center text-xs text-tinta-400">
             {modo === 'primero' && !dirigida
               ? 'Pagás con Mercado Pago (tarjeta o saldo). TaListo! retiene el pago hasta que confirmás la visita; si nadie toma tu pedido a tiempo o lo cancelás antes, te lo devolvemos.'
-              : `Publicar es gratis. Pagás la visita ${precio !== null ? `(${pesos(precio)}) ` : ''}recién cuando elegís un profesional y un horario.`}
+              : `Publicar es gratis. Pagás la visita ${
+                  f.urgente && urgencia
+                    ? `(${pesos(urgencia.precio)}, urgencia) `
+                    : precio !== null
+                      ? `(${pesos(precio)}${urgencia ? `; fuera de horario, ${pesos(urgencia.precio)}` : ''}) `
+                      : ''
+                }recién cuando elegís un profesional y un horario.`}
           </p>
         </div>
       </form>

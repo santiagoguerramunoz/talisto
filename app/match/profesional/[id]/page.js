@@ -40,6 +40,11 @@ export default function PerfilProfesional() {
             <p className="text-xs text-tinta-400">
               <Icon name="pin" className="mr-1 inline h-3.5 w-3.5" />
               {(p.departamentos || []).join(', ') || 'Sin zona cargada'}
+              {d.urgencias && d.disponible && (
+                <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-[#ff8a5c]/15 px-2 py-0.5 font-semibold text-[#ffc2a8]">
+                  <Icon name="match" className="h-3 w-3" /> Atiende urgencias y fuera de horario
+                </span>
+              )}
             </p>
             {p.rubros?.length > 0 && (
               <div className="flex flex-wrap gap-1.5">

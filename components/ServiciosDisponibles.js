@@ -116,6 +116,12 @@ export default function ServiciosDisponibles({ cuenta, ubicacion = null, conMapa
           </p>
         </div>
       )}
+      {datos.urgencias === false && (
+        <p className="text-xs text-tinta-400">
+          Los pedidos fuera de horario los ven solo los que atienden urgencias (y te quedan más).{' '}
+          <Link href="/panel/match?ver=perfil" className="font-semibold text-menta-300 underline">Activalo en tu perfil Match</Link>.
+        </p>
+      )}
       {lista.length === 0 ? (
         <p className="tarjeta p-4 text-center text-sm text-tinta-300">
           Ahora no hay pedidos para tomar en tus rubros. Cuando un cliente pida &ldquo;el primero disponible&rdquo;, aparece acá{datos.disponible ? ' y te avisamos si es en tu zona' : ''}.
@@ -129,6 +135,7 @@ export default function ServiciosDisponibles({ cuenta, ubicacion = null, conMapa
                   <p className="text-xs font-bold text-menta-300">
                     {x.rubro}
                     <span className={`ml-2 rounded-full px-1.5 py-0.5 ${x.cuando === 'hoy' ? 'bg-[#ff8a5c]/20 text-[#ffb38f]' : 'bg-navy-700 text-tinta-200'}`}>{cuandoTexto(x)}</span>
+                    {x.urgencia && <span className="ml-1.5 rounded-full bg-[#ff5c5c]/20 px-1.5 py-0.5 text-[#ffb3b3]">Urgencia</span>}
                   </p>
                   <h3 className="mt-0.5 font-bold">{x.titulo}</h3>
                   <p className="text-xs text-tinta-400">

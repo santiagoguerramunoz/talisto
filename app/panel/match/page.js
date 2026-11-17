@@ -39,10 +39,18 @@ function Match() {
 
   const cargar = useCallback(async () => {
     if (!cuenta) return;
-    const { data, error: err } = await supabase.rpc('match_bandeja', { p_cuenta: cuenta });
+    const [{ data, error: err }, { data: urg }] = await Promise.all([
+      supabase.rpc('match_bandeja', { p_cuenta: cuenta }),
+      supabase.from('configuracion').select('*').eq('id', 1).maybeSingle(),
+    ]);
     if (err) return setError(sinMatch(err) ? MENSAJE_FALTA_SQL : mensajeError(err));
     setError('');
-    setDatos(data);
+    // tarifa de urgencia (SQL 21): se suma a la configuración de la bandeja
+    const u = urg && urg.precio_urgencia !== undefined && urg.urgencia_activa
+      ? { precio_urgencia: urg.precio_urgencia, ret_urgencia: urg.urgencia_ret_profesional, neto_urgencia: urg.urgencia_neto_profesional,
+          urgencia_desde: String(urg.urgencia_desde || '').slice(0, 5), urgencia_hasta: String(urg.urgencia_hasta || '').slice(0, 5) }
+      : {};
+    setDatos({ ...data, config: { ...data.config, ...u } });
   }, [cuenta]);
 
   useEffect(() => {
@@ -424,6 +432,12 @@ function Cobros({ datos, esDueno, onIrPerfil }) {
           <li className="flex justify-between"><span>El cliente paga</span><b className="text-tinta-100">{pesos(cfg.precio_visita)}</b></li>
           <li className="flex justify-between"><span>Retención TaListo! al profesional</span><b>− {pesos(cfg.ret_profesional)}</b></li>
           <li className="flex justify-between"><span>Te queda</span><b className="text-menta-300">{pesos(cfg.neto_visita)}</b></li>
+          {cfg.precio_urgencia !== undefined && (
+            <li className="flex justify-between border-t border-navy-800 pt-1.5">
+              <span>Urgencia o fuera de horario: el cliente paga {pesos(cfg.precio_urgencia)}, retención − {pesos(cfg.ret_urgencia)}</span>
+              <b className="shrink-0 pl-2 text-menta-300">{pesos(cfg.neto_urgencia)}</b>
+            </li>
+          )}
           {Number(cfg.mp_costo_profesional_pct) > 0 && (
             <li className="text-xs text-tinta-400">De lo que cobra Mercado Pago por el pago, el {Number(cfg.mp_costo_profesional_pct).toLocaleString('es-UY')} % se descuenta de tu parte y el resto lo pone TaListo!.</li>
           )}
@@ -604,9 +618,19 @@ function PerfilMatch({ cuenta, perfil, config, esDueno, onGuardado }) {
           <label className="etiqueta" htmlFor="m-barrios">Barrios o localidades (opcional, separados por coma)</label>
           <input id="m-barrios" className="campo" value={f.barrios} onChange={(e) => setF({ ...f, barrios: e.target.value })} placeholder="Vacío = todo el departamento" />
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" className="h-5 w-5 accent-[#2fd6a3]" checked={f.urgencias} onChange={(e) => setF({ ...f, urgencias: e.target.checked })} />
-          Tomo urgencias
+        <label className="flex items-start gap-2 rounded-xl bg-navy-850 p-3 text-sm">
+          <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[#2fd6a3]" checked={f.urgencias} onChange={(e) => setF({ ...f, urgencias: e.target.checked })} />
+          <span>
+            <b>Atiendo urgencias y fuera de horario</b>
+            {config.precio_urgencia !== undefined ? (
+              <span className="block text-xs text-tinta-400">
+                Te pueden reservar fuera del horario normal (entre las {config.urgencia_desde} y las {config.urgencia_hasta}), aunque no esté en tu horario de trabajo, y tomás los pedidos urgentes del mapa.
+                Esas visitas se cobran {pesos(config.precio_urgencia)} y te quedan {pesos(config.neto_urgencia)}.
+              </span>
+            ) : (
+              <span className="block text-xs text-tinta-400">Te damos prioridad en las solicitudes urgentes.</span>
+            )}
+          </span>
         </label>
         {!perfil.tiene_horario && (
           <p className="rounded-xl bg-amber-400/10 p-3 text-xs text-amber-100">
@@ -644,6 +668,9 @@ function PerfilMatch({ cuenta, perfil, config, esDueno, onGuardado }) {
         )}
         <div className="rounded-xl bg-navy-850 p-3 text-xs text-tinta-300">
           <p>Visita técnica: el cliente paga {pesos(config.precio_visita)} y te quedan {pesos(config.neto_visita)}.</p>
+          {config.precio_urgencia !== undefined && (
+            <p className="mt-1">Urgencia o fuera de horario: el cliente paga {pesos(config.precio_urgencia)} y te quedan {pesos(config.neto_urgencia)}.</p>
+          )}
           <p className="mt-1">Los precios y comisiones los fija TaListo!; no se pueden cambiar desde la cuenta.</p>
         </div>
       </section>

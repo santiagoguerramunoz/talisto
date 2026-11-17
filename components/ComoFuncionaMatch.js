@@ -16,7 +16,12 @@ export default function ComoFuncionaMatch({ config, garantiaActiva = false, comp
       clase: 'border-menta-500/40 bg-menta-500/5',
       texto:
         'Publicás lo que necesitás, los profesionales de tu zona responden y elegís a uno con su horario. Pagás la visita por Mercado Pago: TaListo! la retiene hasta que confirmás que se hizo.',
-      puntos: ['Profesionales con valoraciones verificadas', 'Si se cancela a tiempo, te devolvemos el pago', 'Podés reclamar si la visita no se hizo'],
+      puntos: [
+        'Profesionales con valoraciones verificadas',
+        ...(config?.precio_urgencia !== undefined && config?.urgencia_activa ? [`Urgencias y fuera de horario: ${pesos(config.precio_urgencia)}`] : []),
+        'Si se cancela a tiempo, te devolvemos el pago',
+        'Podés reclamar si la visita no se hizo',
+      ],
       gestionada: true,
     },
     {

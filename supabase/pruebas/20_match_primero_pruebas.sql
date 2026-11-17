@@ -38,6 +38,12 @@ update public.configuracion set precio_visita = 1500, visita_ret_cliente = 200, 
   comision_visita = 400, mp_costo_profesional_pct = 50, duracion_visita_min = 60, pago_minutos = 30, solo_verificados = false,
   primero_activo = true, primero_horas = 4 where id = 1;
 update public.match_tareas set ultima = null;
+-- Con el SQL 21 (urgencias) se apaga la tarifa de urgencia: estas pruebas son de la visita normal
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'configuracion' and column_name = 'urgencia_activa') then
+    execute 'update public.configuracion set urgencia_activa = false where id = 1';
+  end if;
+end $$;
 
 -- Perfiles Match: rubro electricidad (b1, b2 Free, b4 Canelones, b5 sin cuenta bancaria, e0 Business), b3 solo sanitaria
 insert into public.match_perfiles (profesional_id, disponible, rubros)

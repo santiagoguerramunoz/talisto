@@ -367,6 +367,16 @@ const GRUPOS = [
     ['visita_neto_profesional', 'Recibe el profesional ($)'],
     ['duracion_visita_min', 'Duración en la agenda (minutos)'],
   ]],
+  ['Urgencias y fuera de horario', [
+    ['urgencia_activa', 'Cobrar la tarifa de urgencia', 'si'],
+    ['precio_urgencia', 'Precio total de la urgencia ($)'],
+    ['urgencia_ret_cliente', 'Retención TaListo! al cliente ($)'],
+    ['urgencia_ret_profesional', 'Retención TaListo! al profesional ($)'],
+    ['urgencia_neto_profesional', 'Recibe el profesional ($)'],
+    ['urgencia_desde', 'Se atienden urgencias desde', 'hora'],
+    ['urgencia_hasta', 'Hasta', 'hora'],
+  ]],
+  ['Horario normal', []],
   ['Trabajos con garantía', [
     ['trabajo_comision_pct', 'Comisión general por trabajo (%)'],
     ['trabajo_comision_activa', 'Cobrar comisión por trabajos', 'si'],
@@ -417,14 +427,18 @@ function Configuracion() {
   if (f.visita_neto_profesional === undefined) return <Mensaje m={{ error: true, texto: MENSAJE_FALTA_SQL }} />;
   const n = (k) => Number(String(f[k] ?? '').replace(',', '.'));
   const suma = n('visita_ret_cliente') + n('visita_ret_profesional') + n('visita_neto_profesional');
-  const cuadra = Math.abs(suma - n('precio_visita')) < 0.005;
+  const conUrgencias = f.precio_urgencia !== undefined;
+  const sumaU = n('urgencia_ret_cliente') + n('urgencia_ret_profesional') + n('urgencia_neto_profesional');
+  const cuadra = Math.abs(suma - n('precio_visita')) < 0.005 && (!conUrgencias || Math.abs(sumaU - n('precio_urgencia')) < 0.005);
+  const grupos = GRUPOS.filter(([t]) => conUrgencias || !['Urgencias y fuera de horario', 'Horario normal'].includes(t));
 
   async function guardar() {
     setOcupado(true);
     const p = {};
-    GRUPOS.forEach(([, campos]) => campos.forEach(([k, , tipo]) => {
-      p[k] = tipo === 'si' ? !!f[k] : tipo === 'texto' ? String(f[k] || '') : n(k);
+    grupos.forEach(([, campos]) => campos.forEach(([k, , tipo]) => {
+      p[k] = tipo === 'si' ? !!f[k] : tipo === 'texto' ? String(f[k] || '') : tipo === 'hora' ? String(f[k] || '').slice(0, 5) : n(k);
     }));
+    if (conUrgencias) p.horario_normal = f.horario_normal || {};
     const { data, error } = await supabase.rpc('guardar_config_match', { p });
     setOcupado(false);
     if (error) return setM({ error: true, texto: mensajeError(error) });
@@ -436,11 +450,19 @@ function Configuracion() {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2">
-        {GRUPOS.map(([titulo, campos]) => (
+        {grupos.map(([titulo, campos]) => (
           <section key={titulo} className={`tarjeta space-y-3 p-4 ${titulo === 'Garantía y reclamos' ? 'md:col-span-2' : ''}`}>
             <h2 className="font-bold">{titulo}</h2>
+            {titulo === 'Horario normal' && (
+              <HorarioNormal valor={f.horario_normal} onChange={(v) => setF({ ...f, horario_normal: v })} />
+            )}
             {campos.map(([k, etiqueta, tipo]) =>
-              tipo === 'si' ? (
+              tipo === 'hora' ? (
+                <label key={k} className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-tinta-300">{etiqueta}</span>
+                  <input type="time" className="campo w-32 tabular-nums" value={String(f[k] || '').slice(0, 5)} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
+                </label>
+              ) : tipo === 'si' ? (
                 <label key={k} className="flex items-center gap-2 text-sm">
                   <input type="checkbox" className="h-5 w-5" checked={!!f[k]} onChange={(e) => setF({ ...f, [k]: e.target.checked })} />
                   {etiqueta}
@@ -463,6 +485,17 @@ function Configuracion() {
                 {cuadra ? ` · cuadra con el precio. Ingreso bruto TaListo!: ${pesos(n('visita_ret_cliente') + n('visita_ret_profesional'))}.` : ` · no cuadra con el precio de ${pesos(n('precio_visita'))}.`}
               </p>
             )}
+            {titulo === 'Urgencias y fuera de horario' && (
+              <p className={`rounded-xl p-3 text-sm ${Math.abs(sumaU - n('precio_urgencia')) < 0.005 ? 'bg-menta-500/10 text-menta-200' : 'bg-red-500/10 text-red-300'}`}>
+                {pesos(n('urgencia_ret_cliente'))} + {pesos(n('urgencia_ret_profesional'))} + {pesos(n('urgencia_neto_profesional'))} = {pesos(sumaU)}
+                {Math.abs(sumaU - n('precio_urgencia')) < 0.005
+                  ? ` · cuadra. Ingreso bruto TaListo!: ${pesos(n('urgencia_ret_cliente') + n('urgencia_ret_profesional'))}.`
+                  : ` · no cuadra con el precio de ${pesos(n('precio_urgencia'))}.`}
+                <span className="mt-1 block text-xs text-tinta-400">
+                  Se cobra si el cliente marca &ldquo;Es urgente&rdquo; o si la visita empieza fuera del horario normal. Fuera de horario solo van los profesionales que activaron &ldquo;Atiendo urgencias&rdquo;.
+                </span>
+              </p>
+            )}
             {titulo === 'Trabajos con garantía' && (
               <p className="text-xs text-tinta-400">
                 Ejemplo: trabajo de {pesos(20000)} → comisión {pesos(20000 * n('trabajo_comision_pct') / 100)}, el profesional recibe {pesos(20000 - 20000 * n('trabajo_comision_pct') / 100)}.
@@ -480,6 +513,38 @@ function Configuracion() {
         {cfg?.actualizado_en && <span className="text-xs text-tinta-500">Último cambio: {fechaHora(cfg.actualizado_en)}</span>}
       </div>
     </>
+  );
+}
+
+// Horario normal por día (0 = domingo): fuera de estas horas la visita se cobra como urgencia
+const DIAS_SEMANA = [['1', 'Lunes'], ['2', 'Martes'], ['3', 'Miércoles'], ['4', 'Jueves'], ['5', 'Viernes'], ['6', 'Sábado'], ['0', 'Domingo']];
+function HorarioNormal({ valor, onChange }) {
+  const v = valor || {};
+  const poner = (d, x) => onChange({ ...v, [d]: x });
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs text-tinta-400">Las visitas que empiezan dentro de este horario son normales; fuera de él, urgencia.</p>
+      {DIAS_SEMANA.map(([d, nombre]) => {
+        const h = v[d];
+        return (
+          <div key={d} className="flex flex-wrap items-center gap-1.5 text-sm">
+            <label className="flex w-[5.75rem] items-center gap-2">
+              <input type="checkbox" className="h-4 w-4" checked={!!h} onChange={(e) => poner(d, e.target.checked ? { desde: '08:00', hasta: '18:00' } : null)} />
+              {nombre}
+            </label>
+            {h ? (
+              <>
+                <input type="time" aria-label={`${nombre} desde`} className="campo w-[6.75rem] px-2 py-1.5 tabular-nums" value={h.desde || ''} onChange={(e) => poner(d, { ...h, desde: e.target.value })} />
+                <span className="text-tinta-400">a</span>
+                <input type="time" aria-label={`${nombre} hasta`} className="campo w-[6.75rem] px-2 py-1.5 tabular-nums" value={h.hasta || ''} onChange={(e) => poner(d, { ...h, hasta: e.target.value })} />
+              </>
+            ) : (
+              <span className="text-xs text-tinta-500">Todo el día es fuera de horario</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

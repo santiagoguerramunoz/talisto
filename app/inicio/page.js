@@ -28,7 +28,7 @@ export default function InicioCliente() {
     (async () => {
       const [{ data: r }, { data: c }, { data: s, error: e }] = await Promise.all([
         supabase.from('categorias').select('id, nombre, sinonimos, orden').eq('activa', true).order('orden'),
-        supabase.from('configuracion').select('precio_visita, garantia_dias, trabajo_comision_pct').eq('id', 1).maybeSingle(),
+        supabase.from('configuracion').select('*').eq('id', 1).maybeSingle(),
         supabase.rpc('mis_solicitudes'),
       ]);
       setRubros(r || []);
@@ -181,7 +181,12 @@ export default function InicioCliente() {
         </div>
         )}
       </div>
-      {config && <p className="mt-6 text-center text-xs text-tinta-500">Visita técnica {pesos(config.precio_visita)} · pagás por Mercado Pago</p>}
+      {config && (
+        <p className="mt-6 text-center text-xs text-tinta-500">
+          Visita técnica {pesos(config.precio_visita)}
+          {config.precio_urgencia !== undefined && config.urgencia_activa ? ` · urgencias y fuera de horario ${pesos(config.precio_urgencia)}` : ''} · pagás por Mercado Pago
+        </p>
+      )}
     </MarcoCliente>
   );
 }

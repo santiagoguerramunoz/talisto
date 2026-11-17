@@ -35,6 +35,7 @@ function Solicitud() {
   const [eligiendo, setEligiendo] = useState(null);
   const [modal, setModal] = useState(null); // { tipo: 'cancelar'|'reclamar'|'externa', op }
   const [ocupado, setOcupado] = useState(false);
+  const [cotizPrimero, setCotizPrimero] = useState(null);
   const pago = params.get('pago');
 
   const cargar = useCallback(async () => {
@@ -48,6 +49,16 @@ function Solicitud() {
   useEffect(() => {
     if (!cargando) cargar();
   }, [cargando, cargar]);
+
+  // "El primero disponible" todavía sin pagar: el precio depende de la hora (fuera de horario es urgencia)
+  const sp = d?.solicitud;
+  const sinPagarPrimero = sp?.modo === 'primero' && sp.estado === 'abierta' && !sp.publicada_en;
+  useEffect(() => {
+    if (!sinPagarPrimero) return;
+    supabase
+      .rpc('cotizar_primero', { p_cuando: sp.cuando, p_fecha: sp.fecha, p_franja: sp.franja, p_urgente: !!sp.urgente })
+      .then(({ data }) => setCotizPrimero(data || null));
+  }, [sinPagarPrimero, sp?.cuando, sp?.fecha, sp?.franja, sp?.urgente]);
 
   // Volviendo de Mercado Pago: el pago se confirma con el aviso de Mercado Pago (puede tardar unos segundos)
   useEffect(() => {
@@ -160,8 +171,9 @@ function Solicitud() {
               <p className="font-bold">Falta pagar para publicar tu pedido</p>
               <p className="mt-1 text-sm text-tinta-200">El primero disponible · {cuandoTexto(s)}.</p>
               <button className="btn btn-menta mt-3 w-full" disabled={ocupado} onClick={pagarPrimero}>
-                Pagar {pesos(d.config.precio_visita)} con Mercado Pago
+                Pagar {cotizPrimero?.importe ? `${pesos(cotizPrimero.importe)} ` : ''}con Mercado Pago
               </button>
+              {cotizPrimero?.urgencia && <p className="mt-2 text-xs text-[#ffc2a8]">Se cobra como urgencia (marcado urgente o fuera del horario normal).</p>}
             </section>
           )}
 
@@ -390,22 +402,32 @@ function ElegirHorario({ propuesta, config, onCerrar, onListo }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    supabase.rpc('horarios_visita', { p_invitacion: propuesta.invitacion, p_desde: desde, p_dias: 7 }).then(({ data, error: e }) => {
+    (async () => {
+      const args = { p_invitacion: propuesta.invitacion, p_desde: desde, p_dias: 7 };
+      // con precio por horario (SQL 21); si no está, la lista de antes al precio de la propuesta
+      let { data, error: e } = await supabase.rpc('horarios_visita_precios', args);
+      if (e && sinMatch(e)) {
+        ({ data, error: e } = await supabase.rpc('horarios_visita', args));
+        data = (data || []).map((h) => ({ desde: h, urgencia: false, importe: propuesta.precio_visita }));
+      }
       if (e) setError(mensajeError(e));
       setHoras(data || []);
-    });
-  }, [propuesta.invitacion, desde]);
+    })();
+  }, [propuesta.invitacion, propuesta.precio_visita, desde]);
 
   const porDia = (horas || []).reduce((m, h) => {
-    const k = fecha(h);
+    const k = fecha(h.desde);
     (m[k] = m[k] || []).push(h);
     return m;
   }, {});
+  const hayUrgencias = (horas || []).some((h) => h.urgencia);
+  const urgenciaPrecio = (horas || []).find((h) => h.urgencia)?.importe;
+  const todasUrgencia = hayUrgencias && (horas || []).every((h) => h.urgencia);
 
   async function reservar() {
     setOcupado(true);
     setError('');
-    const { data, error: e } = await supabase.rpc('elegir_profesional', { p_invitacion: propuesta.invitacion, p_inicio: elegida });
+    const { data, error: e } = await supabase.rpc('elegir_profesional', { p_invitacion: propuesta.invitacion, p_inicio: elegida.desde });
     if (e) {
       setOcupado(false);
       setError(mensajeError(e));
@@ -421,7 +443,7 @@ function ElegirHorario({ propuesta, config, onCerrar, onListo }) {
   }
 
   const siguiente = () => {
-    const ultimo = horas?.length ? new Date(horas[horas.length - 1]) : new Date();
+    const ultimo = horas?.length ? new Date(horas[horas.length - 1].desde) : new Date();
     setDesde(new Date(ultimo.getTime() + 864e5).toISOString().slice(0, 10));
     setHoras(null);
   };
@@ -434,11 +456,18 @@ function ElegirHorario({ propuesta, config, onCerrar, onListo }) {
         {horas?.length === 0 && <p className="rounded-xl bg-navy-850 p-3 text-sm text-tinta-300">No tiene horarios libres esos días. Probá la semana siguiente.</p>}
         {Object.entries(porDia).map(([dia, lista]) => (
           <div key={dia}>
-            <p className="mb-1 text-xs font-bold text-tinta-300">{mayus(diaLargo(lista[0]))}</p>
+            <p className="mb-1 text-xs font-bold text-tinta-300">{mayus(diaLargo(lista[0].desde))}</p>
             <div className="flex flex-wrap gap-1.5">
               {lista.map((h) => (
-                <button key={h} type="button" onClick={() => setElegida(h)} className={`chip ${elegida === h ? 'chip-activo' : ''}`}>
-                  {hora(h)}
+                <button
+                  key={h.desde}
+                  type="button"
+                  onClick={() => setElegida(h)}
+                  className={`chip ${elegida?.desde === h.desde ? 'chip-activo' : ''} ${h.urgencia && !todasUrgencia ? 'border-[#ff8a5c]/50 text-[#ffc2a8]' : ''}`}
+                  title={h.urgencia ? `Urgencia: ${pesos(h.importe)}` : undefined}
+                >
+                  {h.urgencia && !todasUrgencia && <Icon name="match" className="h-3.5 w-3.5" />}
+                  {hora(h.desde)}
                 </button>
               ))}
             </div>
@@ -449,13 +478,19 @@ function ElegirHorario({ propuesta, config, onCerrar, onListo }) {
             Ver días siguientes
           </button>
         )}
+        {hayUrgencias && !todasUrgencia && (
+          <p className="flex items-center gap-1.5 text-xs text-[#ffc2a8]">
+            <Icon name="match" className="h-3.5 w-3.5 shrink-0" /> Fuera del horario normal: la visita cuesta {pesos(urgenciaPrecio)} (urgencia).
+          </p>
+        )}
         <p className="rounded-xl bg-navy-850 p-3 text-xs text-tinta-300">
-          Pagás {pesos(propuesta.precio_visita)} por Mercado Pago. Te guardamos el horario mientras pagás. Si cancelás con más de {config?.cancelacion_horas ?? 24} horas,
+          Pagás {pesos(elegida ? elegida.importe : todasUrgencia ? urgenciaPrecio : propuesta.precio_visita)}
+          {elegida?.urgencia ? ' (urgencia)' : ''} por Mercado Pago. Te guardamos el horario mientras pagás. Si cancelás con más de {config?.cancelacion_horas ?? 24} horas,
           te devolvemos todo{Number(config?.cancelacion_tarde_pct) > 0 ? `; después, el ${config.cancelacion_tarde_pct} %` : '; después, no hay devolución'}.
         </p>
         {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
         <button className="btn btn-menta w-full py-3" disabled={!elegida || ocupado} onClick={reservar}>
-          {ocupado ? 'Abriendo Mercado Pago…' : elegida ? `Reservar ${diaLargo(elegida)} ${hora(elegida)} y pagar` : 'Elegí un horario'}
+          {ocupado ? 'Abriendo Mercado Pago…' : elegida ? `Reservar ${diaLargo(elegida.desde)} ${hora(elegida.desde)} y pagar ${pesos(elegida.importe)}` : 'Elegí un horario'}
         </button>
       </div>
     </Modal>
