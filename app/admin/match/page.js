@@ -229,12 +229,16 @@ function GrupoLiquidar({ g, onHecho }) {
         <div>
           <h3 className="font-bold">{g.nombre}</h3>
           {g.cobro ? (
+            g.cobro.banco === 'Abitab' && !g.cobro.numero ? (
+              <p className="text-xs text-tinta-300">Giro por Abitab a {g.cobro.titular} · CI {g.cobro.documento}</p>
+            ) : (
             <p className="text-xs text-tinta-300">
               {g.cobro.banco} · {g.cobro.tipo_cuenta === 'cuenta_corriente' ? 'Cta. cte.' : g.cobro.tipo_cuenta === 'caja_ahorro' ? 'Caja de ahorro' : 'Cuenta'} {g.cobro.numero}
               {g.cobro.sucursal ? ` · suc. ${g.cobro.sucursal}` : ''} · {g.cobro.titular}{g.cobro.documento ? ` (${g.cobro.documento})` : ''}
             </p>
+            )
           ) : (
-            <p className="text-xs font-semibold text-amber-300">No cargó la cuenta bancaria.</p>
+            <p className="text-xs font-semibold text-amber-300">No cargó cómo cobrar.</p>
           )}
         </div>
         <b className="text-lg text-menta-300 tabular-nums">{pesos(total)}</b>

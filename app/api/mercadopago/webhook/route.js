@@ -1,4 +1,5 @@
-import { aplicarPagoMatch, aplicarSuscripcion, firmaValida, mp, mpConfigurado } from '@/lib/servidor';
+import { aplicarPagoMatch, aplicarSuscripcion, firmaValida, mp, mpConfigurado, origenDe } from '@/lib/servidor';
+import { enviarPendientes } from '@/lib/whatsappServidor';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,8 @@ export async function POST(request) {
       // TaListo! Match: el estado real del pago se consulta siempre a Mercado Pago
       const pago = await mp(`/v1/payments/${id}`);
       await aplicarPagoMatch(pago);
+      // si el cliente es de WhatsApp, le llega la confirmación por ahí
+      await enviarPendientes(origenDe(request)).catch(() => 0);
     } else if (tipo === 'subscription_authorized_payment' || tipo === 'authorized_payment') {
       const pago = await mp(`/authorized_payments/${id}`);
       if (pago?.preapproval_id) await aplicarSuscripcion(await mp(`/preapproval/${pago.preapproval_id}`));

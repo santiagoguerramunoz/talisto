@@ -156,6 +156,14 @@ export default function Admin() {
           </span>
           <Icon name="der" className="h-5 w-5 text-tinta-400" />
         </Link>
+        <Link href="/admin/whatsapp" className="tarjeta mt-2 flex items-center gap-3 p-4 hover:border-navy-600">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#25d366]/15 text-[#25d366]"><Icon name="whatsapp" /></span>
+          <span className="min-w-0 flex-1">
+            <b className="block">Pedidos por WhatsApp</b>
+            <span className="text-sm text-tinta-300">Preguntas del bot por rubro, probar el bot, conversaciones y conexión con Meta</span>
+          </span>
+          <Icon name="der" className="h-5 w-5 text-tinta-400" />
+        </Link>
       </section>
 
       <section className="mt-8">

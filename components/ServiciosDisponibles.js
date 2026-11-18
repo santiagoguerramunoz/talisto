@@ -33,6 +33,7 @@ export default function ServiciosDisponibles({ cuenta, ubicacion = null, conMapa
   const [datos, setDatos] = useState(null);
   const [error, setError] = useState('');
   const [elegido, setElegido] = useState(null);
+  const [cotizando, setCotizando] = useState(null);
   const [tomado, setTomado] = useState(null);
   const [aviso, setAviso] = useState('');
   const refs = useRef({});
@@ -102,7 +103,11 @@ export default function ServiciosDisponibles({ cuenta, ubicacion = null, conMapa
       {aviso && <p className="rounded-xl bg-amber-400/10 p-3 text-sm text-amber-100">{aviso}</p>}
       {tomado && (
         <div className="rounded-xl bg-menta-500/10 p-3 text-sm text-menta-200">
-          ¡Es tuyo! <b>{tomado.titulo}</b>, el {fecha(tomado.inicio)} a las {hora(tomado.inicio)}. Ya está en tu agenda con la dirección y el teléfono del cliente.{' '}
+          {tomado.pagoPendiente ? (
+            <>Lo tomaste: <b>{tomado.titulo}</b>, el {fecha(tomado.inicio)} a las {hora(tomado.inicio)}. Le mandamos al cliente el link para pagar; te avisamos cuando pague.</>
+          ) : (
+            <>¡Es tuyo! <b>{tomado.titulo}</b>, el {fecha(tomado.inicio)} a las {hora(tomado.inicio)}. Ya está en tu agenda con la dirección y el teléfono del cliente.</>
+          )}{' '}
           <Link href="/panel/match?ver=visitas" className="font-bold underline">Ver la visita</Link>
         </div>
       )}
@@ -145,18 +150,49 @@ export default function ServiciosDisponibles({ cuenta, ubicacion = null, conMapa
                 </div>
                 <span className="shrink-0 text-right">
                   <b className="block text-menta-300">{pesos(x.neto)}</b>
-                  <span className="text-[11px] text-tinta-400">para vos, ya pago</span>
+                  <span className="text-[11px] text-tinta-400">{x.pago === 'al_tomar' ? 'para vos' : 'para vos, ya pago'}</span>
                 </span>
               </div>
               <p className="mt-1.5 line-clamp-3 text-sm text-tinta-200">{x.descripcion}</p>
               {x.archivos?.length > 0 && <div className="mt-2"><ArchivosMatch rutas={x.archivos} tam="h-14 w-14" /></div>}
+              {x.canal === 'whatsapp' && <p className="mt-1.5 text-[11px] text-tinta-400">Pedido por WhatsApp: el cliente paga cuando lo tomás o cuando acepta tu cotización.</p>}
+              {x.mi_cotizacion && (
+                <p className={`mt-2 rounded-lg p-2 text-xs ${x.mi_cotizacion.estado === 'pendiente' ? 'bg-[#0a84ff]/10 text-[#8cc8ff]' : 'bg-navy-850 text-tinta-400'}`}>
+                  {x.mi_cotizacion.estado === 'pendiente'
+                    ? `Cotizaste ${pesos(x.mi_cotizacion.precio)} para las ${hora(x.mi_cotizacion.inicio)}: el cliente la está viendo.`
+                    : 'Tu cotización ya no está vigente.'}
+                </p>
+              )}
               <div className="mt-2.5 flex items-center justify-between gap-2">
                 <span className="text-[11px] text-tinta-500">Disponible hasta las {hora(x.limite_toma)}</span>
-                <button type="button" className="btn btn-menta px-4 py-2 text-sm" onClick={() => setElegido(x)}>Tomar</button>
+                <span className="flex gap-1.5">
+                  {x.cotizable && (
+                    <button type="button" className="btn btn-sec px-3 py-2 text-sm" onClick={() => setCotizando(x)}>{x.mi_cotizacion?.estado === 'pendiente' ? 'Cambiar' : 'Cotizar'}</button>
+                  )}
+                  <button type="button" className="btn btn-menta px-4 py-2 text-sm" onClick={() => setElegido(x)}>Tomar</button>
+                </span>
               </div>
             </li>
           ))}
         </ul>
+      )}
+      {cotizando && (
+        <Cotizar
+          x={cotizando}
+          cuenta={cuenta}
+          datos={datos}
+          onCerrar={() => setCotizando(null)}
+          onListo={() => {
+            setCotizando(null);
+            setAviso('Listo: le mandamos tu cotización al cliente. Si la acepta y paga, te avisamos y queda en tu agenda.');
+            cargar();
+          }}
+          onYaNo={(m) => {
+            setAviso(m);
+            setCotizando(null);
+            cargar();
+          }}
+        />
       )}
       {elegido && (
         <Tomar
@@ -197,7 +233,7 @@ function Tomar({ x, cuenta, duracion, onCerrar, onListo, onYaNo }) {
       if (/ya tomó|ya no está disponible/.test(m)) return onYaNo(m);
       return setError(m);
     }
-    onListo(data);
+    onListo({ ...data, pagoPendiente: !!data?.pago_pendiente });
   }
 
   return (
@@ -222,8 +258,17 @@ function Tomar({ x, cuenta, duracion, onCerrar, onListo, onYaNo }) {
           </>
         )}
         <ul className="space-y-1 rounded-xl bg-navy-850 p-3 text-xs text-tinta-300">
-          <li>• La visita ya está paga: te quedan {pesos(x.neto)} y TaListo! te los transfiere cuando el cliente la confirma.</li>
-          <li>• Al tomarlo ves la dirección y el teléfono del cliente, y entra a tu agenda.</li>
+          {x.pago === 'al_tomar' ? (
+            <>
+              <li>• Al tomarlo, al cliente le llega el link para pagar {pesos(x.importe)}. Tiene 30 minutos; si no paga, el pedido vuelve al mapa y se libera tu agenda.</li>
+              <li>• Cuando paga, te quedan {pesos(x.neto)} y ves la dirección y el teléfono del cliente.</li>
+            </>
+          ) : (
+            <>
+              <li>• La visita ya está paga: te quedan {pesos(x.neto)} y TaListo! te los transfiere cuando el cliente la confirma.</li>
+              <li>• Al tomarlo ves la dirección y el teléfono del cliente, y entra a tu agenda.</li>
+            </>
+          )}
           <li>• Si después no podés ir, cancelala desde Match: al cliente se le devuelve todo.</li>
         </ul>
         {error && <p className="rounded-xl bg-red-500/10 p-3 text-red-300">{error}</p>}
@@ -231,6 +276,71 @@ function Tomar({ x, cuenta, duracion, onCerrar, onListo, onYaNo }) {
           <button type="button" className="btn btn-sec flex-1 py-2.5" onClick={onCerrar}>Volver</button>
           <button type="button" className="btn btn-menta flex-1 py-2.5" disabled={ocupado || !hora_ || !opciones.length} onClick={tomar}>
             {ocupado ? 'Tomando…' : 'Tomar el servicio'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// Cotizar un pedido de WhatsApp: tu precio (lo que recibís) y a qué hora llegás
+function Cotizar({ x, cuenta, datos, onCerrar, onListo, onYaNo }) {
+  const opciones = horasPosibles(x.desde, x.hasta, datos.duracion_visita_min || 60, x.cuando === 'hoy' ? 15 : 30);
+  const [hora_, setHora] = useState(x.mi_cotizacion?.inicio || opciones[0]?.toISOString() || '');
+  const [precio, setPrecio] = useState(String(x.mi_cotizacion?.precio || x.neto || ''));
+  const [mensaje, setMensaje] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState('');
+  const tarifa = Number(x.urgencia ? datos.tarifa_talisto_urgencia : datos.tarifa_talisto) || 0;
+  const n = Math.round(Number(precio) || 0);
+
+  async function enviar() {
+    setOcupado(true);
+    setError('');
+    const { error: err } = await supabase.rpc('cotizar_servicio', { p_solicitud: x.id, p_cuenta: cuenta, p_precio: n, p_inicio: hora_, p_mensaje: mensaje });
+    setOcupado(false);
+    if (err) {
+      const m = mensajeError(err);
+      if (/ya no está disponible|ya tiene técnico/.test(m)) return onYaNo(m);
+      return setError(m);
+    }
+    onListo();
+  }
+
+  return (
+    <Modal abierto onCerrar={onCerrar} titulo="Mandar cotización">
+      <div className="space-y-3 text-sm">
+        <p>
+          <b>{x.titulo}</b> · {x.rubro}
+          <span className="block text-xs text-tinta-400">{[x.localidad, x.departamento].filter(Boolean).join(', ')} · {cuandoTexto(x)}</span>
+        </p>
+        <label className="block">
+          <span className="etiqueta">Tu precio por la visita (lo que recibís)</span>
+          <input type="number" inputMode="numeric" min={datos.cotizacion_min || 0} max={datos.cotizacion_max || undefined} className="campo" value={precio} onChange={(e) => setPrecio(e.target.value)} />
+          <span className="mt-1 block text-[11px] text-tinta-400">
+            El cliente ve {pesos(n + tarifa)} ({pesos(n)} tuyos + {pesos(tarifa)} de TaListo!). Precio base: {pesos(x.neto)}.
+          </span>
+        </label>
+        {opciones.length === 0 ? (
+          <p className="rounded-xl bg-amber-400/10 p-3 text-amber-100">Ya no quedan horarios dentro de lo que pidió el cliente.</p>
+        ) : (
+          <>
+            <p className="etiqueta">¿A qué hora llegás?</p>
+            <div className="grid max-h-44 grid-cols-4 gap-1.5 overflow-y-auto">
+              {opciones.map((d) => (
+                <button key={d.toISOString()} type="button" onClick={() => setHora(d.toISOString())} className={`chip justify-center text-xs ${new Date(hora_).getTime() === d.getTime() ? 'chip-activo' : ''}`}>
+                  {hora(d.toISOString())}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        <textarea className="campo min-h-[3.5rem] text-sm" maxLength={300} value={mensaje} onChange={(e) => setMensaje(e.target.value)} placeholder="Mensaje para el cliente (opcional): qué incluye, si llevás repuestos…" />
+        {error && <p className="rounded-xl bg-red-500/10 p-3 text-red-300">{error}</p>}
+        <div className="flex gap-2">
+          <button type="button" className="btn btn-sec flex-1 py-2.5" onClick={onCerrar}>Volver</button>
+          <button type="button" className="btn btn-menta flex-1 py-2.5" disabled={ocupado || !hora_ || !opciones.length || n <= 0} onClick={enviar}>
+            {ocupado ? 'Enviando…' : `Cotizar ${pesos(n + tarifa)}`}
           </button>
         </div>
       </div>

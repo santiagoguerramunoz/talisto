@@ -18,10 +18,16 @@ const PUNTOS = [
 
 export default function Inicio() {
   const [destino, setDestino] = useState(null);
+  const [whatsapp, setWhatsapp] = useState('');
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       if (data.session) setDestino(await rutaSegunPerfil(data.session.user.id));
+    });
+    // Pedir un técnico por WhatsApp, sin bajar la app (si está activo)
+    supabase.from('configuracion').select('*').eq('id', 1).maybeSingle().then(({ data }) => {
+      const n = String(data?.whatsapp_numero || '').replace(/\D/g, '');
+      if (data?.whatsapp_activo && n.length >= 8) setWhatsapp(n);
     });
   }, []);
 
@@ -56,6 +62,16 @@ export default function Inicio() {
             Busco un servicio
           </Link>
         </div>
+        {whatsapp && (
+          <a href={`https://wa.me/${whatsapp}?text=${encodeURIComponent('Hola, necesito un técnico')}`} target="_blank" rel="noopener noreferrer"
+            className="mt-4 flex max-w-md items-center gap-3 rounded-2xl border border-[#25d366]/40 bg-[#25d366]/10 p-3.5">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#25d366] text-white"><Icon name="whatsapp" /></span>
+            <span className="min-w-0 text-sm">
+              <b className="block">Pedí un técnico por WhatsApp</b>
+              <span className="text-tinta-300">Sin bajar nada: te hacemos unas preguntas y te conseguimos el primero disponible.</span>
+            </span>
+          </a>
+        )}
         <div className="mt-6 max-w-md">
           <BotonInstalar variante="tarjeta" />
         </div>

@@ -110,7 +110,7 @@ function Match() {
             {ver === 'pedidos' && (
               <>
                 <p className="text-sm text-tinta-300">
-                  Clientes que pidieron &ldquo;el primero disponible&rdquo; en tus rubros. Ya pagaron la visita: el primero que la toma, la atiende.{' '}
+                  Clientes que pidieron &ldquo;el primero disponible&rdquo; en tus rubros, desde la app (ya pagos) o por WhatsApp (pagan cuando lo tomás o aceptan tu cotización). El primero que lo toma, lo atiende.{' '}
                   <Link href="/panel/mapa?ver=servicios" className="font-bold text-menta-300">Ver en el mapa</Link>
                 </p>
                 <ServiciosDisponibles cuenta={cuenta} conMapa={false} />
@@ -156,6 +156,7 @@ function TarjetaSolicitud({ x, neto, onCambio }) {
   const s = x.solicitud;
   const [modo, setModo] = useState(null); // 'aceptar' | 'rechazar'
   const [texto, setTexto] = useState('');
+  const [precio, setPrecio] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState('');
 
@@ -165,7 +166,9 @@ function TarjetaSolicitud({ x, neto, onCambio }) {
 
   async function responder(acepta) {
     setOcupado(true);
-    const { error: err } = await supabase.rpc('responder_invitacion', { p_id: x.invitacion, p_acepta: acepta, p_mensaje: texto });
+    const args = { p_id: x.invitacion, p_acepta: acepta, p_mensaje: texto };
+    if (acepta && Number(precio) > 0) args.p_precio = Math.round(Number(precio));
+    const { error: err } = await supabase.rpc('responder_invitacion', args);
     setOcupado(false);
     if (err) return setError(mensajeError(err));
     onCambio();
@@ -200,7 +203,7 @@ function TarjetaSolicitud({ x, neto, onCambio }) {
       {error && <p className="mt-2 rounded-xl bg-red-500/10 p-2.5 text-sm text-red-300">{error}</p>}
       {x.estado === 'aceptada' ? (
         <p className="mt-3 rounded-xl bg-menta-500/10 p-2.5 text-sm text-menta-200">
-          Aceptaste. Ahora el cliente elige el profesional y el horario{x.mensaje ? `. Tu mensaje: “${x.mensaje}”` : ''}.
+          Aceptaste{x.precio_profesional ? ` por ${pesos(x.precio_profesional)}` : ''}. Ahora el cliente elige el profesional y el horario{x.mensaje ? `. Tu mensaje: “${x.mensaje}”` : ''}.
         </p>
       ) : modo ? (
         <div className="mt-3 space-y-2">
@@ -211,6 +214,13 @@ function TarjetaSolicitud({ x, neto, onCambio }) {
             onChange={(e) => setTexto(e.target.value)}
             placeholder={modo === 'aceptar' ? 'Mensaje para el cliente (opcional): qué vas a revisar, si llevás algo…' : 'Motivo (opcional): no llego a esa zona, no hago ese trabajo…'}
           />
+          {modo === 'aceptar' && (
+            <label className="block">
+              <span className="etiqueta">Tu precio por la visita (opcional)</span>
+              <input type="number" inputMode="numeric" min="0" className="campo" value={precio} onChange={(e) => setPrecio(e.target.value)} placeholder={`Si lo dejás vacío: ${pesos(neto)}`} />
+              <span className="mt-1 block text-[11px] text-tinta-500">Es lo que recibís vos. El cliente ve tu precio más la tarifa de TaListo!.</span>
+            </label>
+          )}
           <div className="flex gap-2">
             <button type="button" className="btn btn-sec flex-1 py-2" onClick={() => setModo(null)}>Volver</button>
             <button type="button" className={`btn flex-1 py-2 ${modo === 'aceptar' ? 'btn-menta' : 'btn-sec text-red-300'}`} disabled={ocupado} onClick={() => responder(modo === 'aceptar')}>
@@ -302,7 +312,7 @@ function TarjetaVisita({ o, config, onCambio }) {
         {s.archivos?.length > 0 && <div className="mt-2"><ArchivosMatch rutas={s.archivos} tam="h-16 w-16" /></div>}
       </details>
       <p className="mt-2 text-xs text-tinta-400">
-        Te queda {pesos(o.neto_profesional)} (visita {pesos(o.importe)} − {pesos(Number(o.ret_profesional) + Number(o.comision))} TaListo!
+        Te queda {pesos(o.neto_profesional)} (el cliente pagó {pesos(o.importe)}, con {pesos(Number(o.importe) - Number(o.neto_profesional))} de TaListo!
         {Number(config.mp_costo_profesional_pct) > 0 ? ` − tu parte del costo de Mercado Pago (${Number(config.mp_costo_profesional_pct).toLocaleString('es-UY')} %)` : ''}).
       </p>
       {o.estado === 'pendiente_confirmacion' && (
@@ -430,11 +440,15 @@ function Cobros({ datos, esDueno, onIrPerfil }) {
         <h2 className="titulo-seccion">Cómo se reparte cada visita</h2>
         <ul className="mt-2 space-y-1 text-tinta-300">
           <li className="flex justify-between"><span>El cliente paga</span><b className="text-tinta-100">{pesos(cfg.precio_visita)}</b></li>
-          <li className="flex justify-between"><span>Retención TaListo! al profesional</span><b>− {pesos(cfg.ret_profesional)}</b></li>
+          {Number(cfg.ret_profesional) > 0 ? (
+            <li className="flex justify-between"><span>Retención TaListo! al profesional</span><b>− {pesos(cfg.ret_profesional)}</b></li>
+          ) : (
+            <li className="flex justify-between"><span>Tarifa de TaListo! (la paga el cliente)</span><b>{pesos(Number(cfg.precio_visita) - Number(cfg.neto_visita))}</b></li>
+          )}
           <li className="flex justify-between"><span>Te queda</span><b className="text-menta-300">{pesos(cfg.neto_visita)}</b></li>
           {cfg.precio_urgencia !== undefined && (
             <li className="flex justify-between border-t border-navy-800 pt-1.5">
-              <span>Urgencia o fuera de horario: el cliente paga {pesos(cfg.precio_urgencia)}, retención − {pesos(cfg.ret_urgencia)}</span>
+              <span>Urgencia o fuera de horario: el cliente paga {pesos(cfg.precio_urgencia)}{Number(cfg.ret_urgencia) > 0 ? `, retención − ${pesos(cfg.ret_urgencia)}` : ''}</span>
               <b className="shrink-0 pl-2 text-menta-300">{pesos(cfg.neto_urgencia)}</b>
             </li>
           )}
@@ -557,7 +571,9 @@ function PerfilMatch({ cuenta, perfil, config, esDueno, onGuardado }) {
     urgencias: !!perfil.urgencias,
     departamentos: perfil.departamentos || [],
     barrios: (perfil.barrios || []).join(', '),
-    cobro: perfil.cobro || { banco: '', tipo_cuenta: 'caja_ahorro', numero: '', sucursal: '', titular: '', documento: '' },
+    cobro: perfil.cobro
+      ? { ...perfil.cobro, metodo: perfil.cobro.metodo || 'banco', banco: perfil.cobro.metodo === 'abitab' ? '' : perfil.cobro.banco || '', numero: perfil.cobro.numero || '' }
+      : { metodo: 'banco', banco: '', tipo_cuenta: 'caja_ahorro', numero: '', sucursal: '', titular: '', documento: '' },
   }));
   const [aviso, setAviso] = useState({});
   const [ocupado, setOcupado] = useState(false);
@@ -570,7 +586,7 @@ function PerfilMatch({ cuenta, perfil, config, esDueno, onGuardado }) {
 
   async function guardar() {
     setOcupado(true);
-    const cobroCargado = esDueno && (f.cobro.banco || f.cobro.numero || f.cobro.titular);
+    const cobroCargado = esDueno && (f.cobro.banco || f.cobro.numero || f.cobro.titular || f.cobro.documento);
     const { error } = await supabase.rpc('guardar_match_perfil', {
       p_cuenta: cuenta,
       p: {
@@ -643,10 +659,22 @@ function PerfilMatch({ cuenta, perfil, config, esDueno, onGuardado }) {
       </section>
 
       <section className="tarjeta space-y-3 p-4">
-        <h2 className="font-bold">Cuenta para las transferencias</h2>
+        <h2 className="font-bold">Cómo cobrás</h2>
         {esDueno ? (
           <>
-            <p className="text-xs text-tinta-400">TaListo! te transfiere lo cobrado por Match a esta cuenta. Solo la ven vos y el administrador.</p>
+            <p className="text-xs text-tinta-400">TaListo! te paga lo cobrado por Match por transferencia o por giro de Abitab. Solo lo ven vos y el administrador.</p>
+            <div className="flex gap-2">
+              {[['banco', 'Cuenta bancaria'], ['abitab', 'Giro por Abitab']].map(([v, t]) => (
+                <button key={v} type="button" onClick={() => setF({ ...f, cobro: { ...f.cobro, metodo: v } })} className={`chip flex-1 justify-center ${f.cobro.metodo === v ? 'chip-activo' : ''}`}>{t}</button>
+              ))}
+            </div>
+            {f.cobro.metodo === 'abitab' ? (
+              <div className="grid grid-cols-2 gap-2">
+                <Campo etiqueta="Titular" valor={f.cobro.titular} onCambio={(v) => setF({ ...f, cobro: { ...f.cobro, titular: v } })} />
+                <Campo etiqueta="Cédula del titular" valor={f.cobro.documento || ''} onCambio={(v) => setF({ ...f, cobro: { ...f.cobro, documento: v } })} />
+                <p className="col-span-2 text-[11px] text-tinta-500">Retirás el giro en cualquier local de Abitab con tu cédula.</p>
+              </div>
+            ) : (
             <div className="grid grid-cols-2 gap-2">
               <Campo etiqueta="Banco" valor={f.cobro.banco} onCambio={(v) => setF({ ...f, cobro: { ...f.cobro, banco: v } })} />
               <label className="block">
@@ -662,6 +690,7 @@ function PerfilMatch({ cuenta, perfil, config, esDueno, onGuardado }) {
               <Campo etiqueta="Titular" valor={f.cobro.titular} onCambio={(v) => setF({ ...f, cobro: { ...f.cobro, titular: v } })} />
               <Campo etiqueta="Cédula o RUT" valor={f.cobro.documento || ''} onCambio={(v) => setF({ ...f, cobro: { ...f.cobro, documento: v } })} />
             </div>
+            )}
           </>
         ) : (
           <p className="text-sm text-tinta-300">{perfil.tiene_cobro ? 'Cargada por la cuenta principal.' : 'La carga la cuenta principal de la empresa.'}</p>
