@@ -75,6 +75,7 @@ export default function Admin() {
             }
           : {}),
         ...(c && 'ia_lecturas_pro' in c ? { ia_lecturas_pro: c.ia_lecturas_pro, ia_lecturas_business: c.ia_lecturas_business } : {}),
+        ...(c && 'pro_colaboradores_defecto' in c ? { pro_colaboradores_defecto: c.pro_colaboradores_defecto } : {}),
       });
       cargarProfesionales();
     })();
@@ -101,6 +102,7 @@ export default function Admin() {
               ia_lecturas_business: Math.max(0, Math.round(Number(form.ia_lecturas_business) || 0)),
             }
           : {}),
+        ...('pro_colaboradores_defecto' in form ? { pro_colaboradores_defecto: Math.max(0, Math.round(Number(form.pro_colaboradores_defecto) || 0)) } : {}),
       })
       .eq('id', 1)
       .select()
@@ -177,8 +179,14 @@ export default function Admin() {
                 <label className="etiqueta" htmlFor="a-b2b">Free: clientes B2B con trabajos</label>
                 <input id="a-b2b" type="number" min="0" className="campo" value={form.free_empresas_b2b} onChange={(e) => setForm({ ...form, free_empresas_b2b: e.target.value })} />
               </div>
+              {'pro_colaboradores_defecto' in form && (
+                <div>
+                  <label className="etiqueta" htmlFor="a-cpro">Pro: colaboradores del equipo (por defecto)</label>
+                  <input id="a-cpro" type="number" min="0" className="campo" value={form.pro_colaboradores_defecto} onChange={(e) => setForm({ ...form, pro_colaboradores_defecto: e.target.value })} />
+                </div>
+              )}
               <div>
-                <label className="etiqueta" htmlFor="a-cta">Business: cuentas por empresa (por defecto)</label>
+                <label className="etiqueta" htmlFor="a-cta">Business: colaboradores del equipo (por defecto)</label>
                 <input id="a-cta" type="number" min="1" className="campo" value={form.business_cuentas_defecto} onChange={(e) => setForm({ ...form, business_cuentas_defecto: e.target.value })} />
               </div>
               {'ia_lecturas_pro' in form && (
@@ -242,7 +250,7 @@ export default function Admin() {
                   <p className="mt-1 text-xs text-tinta-500">
                     {p.departamentos?.length ? p.departamentos.join(', ') : 'Sin zona cargada'} · desde {new Date(p.creado_en).toLocaleDateString('es-UY')}
                   </p>
-                  {planes && <PlanChip plan={planes[p.id]} empresa={empresas[p.id]} cuentasDefecto={form.business_cuentas_defecto} />}
+                  {planes && <PlanChip plan={planes[p.id]} empresa={empresas[p.id]} cuentasDefecto={form.business_cuentas_defecto} proDefecto={form.pro_colaboradores_defecto} />}
                 </div>
                 <div className="flex shrink-0 flex-col gap-1.5">
                   <button onClick={() => alternar(p, 'verificado')} className={`chip ${p.verificado ? 'chip-activo' : ''}`}>
@@ -269,10 +277,11 @@ export default function Admin() {
           pro={editarPlan}
           actual={planes?.[editarPlan.id]}
           cuentasDefecto={form.business_cuentas_defecto}
+          proDefecto={form.pro_colaboradores_defecto}
           onCerrar={() => setEditarPlan(null)}
-          onGuardado={(fila) => {
+          onGuardado={(fila, cerrar = true) => {
             setPlanes((m) => ({ ...m, [fila.usuario_id]: fila }));
-            setEditarPlan(null);
+            if (cerrar) setEditarPlan(null);
           }}
         />
       )}
@@ -282,7 +291,7 @@ export default function Admin() {
 
 const vigente = (p) => p && p.plan !== 'free' && (!p.vence_en || new Date(p.vence_en) > new Date());
 
-function PlanChip({ plan, empresa, cuentasDefecto }) {
+function PlanChip({ plan, empresa, cuentasDefecto, proDefecto }) {
   const cual = vigente(plan) ? plan.plan : 'free';
   const vence = plan?.vence_en && vigente(plan) ? new Date(plan.vence_en).toLocaleDateString('es-UY') : null;
   const origen = cual === 'free' ? '' : plan.origen === 'regalo' ? 'regalo' : 'Mercado Pago';
@@ -290,15 +299,22 @@ function PlanChip({ plan, empresa, cuentasDefecto }) {
     <p className="mt-1.5 inline-flex flex-wrap items-center gap-1.5 text-xs">
       <span className={`rounded-full px-2 py-0.5 font-bold ${cual === 'free' ? 'bg-navy-800 text-tinta-300' : 'bg-marca-naranja/15 text-marca-naranja'}`}>{NOMBRE_PLAN[cual]}</span>
       {origen && <span className="text-tinta-400">{origen}{vence ? ` · hasta ${vence}` : ' · sin vencimiento'}</span>}
-      {cual === 'business' && !empresa && <span className="text-tinta-400">· hasta {plan.max_cuentas ?? cuentasDefecto} cuentas</span>}
-      {empresa && <span className="text-tinta-300">· {empresa.nombre}: {empresa.cuentas} de {plan?.max_cuentas ?? cuentasDefecto} cuentas</span>}
+      {cual !== 'free' && !empresa && (cual === 'business' || proDefecto !== undefined) && (
+        <span className="text-tinta-400">· hasta {plan.max_cuentas ?? (cual === 'business' ? cuentasDefecto : proDefecto)} colaboradores{plan.max_cuentas != null ? ' (especial)' : ''}</span>
+      )}
+      {empresa && (
+        <span className="text-tinta-300">
+          · {empresa.nombre}: {empresa.cuentas} de {plan?.max_cuentas ?? (cual === 'business' ? cuentasDefecto : cual === 'pro' ? proDefecto ?? 0 : 0)} colaboradores
+          {plan?.max_cuentas != null ? ' (especial)' : ''}
+        </span>
+      )}
       {plan?.mp_estado && plan.origen !== 'mercadopago' && <span className="text-tinta-500">· MP {plan.mp_estado}</span>}
     </p>
   );
 }
 
 // El admin regala Pro o Business (sin vencimiento o hasta una fecha) o lo quita
-function RegalarPlan({ pro, actual, cuentasDefecto, onCerrar, onGuardado }) {
+function RegalarPlan({ pro, actual, cuentasDefecto, proDefecto, onCerrar, onGuardado }) {
   const [form, setForm] = useState(() => ({
     plan: vigente(actual) ? actual.plan : 'pro',
     hasta: actual?.vence_en && actual.origen === 'regalo' ? actual.vence_en.slice(0, 10) : '',
@@ -325,7 +341,6 @@ function RegalarPlan({ pro, actual, cuentasDefecto, onCerrar, onGuardado }) {
         vence_en: form.hasta ? new Date(`${form.hasta}T23:59:59-03:00`).toISOString() : null,
       };
     }
-    fila.max_cuentas = form.max_cuentas === '' ? null : Math.max(1, Math.round(Number(form.max_cuentas)));
     fila.nota = form.nota.trim() || null;
     setGuardando(true);
     const { data, error: err } = await supabase.from('planes').upsert({ usuario_id: pro.id, ...fila }, { onConflict: 'usuario_id' }).select().maybeSingle();
@@ -334,9 +349,36 @@ function RegalarPlan({ pro, actual, cuentasDefecto, onCerrar, onGuardado }) {
     onGuardado(data);
   }
 
+  // Cupo especial de colaboradores: se guarda solo, sin tocar el plan ni cómo lo paga
+  const [cupoOk, setCupoOk] = useState('');
+  async function guardarCupo() {
+    setError('');
+    setCupoOk('');
+    const max = form.max_cuentas === '' ? null : Math.max(1, Math.round(Number(form.max_cuentas)));
+    setGuardando(true);
+    const { data, error: err } = actual
+      ? await supabase.from('planes').update({ max_cuentas: max }).eq('usuario_id', pro.id).select().maybeSingle()
+      : await supabase.from('planes').insert({ usuario_id: pro.id, max_cuentas: max }).select().maybeSingle();
+    setGuardando(false);
+    if (err) return setError(mensajeError(err));
+    if (!data) return setError('No se guardó: revisá que tu usuario tenga permisos de admin.');
+    setCupoOk(max === null ? 'Vuelve al cupo de su plan.' : `Listo: puede tener hasta ${max} colaboradores.`);
+    onGuardado(data, false);
+  }
+  const cupoPlan = (vigente(actual) ? actual.plan : 'free') === 'business' ? cuentasDefecto : (vigente(actual) ? actual.plan : 'free') === 'pro' ? proDefecto : 0;
+
   return (
     <Modal abierto onCerrar={onCerrar} titulo={`Plan de ${pro.nombre_publico || pro.perfiles?.email || 'profesional'}`}>
       <div className="space-y-4 p-5">
+        <div className="rounded-xl bg-navy-850 p-3">
+          <label className="etiqueta" htmlFor="r-cuentas">Colaboradores que puede tener en su equipo</label>
+          <div className="flex gap-2">
+            <input id="r-cuentas" type="number" min="1" className="campo flex-1" placeholder={`El de su plan${cupoPlan !== undefined ? `: ${cupoPlan}` : ''}`} value={form.max_cuentas} onChange={(e) => setForm({ ...form, max_cuentas: e.target.value })} />
+            <button type="button" className="btn btn-sec shrink-0 px-4" onClick={guardarCupo} disabled={guardando}>Guardar</button>
+          </div>
+          <p className="mt-1.5 text-xs text-tinta-400">Para un caso particular. Vacío = el de su plan (Pro {proDefecto ?? 2}, Business {cuentasDefecto}). No cambia su plan ni cómo lo paga.</p>
+          {cupoOk && <p className="mt-1.5 text-xs text-menta-300">{cupoOk}</p>}
+        </div>
         <div>
           <p className="etiqueta">Plan</p>
           <div className="grid grid-cols-3 gap-1.5">
@@ -353,12 +395,6 @@ function RegalarPlan({ pro, actual, cuentasDefecto, onCerrar, onGuardado }) {
               <label className="etiqueta" htmlFor="r-hasta">Regalo hasta (vacío = sin vencimiento)</label>
               <input id="r-hasta" type="date" className="campo" value={form.hasta} onChange={(e) => setForm({ ...form, hasta: e.target.value })} />
             </div>
-            {form.plan === 'business' && (
-              <div>
-                <label className="etiqueta" htmlFor="r-cuentas">Cuentas que puede tener la empresa</label>
-                <input id="r-cuentas" type="number" min="1" className="campo" placeholder={`Por defecto: ${cuentasDefecto}`} value={form.max_cuentas} onChange={(e) => setForm({ ...form, max_cuentas: e.target.value })} />
-              </div>
-            )}
           </>
         )}
         <div>

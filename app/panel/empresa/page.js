@@ -8,7 +8,7 @@ import BloqueoPlan from '@/components/BloqueoPlan';
 import { usePanel } from '@/components/PanelContext';
 import { useContextoEquipo } from '@/lib/equipo';
 import { supabase } from '@/lib/supabase';
-import { esBusiness } from '@/lib/planes';
+import { esPro } from '@/lib/planes';
 import { PERMISOS, TEXTO_PERMISO, linkInvitacion, textoInvitacion } from '@/lib/empresa';
 import { qrSvg } from '@/lib/qr';
 import { mensajeError } from '@/lib/util';
@@ -188,7 +188,7 @@ function EditarMiembro({ miembro, roles, onCerrar, onCambio }) {
   );
 }
 
-function EditarRol({ rol, empresaId, onCerrar, onCambio }) {
+function EditarRol({ rol, empresaId, soloBusiness = [], onCerrar, onCambio }) {
   const [form, setForm] = useState(() => ({ nombre: rol?.nombre || '', permisos: rol?.permisos || [], bloqueado: !!rol?.bloqueado }));
   const [estado, setEstado] = useState({});
   const [guardando, setGuardando] = useState(false);
@@ -224,14 +224,18 @@ function EditarRol({ rol, empresaId, onCerrar, onCambio }) {
           <div className="space-y-1.5">
             {PERMISOS.map((p) => {
               const activo = form.permisos.includes(p.id);
+              const soloB = soloBusiness.includes(p.id);
               return (
-                <button key={p.id} type="button" onClick={() => alternar(p.id)} className={`flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left ${activo ? 'border-menta-500/60 bg-menta-500/10' : 'border-navy-700 bg-navy-850'}`}>
+                <button key={p.id} type="button" onClick={() => alternar(p.id)} disabled={soloB && !activo} className={`flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left disabled:opacity-50 ${activo ? 'border-menta-500/60 bg-menta-500/10' : 'border-navy-700 bg-navy-850'}`}>
                   <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border ${activo ? 'border-menta-400 bg-menta-500 text-navy-950' : 'border-navy-600'}`}>
                     {activo && <Icon name="check" className="h-3.5 w-3.5" strokeWidth={3} />}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block font-semibold">{p.texto}</span>
-                    <span className="block text-xs text-tinta-400">{p.detalle}</span>
+                    <span className="block font-semibold">
+                      {p.texto}
+                      {soloB && <span className="ml-2 rounded-full bg-marca-naranja/15 px-2 py-0.5 text-[10px] font-bold text-marca-naranja">Solo Business</span>}
+                    </span>
+                    <span className="block text-xs text-tinta-400">{soloB ? 'Con tu plan este permiso no se usa: es de Business.' : p.detalle}</span>
                   </span>
                 </button>
               );
@@ -257,7 +261,7 @@ function EditarRol({ rol, empresaId, onCerrar, onCambio }) {
   );
 }
 
-function CrearEmpresa({ onCreada, nombreSugerido }) {
+function CrearEmpresa({ onCreada, nombreSugerido, business = false }) {
   const [nombre, setNombre] = useState(nombreSugerido || '');
   const [estado, setEstado] = useState({});
   const [guardando, setGuardando] = useState(false);
@@ -275,16 +279,20 @@ function CrearEmpresa({ onCreada, nombreSugerido }) {
       <div className="flex items-start gap-3">
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-marca-naranja/15 text-marca-naranja"><Icon name="empresa" /></span>
         <div>
-          <h2 className="text-lg font-extrabold">Creá tu empresa</h2>
-          <p className="text-sm text-tinta-300">Tus clientes, agenda y finanzas pasan a ser los de la empresa, y sumás a tu equipo con roles: Administración, Producción y Ventas (los podés cambiar).</p>
+          <h2 className="text-lg font-extrabold">{business ? 'Creá tu empresa' : 'Armá tu equipo'}</h2>
+          <p className="text-sm text-tinta-300">
+            {business
+              ? 'Tus clientes, agenda y finanzas pasan a ser los de la empresa, y sumás a tu equipo con roles: Administración, Producción y Ventas (los podés cambiar).'
+              : 'Sumá hasta 2 colaboradores con su propia cuenta. Vos definís qué ve y qué hace cada uno con sus roles (arrancás con Ayudante y Administración, y los podés cambiar).'}
+          </p>
         </div>
       </div>
       <div>
-        <label className="etiqueta" htmlFor="emp-nombre">Nombre de la empresa</label>
+        <label className="etiqueta" htmlFor="emp-nombre">{business ? 'Nombre de la empresa' : 'Nombre de tu negocio o equipo'}</label>
         <input id="emp-nombre" className="campo" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej. Climatec Instalaciones" />
       </div>
       <Aviso estado={estado} />
-      <button type="button" className="btn btn-menta w-full" onClick={crear} disabled={guardando}>{guardando ? 'Creando…' : 'Crear empresa'}</button>
+      <button type="button" className="btn btn-menta w-full" onClick={crear} disabled={guardando}>{guardando ? 'Creando…' : business ? 'Crear empresa' : 'Armar mi equipo'}</button>
     </section>
   );
 }
@@ -352,8 +360,8 @@ export default function Empresa() {
             <Icon name="izq" />
           </Link>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-2xl font-extrabold">{info?.nombre || 'Mi empresa'}</h1>
-            {info && <p className="text-xs text-tinta-400">{info.usadas} de {info.cupo} cuentas del equipo</p>}
+            <h1 className="truncate text-2xl font-extrabold">{info?.nombre || (planPersonal?.plan === 'business' ? 'Mi empresa' : 'Mi equipo')}</h1>
+            {info && <p className="text-xs text-tinta-400">{info.usadas} de {info.cupo} colaboradores</p>}
           </div>
         </div>
       </header>
@@ -362,21 +370,26 @@ export default function Empresa() {
         <Aviso estado={estado} />
 
         {!empresaId ? (
-          esBusiness(planPersonal?.plan) ? (
-            <CrearEmpresa nombreSugerido={yo?.nombre_publico} onCreada={recargar} />
+          esPro(planPersonal?.plan) ? (
+            <CrearEmpresa nombreSugerido={yo?.nombre_publico} onCreada={recargar} business={planPersonal?.plan === 'business'} />
           ) : (
             <BloqueoPlan
-              plan="business"
-              titulo="Tu empresa con equipo"
-              texto="Sumá a tus operarios y administrativos con su propia cuenta y permisos."
-              puntos={['Invitaciones por email o QR', 'Roles editables: Administración, Producción, Ventas', 'Bloqueo de roles y cuentas', 'Cada uno conserva su cuenta personal']}
+              plan="pro"
+              titulo="Tu equipo de colaboradores"
+              texto="Sumá a tus ayudantes y administrativos con su propia cuenta y los permisos que vos definas. Con Pro, hasta 2 colaboradores; con Business, más."
+              puntos={['Invitaciones por email o QR', 'Roles que definís vos: qué ve y qué hace cada uno', 'Tickets y ruta para cada colaborador', 'Bloqueo de roles y cuentas', 'Cada uno conserva su cuenta personal']}
             />
           )
         ) : !info ? (
           <p className="text-tinta-400">Cargando…</p>
         ) : (
           <>
-            {!info.activa && <p className="rounded-xl bg-amber-400/10 p-3 text-sm text-amber-200">La empresa no tiene Business activo: el equipo no puede entrar hasta que se renueve.</p>}
+            {!info.activa && <p className="rounded-xl bg-amber-400/10 p-3 text-sm text-amber-200">La cuenta principal no tiene un plan Pro o Business activo: el equipo no puede entrar hasta que se renueve.</p>}
+            {info.activa && info.fuera_de_cupo > 0 && (
+              <p className="rounded-xl bg-amber-400/10 p-3 text-sm text-amber-200">
+                Tu plan permite {info.cupo} colaboradores y tenés {info.cupo + info.fuera_de_cupo} activos: {info.fuera_de_cupo === 1 ? 'el último que se sumó no puede entrar' : `los últimos ${info.fuera_de_cupo} que se sumaron no pueden entrar`}. Bloqueá o quitá a alguien, o pedile más lugar a TaListo!.
+              </p>
+            )}
 
             {ctxEquipo.puedeMonitorear && (
               <Link href="/panel/equipo" className="tarjeta flex items-center gap-3 p-4 hover:bg-navy-850">
@@ -399,7 +412,7 @@ export default function Empresa() {
                   <Icon name="mas" /> Invitar
                 </button>
               </div>
-              {lleno && <p className="mb-2 rounded-xl bg-navy-850 p-3 text-xs text-tinta-300">Llegaste al máximo de {info.cupo} cuentas de tu plan. Para sumar más, pedíselo a TaListo!.</p>}
+              {lleno && <p className="mb-2 rounded-xl bg-navy-850 p-3 text-xs text-tinta-300">Llegaste al máximo de {info.cupo} colaboradores de tu plan. {info.plan === 'pro' ? 'Con Business tenés más lugar, o ' : 'Para sumar más, '}pedíselo a TaListo!.</p>}
               {equipo.length === 0 ? (
                 <p className="tarjeta p-4 text-sm text-tinta-400">Todavía no sumaste a nadie. Tocá <b>Invitar</b> y mandá la invitación por WhatsApp, email o QR.</p>
               ) : (
@@ -412,6 +425,7 @@ export default function Empresa() {
                           <span className="block truncate font-semibold">
                             {m.nombre}
                             {m.estado !== 'activo' && <span className="ml-2 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">Bloqueada</span>}
+                            {m.estado === 'activo' && m.en_cupo === false && <span className="ml-2 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold text-amber-200">Fuera del cupo</span>}
                           </span>
                           <span className="block truncate text-xs text-tinta-400">{(m.roles || []).map(nombreRol).filter(Boolean).join(' · ') || 'Sin roles'}</span>
                         </span>
@@ -501,7 +515,9 @@ export default function Empresa() {
       )}
       {modal?.tipo === 'compartir' && <Compartir invitacion={modal.invitacion} empresa={info?.nombre || 'la empresa'} onCerrar={() => setModal(null)} />}
       {modal?.tipo === 'miembro' && <EditarMiembro miembro={modal.miembro} roles={roles} onCerrar={() => setModal(null)} onCambio={listo} />}
-      {modal?.tipo === 'rol' && <EditarRol rol={modal.rol} empresaId={empresaId} onCerrar={() => setModal(null)} onCambio={listo} />}
+      {modal?.tipo === 'rol' && (
+        <EditarRol rol={modal.rol} empresaId={empresaId} soloBusiness={info?.plan === 'pro' ? info.solo_business || [] : []} onCerrar={() => setModal(null)} onCambio={listo} />
+      )}
     </>
   );
 }

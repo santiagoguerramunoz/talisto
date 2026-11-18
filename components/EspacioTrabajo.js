@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import Icon from './Icon';
 import { usePanel } from './PanelContext';
-import { esBusiness } from '@/lib/planes';
+import { esPro } from '@/lib/planes';
 import { usable } from '@/lib/empresa';
 
 // Perfil > Espacio de trabajo: pasar de lo personal a una empresa del equipo, y gestionar la empresa propia
@@ -16,7 +16,7 @@ export default function EspacioTrabajo() {
   const miEmpresa = espacios.miEmpresa;
   const lista = espacios.empresas || [];
   const gestiona = empresa && (permisos || []).includes('equipo');
-  if (!lista.length && !miEmpresa && !esBusiness(planPersonal?.plan)) return null;
+  if (!lista.length && !miEmpresa && !esPro(planPersonal?.plan)) return null;
 
   async function elegir(id) {
     setCambiando(id || 'personal');
@@ -25,7 +25,8 @@ export default function EspacioTrabajo() {
 
   function estadoDe(e) {
     if (e.estado !== 'activo') return 'Tu cuenta está bloqueada en esta empresa';
-    if (!e.activa) return 'La empresa no tiene Business activo';
+    if (e.en_cupo === false) return 'La empresa llegó al máximo de colaboradores de su plan: por ahora no podés entrar';
+    if (!e.activa) return 'La empresa no tiene un plan Pro o Business activo';
     if (!(e.permisos || []).length) return 'Todavía no tenés roles asignados';
     return (e.roles || []).join(' · ') || 'Sin roles';
   }
@@ -64,20 +65,20 @@ export default function EspacioTrabajo() {
           <Link href="/panel/empresa" className="flex items-center gap-3 px-4 py-3 hover:bg-navy-850">
             <Icon name="clientes" className="h-5 w-5 shrink-0 text-marca-naranja" />
             <span className="min-w-0 flex-1">
-              <span className="block font-semibold">{gestiona ? `Equipo de ${empresa.nombre}` : `Mi empresa: ${miEmpresa.nombre}`}</span>
+              <span className="block font-semibold">{gestiona ? `Equipo de ${empresa.nombre}` : `Mi equipo: ${miEmpresa.nombre}`}</span>
               <span className="block text-xs text-tinta-400">
-                {miEmpresa && !gestiona ? `${miEmpresa.usadas} de ${miEmpresa.cupo} cuentas · ` : ''}Cuentas, roles e invitaciones
+                {miEmpresa && !gestiona ? `${miEmpresa.usadas} de ${miEmpresa.cupo} colaboradores · ` : ''}Colaboradores, roles e invitaciones
               </span>
             </span>
             <Icon name="der" className="h-4 w-4 text-tinta-500" />
           </Link>
         )}
-        {!miEmpresa && !empresa && esBusiness(planPersonal?.plan) && (
+        {!miEmpresa && !empresa && esPro(planPersonal?.plan) && (
           <Link href="/panel/empresa" className="flex items-center gap-3 px-4 py-3 hover:bg-navy-850">
             <Icon name="empresa" className="h-5 w-5 shrink-0 text-marca-naranja" />
             <span className="min-w-0 flex-1">
-              <span className="block font-semibold">Crear mi empresa</span>
-              <span className="block text-xs text-tinta-400">Invitá a tu equipo y dales roles con permisos</span>
+              <span className="block font-semibold">{planPersonal?.plan === 'business' ? 'Crear mi empresa' : 'Armar mi equipo'}</span>
+              <span className="block text-xs text-tinta-400">{planPersonal?.plan === 'business' ? 'Invitá a tu equipo y dales roles con permisos' : 'Sumá hasta 2 colaboradores con los permisos que vos definas'}</span>
             </span>
             <Icon name="der" className="h-4 w-4 text-tinta-500" />
           </Link>
