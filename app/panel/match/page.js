@@ -110,7 +110,7 @@ function Match() {
             {ver === 'pedidos' && (
               <>
                 <p className="text-sm text-tinta-300">
-                  Clientes que pidieron &ldquo;el primero disponible&rdquo; en tus rubros, desde la app (ya pagos) o por WhatsApp (pagan cuando lo tomás o aceptan tu cotización). El primero que lo toma, lo atiende.{' '}
+                  Clientes que pidieron &ldquo;el primero disponible&rdquo; en tus rubros, desde la app o por WhatsApp. Tomalo al precio base o, si la visita sale más cara, mandá tu cotización: el cliente paga cuando lo tomás o cuando la acepta.{' '}
                   <Link href="/panel/mapa?ver=servicios" className="font-bold text-menta-300">Ver en el mapa</Link>
                 </p>
                 <ServiciosDisponibles cuenta={cuenta} conMapa={false} />

@@ -155,7 +155,7 @@ export default function ServiciosDisponibles({ cuenta, ubicacion = null, conMapa
               </div>
               <p className="mt-1.5 line-clamp-3 text-sm text-tinta-200">{x.descripcion}</p>
               {x.archivos?.length > 0 && <div className="mt-2"><ArchivosMatch rutas={x.archivos} tam="h-14 w-14" /></div>}
-              {x.canal === 'whatsapp' && <p className="mt-1.5 text-[11px] text-tinta-400">Pedido por WhatsApp: el cliente paga cuando lo tomás o cuando acepta tu cotización.</p>}
+              {x.pago === 'al_tomar' && <p className="mt-1.5 text-[11px] text-tinta-400">{x.canal === 'whatsapp' ? 'Pedido por WhatsApp: el' : 'El'} cliente paga cuando lo tomás o cuando acepta tu cotización. Si la visita sale más cara, cotizala.</p>}
               {x.mi_cotizacion && (
                 <p className={`mt-2 rounded-lg p-2 text-xs ${x.mi_cotizacion.estado === 'pendiente' ? 'bg-[#0a84ff]/10 text-[#8cc8ff]' : 'bg-navy-850 text-tinta-400'}`}>
                   {x.mi_cotizacion.estado === 'pendiente'
@@ -260,7 +260,7 @@ function Tomar({ x, cuenta, duracion, onCerrar, onListo, onYaNo }) {
         <ul className="space-y-1 rounded-xl bg-navy-850 p-3 text-xs text-tinta-300">
           {x.pago === 'al_tomar' ? (
             <>
-              <li>• Al tomarlo, al cliente le llega el link para pagar {pesos(x.importe)}. Tiene 30 minutos; si no paga, el pedido vuelve al mapa y se libera tu agenda.</li>
+              <li>• Al tomarlo, al cliente le llega el aviso para pagar {pesos(x.importe)}. Tiene 30 minutos; si no paga, el pedido vuelve al mapa y se libera tu agenda.</li>
               <li>• Cuando paga, te quedan {pesos(x.neto)} y ves la dirección y el teléfono del cliente.</li>
             </>
           ) : (
@@ -283,7 +283,7 @@ function Tomar({ x, cuenta, duracion, onCerrar, onListo, onYaNo }) {
   );
 }
 
-// Cotizar un pedido de WhatsApp: tu precio (lo que recibís) y a qué hora llegás
+// Cotizar un pedido (de la app o de WhatsApp): tu precio (lo que recibís) y a qué hora llegás
 function Cotizar({ x, cuenta, datos, onCerrar, onListo, onYaNo }) {
   const opciones = horasPosibles(x.desde, x.hasta, datos.duracion_visita_min || 60, x.cuando === 'hoy' ? 15 : 30);
   const [hora_, setHora] = useState(x.mi_cotizacion?.inicio || opciones[0]?.toISOString() || '');

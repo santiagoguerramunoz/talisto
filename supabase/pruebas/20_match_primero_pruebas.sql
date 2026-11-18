@@ -45,6 +45,12 @@ do $$ begin
   end if;
 end $$;
 
+-- Con el SQL 24 "el primero disponible" de la app se paga al tomar: estas pruebas son del cobro al publicar
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'configuracion' and column_name = 'primero_cobro_adelantado') then
+    execute 'update public.configuracion set primero_cobro_adelantado = true where id = 1';
+  end if;
+end $$;
 -- Perfiles Match: rubro electricidad (b1, b2 Free, b4 Canelones, b5 sin cuenta bancaria, e0 Business), b3 solo sanitaria
 insert into public.match_perfiles (profesional_id, disponible, rubros)
 select p, true, array[(select id from public.categorias where slug = case when p::text like '%b3' then 'sanitaria' else 'electricidad' end)]

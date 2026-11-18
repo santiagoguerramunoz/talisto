@@ -60,6 +60,14 @@ function Solicitud() {
       .then(({ data }) => setCotizPrimero(data || null));
   }, [sinPagarPrimero, sp?.cuando, sp?.fecha, sp?.franja, sp?.urgente]);
 
+  // "El primero disponible" sin pagar: mientras nadie lo toma se refresca para mostrar las cotizaciones que llegan
+  const esperandoTecnico = sp?.pago === 'al_tomar' && sp.estado === 'abierta' && !sp.tomada;
+  useEffect(() => {
+    if (!esperandoTecnico) return undefined;
+    const t = setInterval(cargar, 30000);
+    return () => clearInterval(t);
+  }, [esperandoTecnico, cargar]);
+
   // Volviendo de Mercado Pago: el pago se confirma con el aviso de Mercado Pago (puede tardar unos segundos)
   useEffect(() => {
     if (cargando || pago !== 'ok') return undefined;
@@ -112,7 +120,22 @@ function Solicitud() {
   const visita = ops.find((o) => o.tipo === 'visita' && o.estado !== 'cancelado') || ops.find((o) => o.tipo === 'visita');
   const aPagar = ops.find((o) => o.estado === 'pendiente_pago' && new Date(o.vence_pago_en) > new Date());
   const primero = s.modo === 'primero';
-  const buscando = primero && visita?.estado === 'buscando_tecnico';
+  const alTomar = primero && s.pago === 'al_tomar'; // se paga cuando un técnico lo toma o al aceptar una cotización
+  const buscando = primero && (visita?.estado === 'buscando_tecnico' || (alTomar && s.estado === 'abierta' && !s.tomada && !aPagar));
+  const pagado = buscando && !alTomar;
+  const cotizaciones = alTomar && buscando ? d.cotizaciones || [] : [];
+
+  async function aceptarCotizacion(k) {
+    setOcupado(true);
+    setError('');
+    const { data, error: err } = await supabase.rpc('aceptar_cotizacion', { p_cotizacion: k.id });
+    if (err) {
+      setOcupado(false);
+      setError(mensajeError(err));
+      return cargar();
+    }
+    await pagar(data.operacion);
+  }
   const sinPagar = primero && s.estado === 'abierta' && !s.publicada_en && !aPagar;
 
   async function pagarPrimero() {
@@ -143,7 +166,7 @@ function Solicitud() {
           {aPagar && (
             <section className="rounded-2xl border border-amber-400/40 bg-amber-400/10 p-4">
               <p className="font-bold">Falta pagar la visita</p>
-              {primero ? (
+              {primero && !alTomar ? (
                 <p className="mt-1 text-sm text-tinta-200">
                   El primero disponible · {cuandoTexto(s)}. Cuando pagues, tu pedido aparece en el mapa de los técnicos del rubro.
                 </p>
@@ -180,16 +203,50 @@ function Solicitud() {
           {buscando && (
             <section className="tarjeta space-y-2 border-[#0a84ff]/40 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="font-bold">Esperando que un técnico lo tome</h2>
+                <h2 className="font-bold">{alTomar ? 'Buscando técnico' : 'Esperando que un técnico lo tome'}</h2>
                 <Estado valor="buscando_tecnico" />
               </div>
               <p className="text-sm text-tinta-200">
                 Tu pedido está en el mapa de los técnicos de {s.rubro}. El primero que lo tome te visita <b>{cuandoTexto(s).toLowerCase()}</b> y te avisamos a qué hora llega.
               </p>
-              <p className="text-xs text-tinta-400">
-                Pagaste {pesos(visita.importe)}{visita.pagado_en ? ` el ${fechaHora(visita.pagado_en)}` : ''}. Si nadie lo toma antes de las{' '}
-                {hora(s.limite_toma)} del {fecha(s.limite_toma)}, te devolvemos todo.
-              </p>
+              {alTomar ? (
+                <p className="text-xs text-tinta-400">
+                  Todavía no pagaste nada. Si lo toman al precio base pagás {pesos(s.precio_base)}; si la visita sale más cara, el técnico te manda su
+                  cotización y vos decidís. Si nadie lo toma antes de las {hora(s.limite_toma)} del {fecha(s.limite_toma)}, se cancela solo.
+                </p>
+              ) : (
+                <p className="text-xs text-tinta-400">
+                  Pagaste {pesos(visita.importe)}{visita.pagado_en ? ` el ${fechaHora(visita.pagado_en)}` : ''}. Si nadie lo toma antes de las{' '}
+                  {hora(s.limite_toma)} del {fecha(s.limite_toma)}, te devolvemos todo.
+                </p>
+              )}
+            </section>
+          )}
+
+          {cotizaciones.length > 0 && (
+            <section>
+              <h2 className="titulo-seccion mb-2">{cotizaciones.length === 1 ? 'Te mandaron una cotización' : `Te mandaron ${cotizaciones.length} cotizaciones`}</h2>
+              <ul className="space-y-2">
+                {cotizaciones.map((k) => (
+                  <li key={k.id} className="tarjeta p-4">
+                    <TarjetaProfesional p={k.profesional} />
+                    {k.mensaje && <p className="mt-2 rounded-xl bg-navy-850 p-2.5 text-sm text-tinta-200">“{k.mensaje}”</p>}
+                    <p className="mt-2 text-sm text-tinta-300">
+                      Llega el <b className="text-tinta-100">{diaLargo(k.inicio)}, {hora(k.inicio)}</b>
+                      {k.urgencia && <span className="ml-1.5 rounded-full bg-[#ff8a5c]/15 px-2 py-0.5 text-[11px] font-semibold text-[#ffc2a8]">Urgencia</span>}
+                    </p>
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <span className="text-sm text-tinta-300">
+                        Visita <b className="text-tinta-100">{pesos(k.importe)}</b> <span className="text-xs text-tinta-400">(incluye TaListo!)</span>
+                      </span>
+                      <button className="btn btn-menta px-4 py-2 text-sm" disabled={ocupado} onClick={() => aceptarCotizacion(k)}>
+                        Aceptar y pagar
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-tinta-400">Si preferís esperar, otro técnico puede tomarlo al precio base ({pesos(s.precio_base)}).</p>
             </section>
           )}
 
@@ -252,8 +309,8 @@ function Solicitud() {
                 className="text-xs font-semibold text-tinta-400 underline"
                 disabled={ocupado}
                 onClick={() =>
-                  window.confirm(buscando ? '¿Cancelar el pedido? Te devolvemos todo lo que pagaste.' : '¿Cancelar la solicitud?') &&
-                  rpc('cancelar_solicitud', { p_id: s.id }, buscando ? 'Pedido cancelado. Te devolvemos el pago por Mercado Pago.' : 'Solicitud cancelada.')
+                  window.confirm(pagado ? '¿Cancelar el pedido? Te devolvemos todo lo que pagaste.' : buscando ? '¿Cancelar el pedido?' : '¿Cancelar la solicitud?') &&
+                  rpc('cancelar_solicitud', { p_id: s.id }, pagado ? 'Pedido cancelado. Te devolvemos el pago por Mercado Pago.' : buscando ? 'Pedido cancelado.' : 'Solicitud cancelada.')
                 }
               >
                 {buscando ? 'Cancelar el pedido' : 'Cancelar solicitud'}

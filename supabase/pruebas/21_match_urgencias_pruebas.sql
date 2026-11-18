@@ -34,6 +34,12 @@ update public.configuracion set precio_visita = 1500, visita_ret_cliente = 200, 
     "5": {"desde": "08:00", "hasta": "18:00"}, "6": {"desde": "08:00", "hasta": "13:00"}}'
  where id = 1;
 update public.match_tareas set ultima = null;
+-- Con el SQL 24 "el primero disponible" de la app se paga al tomar: estas pruebas son del cobro al publicar
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'configuracion' and column_name = 'primero_cobro_adelantado') then
+    execute 'update public.configuracion set primero_cobro_adelantado = true where id = 1';
+  end if;
+end $$;
 -- Solo estos dos técnicos hacen electricidad en Montevideo durante la prueba
 update public.match_perfiles set disponible = false where profesional_id::text not like '21000000-%';
 

@@ -35,6 +35,7 @@ function NuevaSolicitud() {
   const [urgencia, setUrgencia] = useState(null); // { precio, activa } (SQL 21)
   const [cotiz, setCotiz] = useState(null); // precio de "el primero disponible" para lo elegido
   const [primeroActivo, setPrimeroActivo] = useState(true);
+  const [adelantado, setAdelantado] = useState(false); // true = "el primero disponible" se paga al publicar (como antes)
   const [modo, setModo] = useState(params.get('modo') === 'primero' ? 'primero' : 'invitar');
   const [cuando, setCuando] = useState({ tipo: esTardeHoy() ? 'dia' : 'hoy', fecha: masDias(hoyISO(), 1), franja: 'cualquiera' });
   const [ubic, setUbic] = useState({ direccion: '', lat: null, lng: null });
@@ -63,6 +64,7 @@ function NuevaSolicitud() {
       setRubros(r || []);
       setPrecio(c?.precio_visita ?? null);
       if (c?.precio_urgencia !== undefined && c.urgencia_activa) setUrgencia({ precio: c.precio_urgencia });
+      setAdelantado(!!c?.primero_cobro_adelantado);
       if (c && c.primero_activo === false) {
         setPrimeroActivo(false);
         setModo('invitar');
@@ -118,7 +120,7 @@ function NuevaSolicitud() {
         setEnviando('Subiendo fotos y videos…');
         rutas = await subirArchivos(archivos, crypto.randomUUID());
       }
-      setEnviando(primero ? 'Preparando el pago…' : 'Buscando profesionales…');
+      setEnviando(primero ? (adelantado ? 'Preparando el pago…' : 'Publicando tu pedido…') : 'Buscando profesionales…');
       const extra = primero
         ? { modo: 'primero', direccion: ubic.direccion, lat: ubic.lat, lng: ubic.lng, cuando: cuando.tipo, fecha: cuando.tipo === 'dia' ? cuando.fecha : null, franja: cuando.tipo === 'dia' ? cuando.franja : null }
         : { lat: ubic.lat, lng: ubic.lng, direccion: ubic.direccion || f.direccion };
@@ -159,7 +161,9 @@ function NuevaSolicitud() {
               <div className="grid grid-cols-2 gap-2">
                 {[
                   ['invitar', 'Recibir propuestas', 'Los técnicos de tu zona responden y elegís uno con su horario. Pagás al elegir.'],
-                  ['primero', 'El primero disponible', 'Pagás ahora y te atiende el primer técnico del rubro que lo toma. Si nadie lo toma a tiempo, te devolvemos todo.'],
+                  ['primero', 'El primero disponible', adelantado
+                    ? 'Pagás ahora y te atiende el primer técnico del rubro que lo toma. Si nadie lo toma a tiempo, te devolvemos todo.'
+                    : 'Te atiende el primer técnico del rubro que lo toma. Si la visita sale más cara, te cotiza y elegís. Pagás recién ahí.'],
                 ].map(([v, t, d]) => (
                   <button key={v} type="button" onClick={() => setModo(v)} className={`rounded-2xl border p-3 text-left ${modo === v ? 'border-menta-400 bg-menta-500/10' : 'border-navy-700 bg-navy-850'}`}>
                     <b className="flex items-center gap-1.5 text-sm">{v === 'primero' && <Icon name="match" className="h-4 w-4 text-menta-300" />}{t}</b>
@@ -304,11 +308,18 @@ function NuevaSolicitud() {
           {esPrimero && cotiz?.pasada && <p className="rounded-xl bg-amber-400/10 p-3 text-xs text-amber-100">Esa franja ya pasó: elegí otra.</p>}
           {error && <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
           <button className="btn btn-menta w-full py-3.5 text-base" disabled={!!enviando}>
-            {enviando || (esPrimero ? `Pagar ${precioPrimero !== null && precioPrimero !== undefined ? pesos(precioPrimero) : 'la visita'} y publicar` : 'Publicar solicitud')}
+            {enviando ||
+              (esPrimero
+                ? adelantado
+                  ? `Pagar ${precioPrimero !== null && precioPrimero !== undefined ? pesos(precioPrimero) : 'la visita'} y publicar`
+                  : 'Publicar pedido'
+                : 'Publicar solicitud')}
           </button>
           <p className="text-center text-xs text-tinta-400">
             {modo === 'primero' && !dirigida
-              ? 'Pagás con Mercado Pago (tarjeta o saldo). TaListo! retiene el pago hasta que confirmás la visita; si nadie toma tu pedido a tiempo o lo cancelás antes, te lo devolvemos.'
+              ? adelantado
+                ? 'Pagás con Mercado Pago (tarjeta o saldo). TaListo! retiene el pago hasta que confirmás la visita; si nadie toma tu pedido a tiempo o lo cancelás antes, te lo devolvemos.'
+                : `Publicar es gratis. Si un técnico lo toma pagás ${precioPrimero !== null && precioPrimero !== undefined ? pesos(precioPrimero) : 'la visita'}; si la visita sale más cara, te manda su cotización y vos decidís. Pagás con Mercado Pago y TaListo! retiene el pago hasta que confirmás la visita.`
               : `Publicar es gratis. Pagás la visita ${
                   f.urgente && urgencia
                     ? `(${pesos(urgencia.precio)}, urgencia) `
