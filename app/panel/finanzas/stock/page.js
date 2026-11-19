@@ -12,6 +12,7 @@ import EditorMaterial from '@/components/EditorMaterial';
 import MovimientoStock, { ACCIONES } from '@/components/MovimientoStock';
 import FilaMovimiento from '@/components/FilaMovimiento';
 import PedidosMateriales from '@/components/PedidosMateriales';
+import MaterialesTrabajo from '@/components/MaterialesTrabajo';
 import { BotonComprobante } from '@/components/ComprobantesLeidos';
 import { avisar } from '@/lib/avisos';
 import { supabase } from '@/lib/supabase';
@@ -93,6 +94,7 @@ function Stock() {
   const [lugarFiltro, setLugarFiltro] = useState('');
   const [q, setQ] = useState('');
   const [archivados, setArchivados] = useState(false);
+  const [trabajoAbierto, setTrabajoAbierto] = useState(null); // materiales de un trabajo (reservados, procesados, devolución)
   const [movs, setMovs] = useState({ lista: [], cargando: false, fin: false, tipo: '', error: '' });
 
   const cargar = useCallback(async () => {
@@ -175,7 +177,9 @@ function Stock() {
   const pendientes = ex.pendientes || [];
   const lugaresStock = (ex.lugares || []).filter((l) => l.tipo !== 'trabajo');
   const trabajos = (ex.lugares || []).filter((l) => l.tipo === 'trabajo');
-  const raros = trabajos.filter((t) => t.trabajo_estado === 'cancelado' || t.trabajo_estado === 'borrado');
+  const raros = trabajos.filter((t) => t.trabajo_estado === 'borrado');
+  const pendientesDev = trabajos.filter((t) => t.trabajo_cerrado && t.trabajo_estado !== 'borrado');
+  const reservados = trabajos.filter((t) => !t.trabajo_cerrado);
   const fuera = lugaresStock.filter((l) => l.tipo === 'operario' && !l.activo && l.materiales > 0);
   const valor = ex.ve_costos
     ? activos.reduce((s, m) => s + (m.moneda === 'USD' ? 0 : totalMaterial(m) * Number(m.costo || 0)), 0)
@@ -306,8 +310,21 @@ function Stock() {
       )}
 
       {/* Alertas */}
-      {(bajos.length > 0 || raros.length > 0 || fuera.length > 0) && (
+      {(bajos.length > 0 || raros.length > 0 || fuera.length > 0 || pendientesDev.length > 0) && (
         <section className="space-y-2">
+          {pendientesDev.length > 0 && (
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-100">
+              <span className="min-w-0 flex-1">
+                <b className="text-amber-200">
+                  {pendientesDev.length} {pendientesDev.length === 1 ? 'trabajo terminó' : 'trabajos terminaron'} con materiales sin procesar
+                </b>{' '}
+                · pendientes de devolución.
+              </span>
+              <button type="button" className="font-bold text-amber-200 underline" onClick={() => setTab('lugares')}>
+                Ver
+              </button>
+            </p>
+          )}
           {bajos.length > 0 && (
             <details className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-3 text-sm">
               <summary className="cursor-pointer font-bold text-amber-200">
@@ -560,35 +577,22 @@ function Stock() {
               </p>
             )}
           </div>
+          {pendientesDev.length > 0 && (
+            <div>
+              <h2 className="titulo-seccion mb-2 text-amber-300">Pendientes de devolución</h2>
+              <ListaTrabajos lista={pendientesDev} gestiona={gestiona} onVer={setTrabajoAbierto} pendiente />
+            </div>
+          )}
           <div>
-            <h2 className="titulo-seccion mb-2">Trabajos abiertos con materiales</h2>
-            {trabajos.length ? (
-              <ul className="space-y-2">
-                {trabajos.map((t) => (
-                  <li key={t.id} className="tarjeta flex items-center gap-2 p-3">
-                    <Icon name={t.orden_id ? 'maletin' : 'herramienta'} className="h-5 w-5 shrink-0 text-tinta-400" />
-                    <span className="min-w-0 flex-1">
-                      <b className="block truncate text-sm">{t.nombre}</b>
-                      <span className="text-[11px] text-tinta-400">
-                        {t.materiales} {t.materiales === 1 ? 'material' : 'materiales'} · {estadoTrabajo(t.trabajo_estado)}
-                      </span>
-                    </span>
-                    {gestiona && t.trabajo_estado !== 'borrado' && (
-                      <button
-                        type="button"
-                        className="chip shrink-0"
-                        onClick={() => abrirAccion('devolucion_trabajo', { trabajo: { tipo: t.orden_id ? 'ticket' : 'turno', id: t.orden_id || t.turno_id, nombre: t.nombre } })}
-                      >
-                        Devolver
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
+            <h2 className="titulo-seccion mb-2">Reservados en trabajos</h2>
+            {reservados.length ? (
+              <ListaTrabajos lista={reservados} gestiona={gestiona} onVer={setTrabajoAbierto} />
             ) : (
-              <p className="rounded-xl bg-navy-850 p-3 text-sm text-tinta-400">Ningún trabajo abierto tiene materiales sin usar.</p>
+              <p className="rounded-xl bg-navy-850 p-3 text-sm text-tinta-400">Ningún trabajo abierto tiene materiales reservados.</p>
             )}
-            <p className="mt-2 text-xs text-tinta-500">Lo que queda en un trabajo terminado cuenta como usado en ese trabajo.</p>
+            <p className="mt-2 text-xs text-tinta-500">
+              Los materiales asignados a un trabajo quedan reservados. Lo que se procesa se descuenta como usado; lo que no, queda pendiente de devolución hasta que vuelve al depósito.
+            </p>
           </div>
         </section>
       )}
@@ -621,6 +625,24 @@ function Stock() {
           preset={preset}
         />
       )}
+
+      <Modal abierto={!!trabajoAbierto} onCerrar={() => setTrabajoAbierto(null)} titulo="Materiales del trabajo">
+        {trabajoAbierto && (
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-tinta-200">{trabajoAbierto.nombre}</p>
+            <MaterialesTrabajo
+              cuenta={cuenta}
+              tipo={trabajoAbierto.orden_id ? 'ticket' : 'turno'}
+              id={trabajoAbierto.orden_id || trabajoAbierto.turno_id}
+              modo="gestion"
+              onCambio={() => {
+                cargar();
+                if (tab === 'movimientos') cargarMovs(movs.tipo);
+              }}
+            />
+          </div>
+        )}
+      </Modal>
 
       <DetalleMovimiento
         mov={detalle}
@@ -655,6 +677,29 @@ function Stock() {
 
       <EditorDeposito deposito={deposito} cuenta={cuenta} onCerrar={() => setDeposito(null)} onGuardado={() => cargar()} />
     </>
+  );
+}
+
+// Trabajos con materiales del stock (reservados o pendientes de devolución)
+function ListaTrabajos({ lista, gestiona, onVer, pendiente = false }) {
+  return (
+    <ul className="space-y-2">
+      {lista.map((t) => (
+        <li key={t.id} className={`tarjeta flex items-center gap-2 p-3 ${pendiente ? 'border-amber-400/40' : ''}`}>
+          <Icon name={t.orden_id ? 'maletin' : 'herramienta'} className={`h-5 w-5 shrink-0 ${pendiente ? 'text-amber-300' : 'text-tinta-400'}`} />
+          <span className="min-w-0 flex-1">
+            <b className="block truncate text-sm">{t.nombre}</b>
+            <span className="text-[11px] text-tinta-400">
+              {t.materiales} {t.materiales === 1 ? 'material' : 'materiales'} {pendiente ? 'sin procesar' : 'reservados'} · {estadoTrabajo(t.trabajo_estado)}
+              {t.asignado ? ` · ${t.asignado}` : ''}
+            </span>
+          </span>
+          <button type="button" className={`chip shrink-0 ${pendiente && gestiona ? 'chip-activo' : ''}`} onClick={() => onVer(t)}>
+            {pendiente && gestiona ? 'Gestionar devolución' : 'Ver'}
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 

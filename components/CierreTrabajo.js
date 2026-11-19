@@ -351,8 +351,8 @@ export default function CierreTrabajo({ item, cuenta, opcionInicial = 'finalizar
           <button type="button" onClick={onMateriales} className="flex w-full items-center gap-3 rounded-xl border border-navy-700 bg-navy-850 p-3 text-left text-sm hover:bg-navy-800">
             <Icon name="caja" className="h-5 w-5 shrink-0 text-menta-300" />
             <span className="min-w-0 flex-1">
-              <b className="block">¿Usaste materiales?</b>
-              <span className="text-xs text-tinta-400">Cargá lo que usaste de tu stock y devolvé lo que sobró.</span>
+              <b className="block">Materiales del trabajo</b>
+              <span className="text-xs text-tinta-400">Procesá lo que usaste. Lo que no proceses queda pendiente de devolución.</span>
             </span>
             <Icon name="der" className="h-4 w-4 shrink-0 text-tinta-400" />
           </button>

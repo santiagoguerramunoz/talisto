@@ -36,7 +36,7 @@ export function emparejar(items, materiales) {
 
 /**
  * Stock: pedidos de materiales de los tickets para aprobar.
- * Aprobar = entregar con un comprobante (al operario del ticket, o directo al trabajo). Rechazar = con el motivo.
+ * Aprobar = asignar los materiales al ticket con un comprobante (quedan reservados para ese trabajo). Rechazar = con el motivo.
  * onEntregar(pedido, { accion, preset }) abre el formulario de movimiento ya cargado.
  */
 export default function PedidosMateriales({ cuenta, ctx, gestiona, onEntregar, recarga = 0 }) {
@@ -73,10 +73,9 @@ export default function PedidosMateriales({ cuenta, ctx, gestiona, onEntregar, r
     const pares = emparejar(p.items || [], ctx?.materiales);
     const renglones = pares.filter((x) => x.material).map((x) => nuevoRenglon(x.material, Number(x.it.cantidad) || 1));
     const faltan = pares.filter((x) => !x.material).map((x) => `${cant(x.it.cantidad)} ${x.it.unidad || 'u'} ${x.it.descripcion}`);
-    const operario = p.asignado_a ? (ctx?.equipo || []).find((e) => e.usuario_id === p.asignado_a) : null;
     const nota = `Pedido de materiales Nº ${p.numero}${p.ticket_numero ? ` · Ticket Nº ${String(p.ticket_numero).padStart(4, '0')}` : ''}${faltan.length ? ` · Sin material en el stock: ${faltan.join(', ')}` : ''}`;
-    if (operario) onEntregar(p, { accion: 'entrega', preset: { destino: operario.id, renglones, nota } });
-    else onEntregar(p, { accion: 'a_trabajo', preset: { trabajo: { tipo: p.turno_id ? 'turno' : 'ticket', id: p.turno_id || p.orden_id, nombre: p.titulo }, renglones, nota } });
+    // Se asignan al ticket: quedan reservados para ese trabajo y quien lo hace los procesa ahí (SQL 25)
+    onEntregar(p, { accion: 'a_trabajo', preset: { trabajo: { tipo: p.turno_id ? 'turno' : 'ticket', id: p.turno_id || p.orden_id, nombre: p.titulo }, renglones, nota } });
   }
 
   async function rechazar(p) {
@@ -142,7 +141,7 @@ export default function PedidosMateriales({ cuenta, ctx, gestiona, onEntregar, r
                 ) : (
                   <div className="grid grid-cols-[1fr_auto] gap-2">
                     <button type="button" className="btn btn-menta py-2.5 text-sm" onClick={() => entregar(p)}>
-                      <Icon name="check" className="h-4 w-4" /> {p.asignado ? `Aprobar y entregar a ${p.asignado.split(' ')[0]}` : 'Aprobar y mandar al trabajo'}
+                      <Icon name="check" className="h-4 w-4" /> Aprobar y asignar al ticket
                     </button>
                     <button type="button" className="btn btn-sec py-2.5 text-sm" onClick={() => (setRechazando(p.id), setMotivo(''))}>
                       Rechazar
