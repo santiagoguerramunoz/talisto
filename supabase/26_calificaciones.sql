@@ -8,6 +8,9 @@
 --    la 11, y así): un mal día se supera rápido.
 --  · Estrellas = promedio ÷ 2, con fracción (7 → 3,5 ★), mínimo 1 ★.
 --  · Las calificaciones viejas (1 a 5 estrellas) se pasan a 0–10 (× 2).
+--  · Orden para los clientes: "puntaje sostenido" = promedio del puntaje
+--    día a día en los últimos 6 meses (antes de la primera calificación
+--    cuenta 2,5 ★). Más puntaje por más tiempo → más arriba.
 --  Correr después del 25. Se puede correr más de una vez.
 -- =====================================================================
 
@@ -25,7 +28,28 @@ returns numeric language sql immutable set search_path = public as $$
   select case when p_nota is null then null else greatest(1, round(p_nota / 2, 1)) end;
 $$;
 
--- 3. Puntaje del profesional: promedio de sus últimas 10 contrataciones calificadas
+-- 3. Puntaje sostenido: promedio del puntaje (últimas 10, en estrellas) a lo largo de los últimos p_dias.
+--    El puntaje solo cambia con cada calificación, así que se suma por tramos; antes de la primera cuenta 2,5 ★.
+create or replace function public._puntaje_sostenido(p_prof uuid, p_dias int default 180)
+returns numeric language sql stable security definer set search_path = public as $$
+  with v as (select now() - make_interval(days => p_dias) as ini, now() as fin),
+  c as (
+    select k.creado_en as desde, lead(k.creado_en) over w as hasta,
+           public._estrellas_de(avg(k.nota) over (w rows between 9 preceding and current row)) as est
+      from public.match_calificaciones k
+     where k.profesional_id = p_prof and k.nota is not null
+    window w as (order by k.creado_en, k.id)
+  ),
+  tramos as (
+    select v.ini as a, least(coalesce((select min(desde) from c), v.fin), v.fin) as b, 2.5::numeric as est from v
+    union all
+    select greatest(c.desde, v.ini), least(coalesce(c.hasta, v.fin), v.fin), c.est from c, v
+  )
+  select round(sum(extract(epoch from (b - a)) * est) / (select extract(epoch from (fin - ini)) from v), 2)
+    from tramos where b > a;
+$$;
+
+-- 4. Puntaje del profesional: promedio de sus últimas 10 contrataciones calificadas
 create or replace function public._calif_prof(p_prof uuid)
 returns json language sql stable security definer set search_path = public as $$
   with u as (select nota, puntualidad, velocidad, desempeno from public.match_calificaciones
@@ -37,7 +61,8 @@ returns json language sql stable security definer set search_path = public as $$
     'velocidad', (select round(avg(velocidad), 1) from u),
     'desempeno', (select round(avg(desempeno), 1) from u),
     'ultimas', (select count(*) from u),
-    'cantidad', (select count(*) from public.match_calificaciones where profesional_id = p_prof));
+    'cantidad', (select count(*) from public.match_calificaciones where profesional_id = p_prof),
+    'sostenido', public._puntaje_sostenido(p_prof));                    -- con esto se ordena la lista
 $$;
 
 create or replace function public._estrellas_prof(p_prof uuid)
@@ -46,7 +71,19 @@ returns numeric language sql stable security definer set search_path = public as
     where profesional_id = p_prof and nota is not null order by creado_en desc, id limit 10) u;
 $$;
 
--- 4. Calificar al dar el visto bueno: 3 puntos de 0 a 10
+-- 5. Técnicos para el cliente: primero los de más puntaje sostenido (y el orden se arma antes de cortar en 60)
+create or replace function public.profesionales_match(p_categoria smallint default null, p_departamento text default null)
+returns json language sql stable security definer set search_path = public as $$
+  select coalesce(json_agg(public._prof_publico(x.id) order by x.sostenido desc, x.verificado desc, x.id), '[]') from (
+    select p.id, p.verificado, public._puntaje_sostenido(p.id) as sostenido
+      from public.profesionales p join public.match_perfiles m on m.profesional_id = p.id and m.disponible
+     where p.activo and (p_categoria is null or p_categoria = any(m.rubros))
+       and (p_departamento is null or p_departamento = any(p.departamentos))
+     order by 3 desc, p.verificado desc, p.id
+     limit 60) x;
+$$;
+
+-- 6. Calificar al dar el visto bueno: 3 puntos de 0 a 10
 create or replace function public.calificar(p_op uuid, p_puntualidad int, p_velocidad int, p_desempeno int, p_comentario text default null)
 returns json language plpgsql security definer set search_path = public as $$
 declare op public.match_operaciones; v_nota numeric;
@@ -94,7 +131,7 @@ end $$;
 
 
 -- =====================================================================
--- 5. Donde se muestra la calificación: promedio de las últimas 10 y el detalle de cada una
+-- 7. Donde se muestra la calificación: promedio de las últimas 10 y el detalle de cada una
 -- =====================================================================
 
 -- match_mi_perfil (de 19_match.sql)
@@ -128,8 +165,7 @@ returns table (profesional_id uuid) language sql stable security definer set sea
           or exists (select 1 from unnest(p.barrios) b where public.normalizar(b) = public.normalizar(s.localidad)))
      and (not c.solo_verificados or p.verificado)
      and s.dirigida_a is null
-   order by p.verificado desc,
-            public._estrellas_prof(p.id) desc nulls last,
+   order by public._puntaje_sostenido(p.id) desc, p.verificado desc,
             (s.urgente and mp.urgencias) desc, random()
    limit (select max_invitados from c);
 $$;
@@ -144,17 +180,6 @@ returns json language sql stable security definer set search_path = public as $$
     'rubros', (select coalesce(json_agg(k.nombre order by k.orden), '[]') from public.categorias k join public.match_perfiles m on k.id = any(m.rubros)
                 where m.profesional_id = pr.id))
   from public.profesionales pr join public.perfiles pe on pe.id = pr.id where pr.id = p;
-$$;
-
--- profesionales_match (de 19_match.sql)
-create or replace function public.profesionales_match(p_categoria smallint default null, p_departamento text default null)
-returns json language sql stable security definer set search_path = public as $$
-  select coalesce(json_agg(public._prof_publico(x.id) order by x.verificado desc, x.prom desc nulls last, x.id), '[]') from (
-    select p.id, p.verificado, public._estrellas_prof(p.id) prom
-      from public.profesionales p join public.match_perfiles m on m.profesional_id = p.id and m.disponible
-     where p.activo and (p_categoria is null or p_categoria = any(m.rubros))
-       and (p_departamento is null or p_departamento = any(p.departamentos))
-     limit 60) x;
 $$;
 
 -- perfil_match (de 21_match_urgencias.sql)
@@ -314,14 +339,14 @@ begin
                         and s.estado = 'abierta' and s.profesional_id is null));
 end $$;
 
--- 6. Permisos
+-- 8. Permisos
 do $$
 begin
   revoke execute on function public.calificar(uuid, int, int, int, text) from public, anon;
   grant execute on function public.calificar(uuid, int, int, int, text) to authenticated, service_role;
   revoke execute on function public.wa_calificar(uuid, uuid, int, int, int) from public, anon, authenticated;
   grant execute on function public.wa_calificar(uuid, uuid, int, int, int) to service_role;
-  grant execute on function public._estrellas_de(numeric), public._calif_prof(uuid), public._estrellas_prof(uuid) to anon, authenticated, service_role;
+  grant execute on function public._estrellas_de(numeric), public._calif_prof(uuid), public._estrellas_prof(uuid), public._puntaje_sostenido(uuid, int) to anon, authenticated, service_role;
 end $$;
 
 notify pgrst, 'reload schema';

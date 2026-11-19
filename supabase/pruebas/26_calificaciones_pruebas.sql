@@ -234,9 +234,36 @@ begin
   perform pg_temp.paso('5. la forma de antes y WhatsApp');
 end $$;
 
+-- ---------------------------------------------------------------- 6. Orden para los clientes: más puntaje por más tiempo
+do $$
+declare b1 uuid := '26000000-0000-0000-0000-0000000000b1'; b2 uuid := '26000000-0000-0000-0000-0000000000b2';
+  s1 numeric; s2 numeric; lista json; i1 int; i2 int;
+begin
+  -- b2: 4,5 ★ (nota 9) desde hace casi 6 meses; b1: 5 ★ (nota 10) recién hace 10 días
+  update public.match_calificaciones set nota = 9, puntualidad = 9, velocidad = 9, desempeno = 9,
+         creado_en = now() - interval '175 days' + make_interval(mins => (extract(epoch from creado_en)::bigint % 1000)::int)
+   where profesional_id = b2;
+  update public.match_calificaciones set nota = 10, puntualidad = 10, velocidad = 10, desempeno = 10,
+         creado_en = now() - interval '10 days' + make_interval(mins => (extract(epoch from creado_en)::bigint % 1000)::int)
+   where profesional_id = b1;
+  assert public._estrellas_prof(b1) = 5 and public._estrellas_prof(b2) = 4.5, '6.1 Hoy b1 tiene 5 ★ y b2 4,5 ★';
+  s1 := public._puntaje_sostenido(b1);
+  s2 := public._puntaje_sostenido(b2);
+  assert s2 between 4.35 and 4.5 and s1 between 2.55 and 2.75, format('6.2 Sostenido 6 meses: b2 ≈ 4,4 ★ y b1 ≈ 2,6 ★ (dio %s y %s)', s2, s1);
+  assert public._puntaje_sostenido('26000000-0000-0000-0000-0000000000c2') = 2.5, '6.3 Sin calificaciones cuenta 2,5 ★';
+  perform pg_temp.como('26000000-0000-0000-0000-0000000000c2');
+  lista := public.profesionales_match((select id from public.categorias where slug = 'electricidad'), 'Montevideo');
+  perform pg_temp.yo();
+  select n into i1 from json_array_elements(lista) with ordinality x(e, n) where (e ->> 'id')::uuid = b1;
+  select n into i2 from json_array_elements(lista) with ordinality x(e, n) where (e ->> 'id')::uuid = b2;
+  assert i2 < i1, format('6.4 Al cliente le aparece primero b2 (más puntaje por más tiempo): b2 en %s, b1 en %s', i2, i1);
+  assert (public._calif_prof(b2) ->> 'sostenido')::numeric = s2, '6.5 El técnico ve su puntaje sostenido';
+  perform pg_temp.paso('6. orden por puntaje sostenido');
+end $$;
+
 do $$
 begin
-  raise exception 'PRUEBAS OK: % de 5 grupos pasaron. (Este mensaje sale como error a propósito: así se deshace todo y no queda nada guardado.)',
+  raise exception 'PRUEBAS OK: % de 6 grupos pasaron. (Este mensaje sale como error a propósito: así se deshace todo y no queda nada guardado.)',
     current_setting('pruebas.n');
 end $$;
 rollback;

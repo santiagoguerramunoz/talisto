@@ -521,6 +521,21 @@ function Calificaciones({ datos, onCambio }) {
         cal={cal}
         nota={`${cal?.cantidad || 0} calificaciones verificadas (solo califica quien pagó por TaListo!). Al dar el visto bueno el cliente califica de 0 a 10 tu puntualidad, velocidad y desempeño; tu puntaje es el promedio de las últimas 10, así un mal día se supera rápido.`}
       />
+      {cal?.sostenido !== null && cal?.sostenido !== undefined && (
+        <section className="tarjeta flex items-center gap-3 p-4">
+          <div className="min-w-0 flex-1">
+            <b className="block text-sm">Tu lugar en la lista de técnicos</b>
+            <p className="text-xs text-tinta-400">
+              A los clientes les aparecen primero los que tienen más puntaje por más tiempo: el promedio de tu puntaje día a día en los últimos 6 meses
+              (antes de tu primera calificación cuenta 2,5 ★).
+            </p>
+          </div>
+          <div className="shrink-0 text-right">
+            <p className="text-2xl font-extrabold">{notaTexto(cal.sostenido)}</p>
+            <Estrellas valor={cal.sostenido} tam="h-3.5 w-3.5" />
+          </div>
+        </section>
+      )}
       {lista.map((k) => (
         <Calificacion key={k.id} k={k} onCambio={onCambio} />
       ))}
