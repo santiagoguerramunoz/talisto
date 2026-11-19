@@ -352,7 +352,7 @@ export default function CierreTrabajo({ item, cuenta, opcionInicial = 'finalizar
             <Icon name="caja" className="h-5 w-5 shrink-0 text-menta-300" />
             <span className="min-w-0 flex-1">
               <b className="block">Materiales del trabajo</b>
-              <span className="text-xs text-tinta-400">Procesá lo que usaste. Lo que no proceses queda pendiente de devolución.</span>
+              <span className="text-xs text-tinta-400">Procesá lo que instalaste (queda como INSTALADO). Lo que no proceses queda pendiente de devolución.</span>
             </span>
             <Icon name="der" className="h-4 w-4 shrink-0 text-tinta-400" />
           </button>

@@ -144,8 +144,8 @@ begin
   v := pg_temp.ver(t, tur);
   assert json_array_length(v -> 'materiales') = 1 and json_array_length(v -> 'procesados') = 4
      and (select (p ->> 'cantidad')::numeric from json_array_elements(v -> 'procesados') p where p ->> 'nombre' = 'Cámara IP 4MP') = 3,
-     '2.6 Se ve lo procesado (3 cámaras, DVR, disco, fuente) y lo que queda';
-  assert exists (select 1 from public.bitacora where turno_id = tur and accion like 'Materiales procesados%'),
+     '2.6 Figura como instalado (3 cámaras, DVR, disco, fuente) y lo que queda';
+  assert exists (select 1 from public.bitacora where turno_id = tur and accion like 'Materiales instalados%'),
      '2.7 Queda en la bitácora del ticket';
   perform pg_temp.paso('2. el técnico procesa ítem por ítem');
 end $$;
@@ -200,7 +200,7 @@ begin
   perform pg_temp.yo();
   v := pg_temp.ver(b, tur);
   assert pg_temp.hay(ubic, 'DVR 8 canales') = 1 and json_array_length(v -> 'procesados') = 3,
-     '5.1 El DVR vuelve al ticket como pendiente y deja de contar como procesado';
+     '5.1 El DVR vuelve al ticket como pendiente y deja de figurar como instalado';
   perform pg_temp.paso('5. anular un procesado');
 end $$;
 

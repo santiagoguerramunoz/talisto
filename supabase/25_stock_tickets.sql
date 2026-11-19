@@ -3,15 +3,15 @@
 --  · Los materiales se asignan a un ticket (de la agenda o B2B): salen del
 --    depósito o de la persona y quedan reservados en ese trabajo.
 --  · Quien hace el trabajo (o Stock) los procesa ítem por ítem: lo
---    procesado se usó y sale del stock.
+--    procesado queda INSTALADO y sale del stock.
 --  · Lo que no se procesa queda pendiente de devolución. Al gestionar la
 --    devolución vuelve todo al depósito y el ticket queda en 0.
 --  · Lo que quedaba en trabajos ya terminados (antes contaba como usado)
---    se pasa una sola vez como procesado.
+--    se pasa una sola vez como instalado.
 --  Correr después del 24. Se puede correr más de una vez.
 -- =====================================================================
 
--- 1. Nuevo comprobante: "procesado en el trabajo" (consumo)
+-- 1. Nuevo comprobante: "instalado en el trabajo" (consumo)
 alter table public.movimientos_stock drop constraint if exists movimientos_stock_tipo_check;
 alter table public.movimientos_stock add constraint movimientos_stock_tipo_check
   check (tipo in ('ingreso', 'transferencia', 'a_trabajo', 'devolucion', 'devolucion_proveedor', 'conteo', 'baja', 'anulacion', 'consumo'));
@@ -24,7 +24,7 @@ returns boolean language sql stable security definer set search_path = public as
                        else (select estado in ('realizado', 'cancelado') from public.turnos where id = p_id) end, false);
 $$;
 
--- 3. Procesar: lo que se usó en el trabajo sale del stock (ítem por ítem, todo o una parte)
+-- 3. Procesar: lo que se instaló en el trabajo sale del stock (ítem por ítem, todo o una parte)
 create or replace function public.stock_procesar(p_cuenta uuid, p_tipo text, p_trabajo uuid, p_items jsonb, p_nota text default null)
 returns json language plpgsql security definer set search_path = public as $$
 declare gestor boolean; orig uuid; rs jsonb; r jsonb; mov uuid;
@@ -131,7 +131,7 @@ begin
                                                             'cantidad', s.cantidad) order by m.nombre), '[]'::json)
                    from public.stock s join public.materiales m on m.id = s.material_id where s.ubicacion_id = mio and s.cantidad > 0),
     'previstos', previstos,
-    -- lo que ya se procesó (se usó en el trabajo); lo que queda en 'materiales' está reservado o pendiente de devolución
+    -- lo que ya se procesó (quedó INSTALADO); lo que queda en 'materiales' está reservado o pendiente de devolución
     'procesados', (select coalesce(json_agg(json_build_object('material_id', m.id, 'nombre', m.nombre, 'codigo', m.codigo, 'marca', m.marca,
                                                               'unidad', m.unidad, 'decimales', m.decimales, 'presentaciones', m.presentaciones,
                                                               'cantidad', x.c) order by m.nombre), '[]'::json)
@@ -192,7 +192,7 @@ begin
   );
 end $$;
 
--- 7. Bitácora del ticket: "Materiales procesados"
+-- 7. Bitácora del ticket: "Materiales instalados"
 create or replace function public.bitacora_stock()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare o public.ubicaciones_stock; d public.ubicaciones_stock; ped public.pedidos_materiales; t_id uuid; o_id uuid; resumen text; n text;
@@ -211,7 +211,7 @@ begin
     perform public._registrar(new.profesional_id, 'stock',
       case new.tipo when 'a_trabajo' then 'Materiales al trabajo (' || n || ')'
                     when 'devolucion' then 'Devolución del trabajo (' || n || ')'
-                    when 'consumo' then 'Materiales procesados (' || n || ')'
+                    when 'consumo' then 'Materiales instalados (' || n || ')'
                     when 'transferencia' then 'Entrega a ' || coalesce(d.nombre, 'alguien') || ' (' || n || ')' || case when new.estado = 'pendiente' then ': falta que confirme' else '' end
                     when 'anulacion' then 'Anulación (' || n || ')'
                     else initcap(new.tipo) || ' (' || n || ')' end,
@@ -225,7 +225,7 @@ begin
   return new;
 end $$;
 
--- 8. Una sola vez: lo que quedó en trabajos ya terminados contaba como usado → se pasa como procesado
+-- 8. Una sola vez: lo que quedó en trabajos ya terminados contaba como usado → se pasa como instalado
 do $$
 declare r record; rs jsonb; k jsonb; mov uuid;
 begin
@@ -242,7 +242,7 @@ begin
       from (select row_number() over (order by s.material_id) as n, s.material_id, s.cantidad
               from public.stock s where s.ubicacion_id = r.ubic and s.cantidad > 0) x;
     mov := public._stock_comprobante(r.cuenta, 'consumo', 'hecho', r.ubic, null, rs,
-             jsonb_build_object('nota', 'Pasaje al nuevo sistema: lo que quedó en el trabajo terminado se toma como usado'));
+             jsonb_build_object('nota', 'Pasaje al nuevo sistema: lo que quedó en el trabajo terminado se toma como instalado'));
     for k in select * from jsonb_array_elements(rs) loop
       perform public._stock_sumar(r.cuenta, mov, r.ubic, (k ->> 'material_id')::uuid, -(k ->> 'cantidad')::numeric, 'alta');
     end loop;

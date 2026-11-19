@@ -591,7 +591,7 @@ function Stock() {
               <p className="rounded-xl bg-navy-850 p-3 text-sm text-tinta-400">Ningún trabajo abierto tiene materiales reservados.</p>
             )}
             <p className="mt-2 text-xs text-tinta-500">
-              Los materiales asignados a un trabajo quedan reservados. Lo que se procesa se descuenta como usado; lo que no, queda pendiente de devolución hasta que vuelve al depósito.
+              Los materiales asignados a un trabajo quedan reservados. Lo que se procesa queda como instalado y se descuenta; lo que no, queda pendiente de devolución hasta que vuelve al depósito.
             </p>
           </div>
         </section>

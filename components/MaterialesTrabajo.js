@@ -14,7 +14,7 @@ const aNumero = (v) => Number(String(v ?? '').replace(',', '.'));
 
 /**
  * Materiales del stock en un trabajo (ticket B2B o trabajo de la agenda). SQL 10 y 25.
- * Lo asignado queda reservado en el trabajo; quien lo hace lo procesa ítem por ítem (se usó y sale del stock);
+ * Lo asignado queda reservado en el trabajo; quien lo hace lo procesa ítem por ítem y queda INSTALADO (sale del stock);
  * lo que no se procesa queda pendiente de devolución y, al devolverlo, el trabajo queda en 0.
  * modo 'operario': usa de su stock, procesa y devuelve a su stock.
  * modo 'gestion': asigna desde cualquier depósito o persona (con lo previsto ya cargado) y devuelve a donde elija.
@@ -158,9 +158,9 @@ export default function MaterialesTrabajo({ cuenta, tipo, id, modo = 'operario',
 
   function procesarUno(m) {
     const n = aNumero(procesando?.valor);
-    if (!(n > 0)) return setEstado({ guardando: false, error: 'Poné cuánto se usó.', ok: '' });
+    if (!(n > 0)) return setEstado({ guardando: false, error: 'Poné cuánto se instaló.', ok: '' });
     if (n > Number(m.cantidad)) return setEstado({ guardando: false, error: `En el trabajo hay ${conUnidad(m.cantidad, m)}.`, ok: '' });
-    procesar([{ material_id: m.id, cantidad: n }], `${conUnidad(n, m)} de ${m.nombre} procesado`);
+    procesar([{ material_id: m.id, cantidad: n }], `${conUnidad(n, m)} de ${m.nombre}: instalado`);
   }
 
   const envolver = (contenido) =>
@@ -192,7 +192,7 @@ export default function MaterialesTrabajo({ cuenta, tipo, id, modo = 'operario',
           <b className="block text-amber-200">Pendiente de devolución</b>
           {cancelado ? 'El trabajo se canceló' : 'El trabajo terminó'} con {enTrabajo.length}{' '}
           {enTrabajo.length === 1 ? 'material sin procesar' : 'materiales sin procesar'}.
-          {puedeProcesar && !cancelado ? ' Procesá lo que se usó y devolvé el resto: así el trabajo queda en 0.' : ' Devolvelo para que el trabajo quede en 0.'}
+          {puedeProcesar && !cancelado ? ' Procesá lo que se instaló y devolvé el resto: así el trabajo queda en 0.' : ' Devolvelo para que el trabajo quede en 0.'}
         </div>
       )}
 
@@ -209,12 +209,12 @@ export default function MaterialesTrabajo({ cuenta, tipo, id, modo = 'operario',
           </div>
           {todo && (
             <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl bg-menta-500/10 p-2.5 text-sm text-menta-100">
-              <span className="min-w-0 flex-1">¿Se usaron los {enTrabajo.length} materiales completos?</span>
+              <span className="min-w-0 flex-1">¿Se instalaron los {enTrabajo.length} materiales completos?</span>
               <button
                 type="button"
                 className="btn btn-menta px-3 py-1.5 text-sm"
                 disabled={estado.guardando}
-                onClick={() => procesar(enTrabajo.map((m) => ({ material_id: m.id, cantidad: Number(m.cantidad) })), 'todo procesado')}
+                onClick={() => procesar(enTrabajo.map((m) => ({ material_id: m.id, cantidad: Number(m.cantidad) })), 'todo instalado')}
               >
                 Sí, procesar
               </button>
@@ -250,7 +250,7 @@ export default function MaterialesTrabajo({ cuenta, tipo, id, modo = 'operario',
                 {procesando?.id === m.id && (
                   <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-navy-850 p-2">
                     <label className="text-xs text-tinta-300" htmlFor={`proc-${m.id}`}>
-                      ¿Cuánto se usó?
+                      ¿Cuánto se instaló?
                     </label>
                     <input
                       id={`proc-${m.id}`}
@@ -276,15 +276,15 @@ export default function MaterialesTrabajo({ cuenta, tipo, id, modo = 'operario',
             ))}
           </ul>
           {!cerrado && puedeProcesar && (
-            <p className="mt-1.5 text-[11px] text-tinta-400">Procesá cada material a medida que lo usás. Lo que no se procese queda pendiente de devolución al terminar.</p>
+            <p className="mt-1.5 text-[11px] text-tinta-400">Procesá cada material a medida que lo instalás: queda como INSTALADO. Lo que no se procese queda pendiente de devolución al terminar.</p>
           )}
         </div>
       )}
 
-      {/* Lo procesado */}
+      {/* Lo procesado: INSTALADO */}
       {procesados.length > 0 && (
         <div>
-          <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-tinta-400">Procesado (usado en el trabajo)</p>
+          <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-tinta-400">Instalado</p>
           <ul className="divide-y divide-navy-800 rounded-xl border border-menta-500/30 bg-menta-500/5">
             {procesados.map((m) => (
               <li key={m.id} className="flex items-center justify-between gap-2 p-2.5 text-sm">
@@ -292,7 +292,10 @@ export default function MaterialesTrabajo({ cuenta, tipo, id, modo = 'operario',
                   <Icon name="check" className="h-4 w-4 shrink-0 text-menta-300" />
                   <span className="min-w-0 truncate">{m.nombre}</span>
                 </span>
-                <b className="shrink-0">{conUnidad(m.cantidad, m)}</b>
+                <span className="flex shrink-0 items-center gap-2">
+                  <b>{conUnidad(m.cantidad, m)}</b>
+                  <span className="rounded-full bg-menta-500/15 px-2 py-0.5 text-[10px] font-extrabold tracking-wide text-menta-300">INSTALADO</span>
+                </span>
               </li>
             ))}
           </ul>
@@ -303,7 +306,7 @@ export default function MaterialesTrabajo({ cuenta, tipo, id, modo = 'operario',
         <p className="rounded-xl bg-navy-850 p-3 text-sm text-tinta-400">Todavía no se asignaron materiales del stock a este trabajo.</p>
       )}
       {!enTrabajo.length && procesados.length > 0 && cerrado && (
-        <p className="text-xs font-semibold text-menta-300">Trabajo en 0: todo se procesó o se devolvió.</p>
+        <p className="text-xs font-semibold text-menta-300">Trabajo en 0: todo quedó instalado o se devolvió.</p>
       )}
 
       {previstos.length > 0 && (
