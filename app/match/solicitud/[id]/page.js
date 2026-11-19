@@ -89,7 +89,12 @@ function Solicitud() {
   async function rpc(nombre, args, ok) {
     setOcupado(true);
     setError('');
-    const { data, error: err } = await supabase.rpc(nombre, args);
+    let { data, error: err } = await supabase.rpc(nombre, args);
+    // Respaldo mientras no se corrió el SQL 26: la calificación de 0 a 10 se manda como estrellas (÷ 2)
+    if (err && nombre === 'calificar' && 'p_puntualidad' in args && (err.code === 'PGRST202' || /Could not find the function/i.test(err.message || ''))) {
+      const nota = (args.p_puntualidad + args.p_velocidad + args.p_desempeno) / 3;
+      ({ data, error: err } = await supabase.rpc('calificar', { p_op: args.p_op, p_puntaje: Math.min(5, Math.max(1, Math.round(nota / 2))), p_comentario: args.p_comentario }));
+    }
     setOcupado(false);
     if (err) {
       setError(mensajeError(err));
