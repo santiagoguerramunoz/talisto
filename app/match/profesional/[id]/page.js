@@ -8,7 +8,7 @@ import MarcoCliente, { useSesionCliente } from '@/components/MarcoCliente';
 import TarjetaProfesional from '@/components/TarjetaProfesional';
 import { supabase } from '@/lib/supabase';
 import { mensajeError } from '@/lib/util';
-import { Estrellas, MENSAJE_FALTA_SQL, diaLargo, fecha, hora, mayus, registrarEvento, sinMatch } from '@/lib/match';
+import { DetallePuntos, Estrellas, MENSAJE_FALTA_SQL, ResumenCalificacion, diaLargo, fecha, hora, mayus, notaTexto, registrarEvento, sinMatch } from '@/lib/match';
 
 // Perfil público del profesional con sus valoraciones verificadas (solo de visitas y trabajos hechos por TaListo!)
 export default function PerfilProfesional() {
@@ -73,15 +73,27 @@ export default function PerfilProfesional() {
           <section>
             <h2 className="titulo-seccion mb-2">Valoraciones verificadas ({p.calificacion?.cantidad || 0})</h2>
             <p className="mb-2 text-xs text-tinta-400">Solo califican clientes que contrataron y pagaron por TaListo!.</p>
-            {(d.calificaciones || []).length === 0 && <p className="tarjeta p-4 text-sm text-tinta-300">Todavía no tiene calificaciones.</p>}
+            {(d.calificaciones || []).length === 0 ? (
+              <p className="tarjeta p-4 text-sm text-tinta-300">Todavía no tiene calificaciones.</p>
+            ) : (
+              <div className="mb-2">
+                <ResumenCalificacion cal={p.calificacion} nota="Puntualidad, velocidad y desempeño, de 0 a 10. Cuenta el promedio de las últimas 10 contrataciones." />
+              </div>
+            )}
             <ul className="space-y-2">
               {(d.calificaciones || []).map((k, i) => (
                 <li key={i} className="tarjeta p-3.5 text-sm">
                   <div className="flex items-center justify-between gap-2">
-                    <Estrellas valor={k.puntaje} />
+                    <span className="flex items-center gap-1.5">
+                      <Estrellas valor={k.estrellas ?? k.puntaje} />
+                      {k.nota !== null && k.nota !== undefined && <b className="text-xs text-tinta-200">{notaTexto(k.nota)}/10</b>}
+                    </span>
                     <span className="text-xs text-tinta-500">
                       {k.cliente} · {k.tipo === 'trabajo' ? 'trabajo' : 'visita'} · {fecha(k.fecha)}
                     </span>
+                  </div>
+                  <div className="mt-1">
+                    <DetallePuntos k={k} chico />
                   </div>
                   {k.comentario && <p className="mt-1.5 text-tinta-200">{k.comentario}</p>}
                   {k.respuesta && <p className="mt-1.5 border-l-2 border-navy-700 pl-2 text-xs text-tinta-400">Respuesta: {k.respuesta}</p>}

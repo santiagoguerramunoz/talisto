@@ -320,11 +320,13 @@ begin
      '5.1 Con la visita paga, el profesional ve la dirección y el teléfono';
   begin perform public.visita_realizada(op.id); ok := false; exception when others then ok := sqlerrm like 'La visita todavía no llegó'; end;
   assert ok, '5.2 No se marca hecha una visita que todavía no llegó';
+  -- desde el SQL 26 calificar es el visto bueno: se puede en cuanto llegó la hora de la visita
+  perform pg_temp.como('19000000-0000-0000-0000-0000000000c1');
+  begin perform public.calificar(op.id, 5, 'Excelente'); ok := false;
+  exception when others then ok := sqlerrm like 'La visita todavía no llegó' or sqlerrm like 'Se califica cuando%'; end;
+  assert ok, '5.3 No se califica una visita que todavía no llegó';
   perform pg_temp.yo();
   perform pg_temp.al_pasado(op.id);
-  perform pg_temp.como('19000000-0000-0000-0000-0000000000c1');
-  begin perform public.calificar(op.id, 5, 'Excelente'); ok := false; exception when others then ok := sqlerrm like 'Se califica cuando%'; end;
-  assert ok, '5.3 No se califica una visita que no se marcó hecha';
   perform pg_temp.como('19000000-0000-0000-0000-0000000000b1');
   perform public.visita_realizada(op.id, 'Térmica del horno en corto: hay que cambiar el circuito');
   perform pg_temp.como('19000000-0000-0000-0000-0000000000c2');

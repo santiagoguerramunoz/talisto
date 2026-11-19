@@ -11,7 +11,7 @@ import MarcoCliente, { useSesionCliente } from '@/components/MarcoCliente';
 import { supabase } from '@/lib/supabase';
 import { mensajeError } from '@/lib/util';
 import {
-  ESTADO_SOLICITUD, Estado, Estrellas, MENSAJE_FALTA_SQL, diaLargo, fecha, fechaHora, hora, irAPagar, pesos, sinMatch,
+  ASPECTOS_CALIFICACION, DetallePuntos, ESTADO_SOLICITUD, Estado, Estrellas, MENSAJE_FALTA_SQL, PuntosCero10, estrellasDe, notaTexto, diaLargo, fecha, fechaHora, hora, irAPagar, pesos, sinMatch,
   subirArchivos,
   mayus, cuandoTexto,
 } from '@/lib/match';
@@ -335,8 +335,55 @@ function Solicitud() {
   );
 }
 
+// Visto bueno: el cliente califica de 0 a 10 la puntualidad, la velocidad y el desempeño (SQL 26)
+function CalificarVisita({ op, vistoBueno, puntos, setPuntos, comentario, setComentario, ocupado, rpc, setModal }) {
+  const completos = ASPECTOS_CALIFICACION.every(([c]) => Number.isInteger(puntos[c]));
+  const nota = completos ? ASPECTOS_CALIFICACION.reduce((s, [c]) => s + puntos[c], 0) / 3 : null;
+  const nombre = (op.profesional?.nombre || 'el técnico').split(' ')[0];
+  const enviar = () =>
+    rpc('calificar', { p_op: op.id, p_puntualidad: puntos.puntualidad, p_velocidad: puntos.velocidad, p_desempeno: puntos.desempeno, p_comentario: comentario },
+      vistoBueno ? '¡Gracias! Diste el visto bueno y calificaste la visita.' : '¡Gracias por calificar!');
+  return (
+    <div className="space-y-3 rounded-xl border border-menta-500/30 bg-navy-850 p-3">
+      <div>
+        <b className="block">{vistoBueno ? 'Dale el visto bueno' : 'Calificá la visita'}</b>
+        <p className="text-xs text-tinta-400">Calificá a {nombre} de 0 (malo) a 10 (excelente).{vistoBueno ? ' Con el visto bueno se le libera el pago.' : ''}</p>
+      </div>
+      {ASPECTOS_CALIFICACION.map(([c, t, ayuda]) => (
+        <div key={c} className="space-y-1.5">
+          <p className="flex items-baseline justify-between gap-2 text-sm">
+            <b>{t}</b>
+            <span className="text-[11px] text-tinta-400">{ayuda}</span>
+          </p>
+          <PuntosCero10 valor={puntos[c]} etiqueta={t} onElegir={(n) => setPuntos((x) => ({ ...x, [c]: n }))} />
+        </div>
+      ))}
+      <p className="flex min-h-7 items-center gap-2 text-sm text-tinta-300">
+        {completos ? (
+          <>
+            Promedio <b className="text-tinta-100">{notaTexto(Math.round(nota * 10) / 10)}/10</b> <Estrellas valor={estrellasDe(nota)} />
+          </>
+        ) : (
+          'Elegí un número en cada uno.'
+        )}
+      </p>
+      <textarea className="campo min-h-20 text-sm" value={comentario} onChange={(e) => setComentario(e.target.value)} maxLength={600} placeholder="Contá cómo te atendió (opcional)" />
+      <div className="flex flex-wrap gap-2">
+        <button className="btn btn-menta flex-1" disabled={ocupado || !completos} onClick={enviar}>
+          {vistoBueno ? 'Dar el visto bueno' : 'Calificar'}
+        </button>
+        {vistoBueno && (
+          <button className="btn btn-sec" disabled={ocupado} onClick={() => setModal({ tipo: 'reclamar', op })}>
+            {op.estado === 'reserva_confirmada' ? 'No vino / reclamar' : 'Reclamar'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TarjetaVisita({ op, config, ocupado, rpc, setModal }) {
-  const [puntaje, setPuntaje] = useState(0);
+  const [puntos, setPuntos] = useState({}); // puntualidad, velocidad, desempeno: 0 a 10
   const [comentario, setComentario] = useState('');
   const t = op.turno;
   const empezo = t && new Date(t.inicio) <= new Date();
@@ -380,56 +427,38 @@ function TarjetaVisita({ op, config, ocupado, rpc, setModal }) {
 
       {op.estado === 'reserva_confirmada' && (
         <div className="flex flex-wrap gap-2">
-          {empezo && (
-            <button className="btn btn-menta flex-1" disabled={ocupado} onClick={() => rpc('confirmar_visita', { p_op: op.id }, 'Gracias: confirmaste la visita.')}>
-              Ya vino: confirmar
-            </button>
-          )}
           {!empezo && (
             <button className="btn btn-sec flex-1" disabled={ocupado} onClick={() => setModal({ tipo: 'cancelar', op })}>
               Cancelar visita
             </button>
           )}
-          {empezo && (
-            <button className="btn btn-sec" disabled={ocupado} onClick={() => setModal({ tipo: 'reclamar', op })}>
-              No vino / reclamar
-            </button>
-          )}
         </div>
       )}
-      {op.estado === 'pendiente_confirmacion' && !op.calificacion && (
-        <div className="space-y-2 rounded-xl bg-navy-850 p-3">
-          <b className="block text-sm">¿Cómo fue la visita?</b>
-          <Estrellas valor={puntaje} tam="h-7 w-7" onElegir={setPuntaje} />
-          <textarea className="campo min-h-20 text-sm" value={comentario} onChange={(e) => setComentario(e.target.value)} maxLength={600} placeholder="Contá cómo te atendió (opcional)" />
-          <div className="flex flex-wrap gap-2">
-            <button className="btn btn-menta flex-1" disabled={ocupado || !puntaje} onClick={() => rpc('calificar', { p_op: op.id, p_puntaje: puntaje, p_comentario: comentario }, '¡Gracias por calificar!')}>
-              Confirmar y calificar
-            </button>
-            <button className="btn btn-sec" disabled={ocupado} onClick={() => rpc('confirmar_visita', { p_op: op.id }, 'Visita confirmada.')}>
-              Solo confirmar
-            </button>
-            <button className="btn btn-sec" disabled={ocupado} onClick={() => setModal({ tipo: 'reclamar', op })}>
-              Reclamar
-            </button>
-          </div>
-        </div>
-      )}
-      {['pendiente_liquidacion', 'liquidado'].includes(op.estado) && !op.calificacion && op.reclamo?.estado !== 'abierto' && (
-        <div className="space-y-2 rounded-xl bg-navy-850 p-3">
-          <b className="block text-sm">Calificá la visita</b>
-          <Estrellas valor={puntaje} tam="h-7 w-7" onElegir={setPuntaje} />
-          <textarea className="campo min-h-20 text-sm" value={comentario} onChange={(e) => setComentario(e.target.value)} maxLength={600} placeholder="Opcional" />
-          <button className="btn btn-menta w-full" disabled={ocupado || !puntaje} onClick={() => rpc('calificar', { p_op: op.id, p_puntaje: puntaje, p_comentario: comentario }, '¡Gracias por calificar!')}>
-            Calificar
-          </button>
-        </div>
-      )}
+      {!op.calificacion &&
+        ((op.estado === 'reserva_confirmada' && empezo) ||
+          op.estado === 'pendiente_confirmacion' ||
+          (['pendiente_liquidacion', 'liquidado'].includes(op.estado) && op.reclamo?.estado !== 'abierto')) && (
+          <CalificarVisita
+            op={op}
+            vistoBueno={['reserva_confirmada', 'pendiente_confirmacion'].includes(op.estado)}
+            puntos={puntos}
+            setPuntos={setPuntos}
+            comentario={comentario}
+            setComentario={setComentario}
+            ocupado={ocupado}
+            rpc={rpc}
+            setModal={setModal}
+          />
+        )}
       {op.calificacion && (
-        <p className="flex items-center gap-2 text-sm text-tinta-300">
-          Tu calificación: <Estrellas valor={op.calificacion.puntaje} />
-          {op.calificacion.respuesta ? <span className="text-xs text-tinta-400">· respondió: {op.calificacion.respuesta}</span> : null}
-        </p>
+        <div className="space-y-1 rounded-xl bg-navy-850 p-3 text-sm text-tinta-300">
+          <p className="flex flex-wrap items-center gap-2">
+            Tu calificación: <Estrellas valor={op.calificacion.estrellas ?? op.calificacion.puntaje} />
+            {op.calificacion.nota !== null && op.calificacion.nota !== undefined && <b className="text-tinta-100">{notaTexto(op.calificacion.nota)}/10</b>}
+          </p>
+          <DetallePuntos k={op.calificacion} />
+          {op.calificacion.respuesta ? <p className="text-xs text-tinta-400">Respondió: {op.calificacion.respuesta}</p> : null}
+        </div>
       )}
       {['pendiente_confirmacion', 'pendiente_liquidacion', 'liquidado'].includes(op.estado) && !op.externa && (
         <div className="rounded-xl border border-navy-700 p-3 text-sm">

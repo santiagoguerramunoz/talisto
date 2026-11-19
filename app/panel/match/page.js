@@ -9,7 +9,7 @@ import ServiciosDisponibles from '@/components/ServiciosDisponibles';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
 import { DEPARTAMENTOS, mensajeError } from '@/lib/util';
-import { Estado, Estrellas, MENSAJE_FALTA_SQL, PREFERENCIAS, diaLargo, fecha, hora, mayus, pesos, sinMatch } from '@/lib/match';
+import { DetallePuntos, Estado, Estrellas, MENSAJE_FALTA_SQL, PREFERENCIAS, ResumenCalificacion, notaTexto, diaLargo, fecha, hora, mayus, pesos, sinMatch } from '@/lib/match';
 
 const PESTANAS = [
   ['solicitudes', 'Solicitudes'],
@@ -517,13 +517,10 @@ function Calificaciones({ datos, onCambio }) {
   const lista = datos.calificaciones || [];
   return (
     <>
-      <section className="tarjeta flex items-center gap-4 p-4">
-        <p className="text-4xl font-extrabold">{cal?.promedio ? Number(cal.promedio).toLocaleString('es-UY') : '—'}</p>
-        <div>
-          <Estrellas valor={cal?.promedio || 0} />
-          <p className="text-xs text-tinta-400">{cal?.cantidad || 0} calificaciones verificadas: solo califica quien pagó una visita por TaListo!.</p>
-        </div>
-      </section>
+      <ResumenCalificacion
+        cal={cal}
+        nota={`${cal?.cantidad || 0} calificaciones verificadas (solo califica quien pagó por TaListo!). Al dar el visto bueno el cliente califica de 0 a 10 tu puntualidad, velocidad y desempeño; tu puntaje es el promedio de las últimas 10, así un mal día se supera rápido.`}
+      />
       {lista.map((k) => (
         <Calificacion key={k.id} k={k} onCambio={onCambio} />
       ))}
@@ -544,8 +541,14 @@ function Calificacion({ k, onCambio }) {
   return (
     <article className="tarjeta p-3.5 text-sm">
       <div className="flex items-center justify-between">
-        <Estrellas valor={k.puntaje} tam="h-3.5 w-3.5" />
+        <span className="flex items-center gap-1.5">
+          <Estrellas valor={k.estrellas ?? k.puntaje} tam="h-3.5 w-3.5" />
+          {k.nota !== null && k.nota !== undefined && <b className="text-xs text-tinta-200">{notaTexto(k.nota)}/10</b>}
+        </span>
         <span className="text-[11px] text-tinta-500">{k.tipo === 'trabajo' ? 'Trabajo' : 'Visita técnica'} · {fecha(k.fecha)}</span>
+      </div>
+      <div className="mt-1">
+        <DetallePuntos k={k} chico />
       </div>
       {k.comentario && <p className="mt-1.5 text-tinta-200">{k.comentario}</p>}
       {k.respuesta ? (
