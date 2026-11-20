@@ -76,6 +76,7 @@ export default function Admin() {
           : {}),
         ...(c && 'ia_lecturas_pro' in c ? { ia_lecturas_pro: c.ia_lecturas_pro, ia_lecturas_business: c.ia_lecturas_business } : {}),
         ...(c && 'pro_colaboradores_defecto' in c ? { pro_colaboradores_defecto: c.pro_colaboradores_defecto } : {}),
+        ...(c && 'contacto_email' in c ? { contacto_email: c.contacto_email || '', legal_responsable: c.legal_responsable || '' } : {}),
       });
       cargarProfesionales();
     })();
@@ -103,6 +104,9 @@ export default function Admin() {
             }
           : {}),
         ...('pro_colaboradores_defecto' in form ? { pro_colaboradores_defecto: Math.max(0, Math.round(Number(form.pro_colaboradores_defecto) || 0)) } : {}),
+        ...('contacto_email' in form
+          ? { contacto_email: form.contacto_email.trim() || null, legal_responsable: form.legal_responsable.trim() || null }
+          : {}),
       })
       .eq('id', 1)
       .select()
@@ -192,6 +196,18 @@ export default function Admin() {
                   <label className="etiqueta" htmlFor="a-cpro">Pro: colaboradores del equipo (por defecto)</label>
                   <input id="a-cpro" type="number" min="0" className="campo" value={form.pro_colaboradores_defecto} onChange={(e) => setForm({ ...form, pro_colaboradores_defecto: e.target.value })} />
                 </div>
+              )}
+              {'contacto_email' in form && (
+                <>
+                  <div>
+                    <label className="etiqueta" htmlFor="a-legal">Responsable (términos y privacidad)</label>
+                    <input id="a-legal" className="campo" value={form.legal_responsable} maxLength={160} placeholder="Nombre o razón social" onChange={(e) => setForm({ ...form, legal_responsable: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="etiqueta" htmlFor="a-mail">Correo de contacto (se muestra en términos y privacidad)</label>
+                    <input id="a-mail" type="email" className="campo" value={form.contacto_email} placeholder="contacto@…" onChange={(e) => setForm({ ...form, contacto_email: e.target.value })} />
+                  </div>
+                </>
               )}
               <div>
                 <label className="etiqueta" htmlFor="a-cta">Business: colaboradores del equipo (por defecto)</label>

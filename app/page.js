@@ -90,6 +90,12 @@ export default function Inicio() {
           </div>
         ))}
       </section>
+
+      <footer className="mt-16 flex flex-wrap gap-x-4 gap-y-2 border-t border-navy-800 pt-5 text-xs text-tinta-400">
+        <Link href="/sumate" className="font-semibold text-menta-400">Sumate como técnico</Link>
+        <Link href="/terminos" className="underline">Términos y condiciones</Link>
+        <Link href="/privacidad" className="underline">Política de privacidad</Link>
+      </footer>
     </main>
   );
 }

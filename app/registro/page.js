@@ -109,6 +109,10 @@ function FormRegistro() {
         <button className="btn btn-menta w-full py-3.5" disabled={cargando || noCoinciden}>
           {cargando ? 'Creando cuenta…' : 'Crear cuenta'}
         </button>
+        <p className="text-center text-xs text-tinta-400">
+          Al crear tu cuenta aceptás los <Link href="/terminos" className="underline">Términos y condiciones</Link> y la{' '}
+          <Link href="/privacidad" className="underline">Política de privacidad</Link>.
+        </p>
       </form>
       <p className="mt-8 text-center text-sm text-tinta-300">
         ¿Ya tenés cuenta? <Link href="/login" className="font-semibold text-menta-400">Entrar</Link>
