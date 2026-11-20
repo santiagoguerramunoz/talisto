@@ -8,7 +8,7 @@ import MarcoCliente, { useSesionCliente } from '@/components/MarcoCliente';
 import TarjetaProfesional from '@/components/TarjetaProfesional';
 import { supabase } from '@/lib/supabase';
 import { DEPARTAMENTOS, mensajeError } from '@/lib/util';
-import { MENSAJE_FALTA_SQL, registrarEvento, sinMatch } from '@/lib/match';
+import { rubrosConTecnicos, MENSAJE_FALTA_SQL, registrarEvento, sinMatch } from '@/lib/match';
 
 export default function ProfesionalesPagina() {
   return (
@@ -30,7 +30,7 @@ function Profesionales() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    supabase.from('categorias').select('id, nombre').eq('activa', true).order('orden').then(({ data }) => setRubros(data || []));
+    rubrosConTecnicos(supabase).then(setRubros); // solo los rubros que tienen técnicos disponibles
   }, []);
 
   useEffect(() => {

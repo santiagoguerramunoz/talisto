@@ -7,7 +7,7 @@ import MarcoCliente, { useSesionCliente } from '@/components/MarcoCliente';
 import SelectorUbicacion from '@/components/SelectorUbicacion';
 import { supabase } from '@/lib/supabase';
 import { DEPARTAMENTOS, mensajeError } from '@/lib/util';
-import { FRANJAS, MENSAJE_FALTA_SQL, PREFERENCIAS, irAPagar, pesos, sinMatch, subirArchivos } from '@/lib/match';
+import { rubrosConTecnicos, FRANJAS, MENSAJE_FALTA_SQL, PREFERENCIAS, irAPagar, pesos, sinMatch, subirArchivos } from '@/lib/match';
 
 const hoyISO = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Montevideo' });
 const masDias = (iso, n) => {
@@ -57,8 +57,8 @@ function NuevaSolicitud() {
 
   useEffect(() => {
     (async () => {
-      const [{ data: r }, { data: c }] = await Promise.all([
-        supabase.from('categorias').select('id, nombre').eq('activa', true).order('orden'),
+      const [r, { data: c }] = await Promise.all([
+        rubrosConTecnicos(supabase), // solo los rubros que tienen técnicos disponibles
         supabase.from('configuracion').select('*').eq('id', 1).maybeSingle(),
       ]);
       setRubros(r || []);
@@ -183,6 +183,7 @@ function NuevaSolicitud() {
                 </option>
               ))}
             </select>
+            <span className="mt-1 block text-xs text-tinta-400">Aparecen los rubros que hoy tienen técnicos disponibles.</span>
           </label>
           <label className="block">
             <span className="etiqueta">¿Qué pasa? (título)</span>
