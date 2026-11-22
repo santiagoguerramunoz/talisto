@@ -10,7 +10,7 @@ export default function Privacidad() {
   const secciones = [
     ['Quién es responsable de tus datos', <p>El responsable de la base de datos de TaListo! es {responsable}. Tratamos tus datos personales según la Ley N.º 18.331 de Protección de Datos Personales de Uruguay y su reglamentación.</p>],
     ['Qué datos guardamos', <L>
-      <li><b>Tu cuenta:</b> nombre, correo, teléfono y el tipo de cuenta (cliente o profesional).</li>
+      <li><b>Tu cuenta:</b> nombre, correo, teléfono, el tipo de cuenta (cliente o profesional) y tu ubicación (país, departamento o provincia y localidad o barrio), para mostrarte técnicos, proveedores y novedades de tu zona.</li>
       <li><b>Pedidos y visitas:</b> direcciones, ubicación en el mapa, descripción del problema, fotos que subas, fechas y horarios.</li>
       <li><b>Mensajes:</b> el chat entre cliente y profesional y las conversaciones por WhatsApp con TaListo!. TaListo! puede revisarlos para resolver reclamos o problemas de seguridad.</li>
       <li><b>Calificaciones y comentarios</b> que dejan los clientes.</li>

@@ -2,13 +2,15 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Logo from '@/components/Logo';
 import CampoPassword from '@/components/CampoPassword';
 import AvisoConfiguracion from '@/components/AvisoConfiguracion';
+import ElegirLugar from '@/components/ElegirLugar';
 import { supabase } from '@/lib/supabase';
 import { mensajeError } from '@/lib/util';
 import { invitacionPendiente } from '@/lib/empresa';
+import { cargarPaises, lugarCompleto } from '@/lib/lugares';
 
 function FormRegistro() {
   const router = useRouter();
@@ -22,6 +24,13 @@ function FormRegistro() {
   const [error, setError] = useState('');
   const [enviado, setEnviado] = useState(false);
   const [cargando, setCargando] = useState(false);
+  const [lugar, setLugar] = useState({});
+  const [pais, setPais] = useState(null);
+  const [hayLugares, setHayLugares] = useState(false);
+
+  useEffect(() => {
+    cargarPaises().then((ps) => setHayLugares(Boolean(ps?.length)));
+  }, []);
 
   const noCoinciden = confirmar.length > 0 && confirmar !== password;
 
@@ -32,12 +41,28 @@ function FormRegistro() {
       setError('Las contraseñas no coinciden.');
       return;
     }
+    if (hayLugares && !lugarCompleto(lugar)) {
+      setError(`Elegí tu ${(pais?.nombre_region || 'departamento').toLowerCase()} y tu ${(pais?.nombre_localidad || 'localidad').toLowerCase()}.`);
+      return;
+    }
     setCargando(true);
     const { data, error: err } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: {
-        data: { nombre: nombre.trim(), rol, telefono: telefono.trim() },
+        data: {
+          nombre: nombre.trim(),
+          rol,
+          telefono: telefono.trim(),
+          ...(hayLugares
+            ? {
+                pais: lugar.pais,
+                region_id: lugar.region_id,
+                localidad_id: lugar.localidad_id || null,
+                localidad_nueva: lugar.localidad_id ? null : (lugar.localidad_nueva || '').trim() || null,
+              }
+            : {}),
+        },
         emailRedirectTo: `${window.location.origin}/login`,
       },
     });
@@ -89,9 +114,10 @@ function FormRegistro() {
           <input id="nombre" className="campo" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={rol === 'profesional' ? 'Ej. Juan Pérez Electricista' : 'Tu nombre'} required />
         </div>
         <div>
-          <label className="etiqueta" htmlFor="telefono">Celular / WhatsApp</label>
-          <input id="telefono" type="tel" inputMode="tel" className="campo" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="099 123 456" />
+          <label className="etiqueta" htmlFor="telefono">Celular / WhatsApp{pais ? ` (${pais.prefijo_tel})` : ''}</label>
+          <input id="telefono" type="tel" inputMode="tel" className="campo" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder={!pais || pais.codigo === 'UY' ? '099 123 456' : 'Tu número'} />
         </div>
+        {hayLugares && <ElegirLugar value={lugar} onChange={setLugar} onPais={setPais} id="registro" />}
         <div>
           <label className="etiqueta" htmlFor="email">Email</label>
           <input id="email" type="email" className="campo" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />

@@ -9,6 +9,7 @@ import AjustesNegocio from '@/components/AjustesNegocio';
 import BloqueoPlan from '@/components/BloqueoPlan';
 import EspacioTrabajo from '@/components/EspacioTrabajo';
 import ElegirVista from '@/components/ElegirVista';
+import MiUbicacion from '@/components/MiUbicacion';
 import { NOMBRE_PLAN, esPro, textoVencimiento } from '@/lib/planes';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
@@ -44,6 +45,7 @@ export default function Perfil() {
 
       <div className="space-y-8 px-4 pt-4">
         <MiPlan plan={plan} />
+        <MiUbicacion />
         <Link href="/inicio" className="tarjeta flex items-center gap-3 p-4 hover:bg-navy-850">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-menta-500/15 text-menta-300"><Icon name="buscar" /></span>
           <span className="min-w-0 flex-1">

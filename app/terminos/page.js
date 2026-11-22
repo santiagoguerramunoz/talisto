@@ -51,6 +51,7 @@ export default function Terminos() {
     ['Cambios en estos términos', <p>Si cambiamos estos términos, lo avisamos en la app. Seguir usando TaListo! después del aviso significa que aceptás los cambios.</p>],
     ['Ley aplicable y contacto', <>
       <p>Estos términos se rigen por las leyes de la República Oriental del Uruguay.</p>
+      <p>Los nombres de países, regiones y localidades provienen de countries-states-cities-database (dr5hn), que se distribuye con la licencia Open Database License (ODbL).</p>
       <p>Por cualquier consulta podés contactarnos <Contacto email={email} />. El tratamiento de tus datos se explica en la <Link href="/privacidad" className="underline">Política de privacidad</Link>.</p>
     </>],
   ];

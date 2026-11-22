@@ -8,6 +8,7 @@ import BotonInstalar from '@/components/BotonInstalar';
 import ActivarAvisos from '@/components/ActivarAvisos';
 import MarcoCliente, { useSesionCliente } from '@/components/MarcoCliente';
 import ComoFunciona from '@/components/ComoFuncionaMatch';
+import MiUbicacion from '@/components/MiUbicacion';
 import { supabase } from '@/lib/supabase';
 import { mensajeError } from '@/lib/util';
 import { ESTADO_OPERACION, ESTADO_SOLICITUD, Estado, MENSAJE_FALTA_SQL, pesos, registrarEvento, sinMatch } from '@/lib/match';
@@ -102,6 +103,7 @@ export default function InicioCliente() {
             Acá contratás como cliente: pedís una visita, la pagás y seguís tus pedidos. Tu panel de profesional sigue igual.
           </p>
         )}
+        <MiUbicacion className="mt-4" />
         <div className="relative mt-4">
           <Icon name="buscar" className="pointer-events-none absolute top-1/2 left-3.5 h-5 w-5 -translate-y-1/2 text-tinta-500" />
           <input

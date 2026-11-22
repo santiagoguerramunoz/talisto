@@ -168,6 +168,14 @@ export default function Admin() {
           </span>
           <Icon name="der" className="h-5 w-5 text-tinta-400" />
         </Link>
+        <Link href="/admin/paises" className="tarjeta mt-2 flex items-center gap-3 p-4 hover:border-navy-600">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-navy-800 text-menta-400"><Icon name="mapa" /></span>
+          <span className="min-w-0 flex-1">
+            <b className="block">Países y localidades</b>
+            <span className="text-sm text-tinta-300">Países de Latinoamérica, moneda y precios de cada uno, localidades nuevas para revisar y cuentas por zona</span>
+          </span>
+          <Icon name="der" className="h-5 w-5 text-tinta-400" />
+        </Link>
       </section>
 
       <section className="mt-8">
