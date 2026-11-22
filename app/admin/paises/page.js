@@ -88,7 +88,7 @@ function ListaPaises({ paises, onGuardado }) {
         {paises.map((p) => (
           <li key={p.codigo}>
             <button onClick={() => setEditar(p)} className="flex w-full items-center gap-3 p-3.5 text-left hover:bg-navy-850">
-              <span className="text-2xl">{p.bandera}</span>
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-navy-800 text-xs font-bold text-tinta-300">{p.codigo}</span>
               <span className="min-w-0 flex-1">
                 <b className="block">{p.nombre}</b>
                 <span className="text-xs text-tinta-400">
@@ -132,7 +132,7 @@ function EditarPais({ pais, onCerrar, onGuardado }) {
     <Modal
       abierto
       onCerrar={onCerrar}
-      titulo={`${pais.bandera} ${pais.nombre}`}
+      titulo={pais.nombre}
       pie={
         <button className="btn btn-menta w-full" onClick={guardar} disabled={guardando}>
           {guardando ? 'Guardando…' : 'Guardar'}
@@ -232,7 +232,7 @@ function Pendiente({ l, onCambio }) {
         <div className="min-w-0">
           <b className="block">{l.nombre}</b>
           <span className="text-xs text-tinta-400">
-            {l.region} · {l.bandera} {l.pais_nombre} · la propuso {l.propuesta_por || 'una cuenta'} · {l.cuentas} {l.cuentas === 1 ? 'cuenta la usa' : 'cuentas la usan'}
+            {l.region} · {l.pais_nombre} · la propuso {l.propuesta_por || 'una cuenta'} · {l.cuentas} {l.cuentas === 1 ? 'cuenta la usa' : 'cuentas la usan'}
           </span>
         </div>
       </div>
@@ -273,7 +273,7 @@ function Zonas({ paises }) {
     <div className="mt-5">
       <select className="campo max-w-xs" value={pais} onChange={(e) => setPais(e.target.value)}>
         {paises.map((x) => (
-          <option key={x.codigo} value={x.codigo}>{x.bandera} {x.nombre}</option>
+          <option key={x.codigo} value={x.codigo}>{x.nombre}</option>
         ))}
       </select>
       {!filas ? (

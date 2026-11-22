@@ -90,7 +90,7 @@ export default function ElegirLugar({ value, onChange, onPais, id = 'lugar' }) {
         >
           {paises.map((p) => (
             <option key={p.codigo} value={p.codigo} disabled={!p.activo}>
-              {p.bandera} {p.nombre}
+              {p.nombre}
               {p.activo ? '' : ' (muy pronto)'}
             </option>
           ))}
