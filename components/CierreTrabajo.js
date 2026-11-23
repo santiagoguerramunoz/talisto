@@ -94,6 +94,7 @@ export default function CierreTrabajo({ item, cuenta, opcionInicial = 'finalizar
   const [puestas, setPuestas] = useState(0);
   const [moes, setMoes] = useState(0);
   const [cuando, setCuando] = useState({ fecha: '', hora: '' });
+  const [sinFecha, setSinFecha] = useState(false); // multi día: todavía no se puede coordinar cuándo se sigue
   const [duracion, setDuracion] = useState(60);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -108,6 +109,7 @@ export default function CierreTrabajo({ item, cuenta, opcionInicial = 'finalizar
     setPuestas(item.puestas || (item.tipo === 'ticket' ? 1 : 0));
     setMoes(item.moes || 0);
     setCuando({ fecha: '', hora: '' });
+    setSinFecha(false);
     const d = Number(item.duracion) || 60;
     setDuracion(DURACIONES.reduce((a, [m]) => (Math.abs(m - d) < Math.abs(a - d) ? m : a), 60));
     setError('');
@@ -124,8 +126,8 @@ export default function CierreTrabajo({ item, cuenta, opcionInicial = 'finalizar
     if (resultado === 'finalizado' && !texto.trim()) return setError('Contá qué hiciste y cómo quedó.');
     if (resultado === 'cancelado' && !motivo.trim()) return setError('Contá por qué no se pudo hacer.');
     if (resultado === 'suspendido' && !motivo.trim()) return setError('Poné el motivo de la suspensión.');
-    if (resultado === 'multidia' && !cuando.fecha) return setError('Elegí en la semana qué día seguís.');
-    if (resultado === 'multidia' && esTurno && !cuando.hora) return setError('Elegí también la hora (tocá un casillero de la grilla).');
+    if (resultado === 'multidia' && !sinFecha && !cuando.fecha) return setError('Elegí en la semana qué día seguís, o marcá que queda pendiente de coordinar.');
+    if (resultado === 'multidia' && !sinFecha && esTurno && !cuando.hora) return setError('Elegí también la hora (tocá un casillero de la grilla).');
     setGuardando(true);
     const pos = await ubicacionActual();
     const { error: err } = await supabase.rpc('terminar_trabajo', {
@@ -138,13 +140,14 @@ export default function CierreTrabajo({ item, cuenta, opcionInicial = 'finalizar
       p_nota: resultado === 'cancelado' || resultado === 'suspendido' ? motivo.trim() : null,
       p_lat: pos?.lat ?? null,
       p_lng: pos?.lng ?? null,
-      p_fecha: resultado === 'multidia' ? cuando.fecha : null,
-      p_hora: resultado === 'multidia' && cuando.hora ? cuando.hora : null,
-      p_minutos: resultado === 'multidia' && cuando.hora ? duracion : null,
+      p_fecha: resultado === 'multidia' && !sinFecha ? cuando.fecha : null,
+      p_hora: resultado === 'multidia' && !sinFecha && cuando.hora ? cuando.hora : null,
+      p_minutos: resultado === 'multidia' && !sinFecha && cuando.hora ? duracion : null,
     });
     setGuardando(false);
     if (err) return setError(mensajeError(err));
     avisar();
+    if (resultado === 'multidia' && sinFecha) return onListo('multidia');
     if (resultado === 'multidia') return setHecho({ ...cuando });
     onListo(resultado);
   }
@@ -320,11 +323,20 @@ export default function CierreTrabajo({ item, cuenta, opcionInicial = 'finalizar
 
         {opcion === 'multidia' && (
           <div className="space-y-3">
+            <label className="flex items-start gap-3 rounded-xl border border-navy-700 bg-navy-850 p-3 text-sm">
+              <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-menta-500" checked={sinFecha} onChange={(e) => setSinFecha(e.target.checked)} />
+              <span>
+                <b className="block">Todavía no se puede coordinar cuándo se sigue</b>
+                <span className="text-xs text-tinta-400">Queda en la agenda como pendiente de coordinar continuación, para elegirle el día después.</span>
+              </span>
+            </label>
+            {!sinFecha && (
             <div>
               <p className="etiqueta">¿Qué día y a qué hora seguís?</p>
               <SemanaGrilla cuenta={cuenta} valor={cuando} onElegir={setCuando} duracion={esTurno || cuando.hora ? duracion : 60} excluir={`${item.rpc}:${item.id}`} />
             </div>
-            {(esTurno || cuando.hora) && (
+            )}
+            {!sinFecha && (esTurno || cuando.hora) && (
               <div>
                 <label className="etiqueta" htmlFor="ct-dur">¿Cuánto te va a llevar?</label>
                 <select id="ct-dur" className="campo" value={duracion} onChange={(e) => setDuracion(Number(e.target.value))}>
@@ -334,7 +346,7 @@ export default function CierreTrabajo({ item, cuenta, opcionInicial = 'finalizar
                 </select>
               </div>
             )}
-            {!esTurno && cuando.fecha && cuando.hora && (
+            {!sinFecha && !esTurno && cuando.fecha && cuando.hora && (
               <button type="button" className="text-xs font-semibold text-tinta-400 underline" onClick={() => setCuando((c) => ({ ...c, hora: '' }))}>
                 Dejarlo sin hora fija
               </button>
@@ -343,7 +355,7 @@ export default function CierreTrabajo({ item, cuenta, opcionInicial = 'finalizar
               <label className="etiqueta" htmlFor="ct-av">¿Qué avanzaste hoy? (opcional)</label>
               <textarea id="ct-av" rows={2} className="campo" value={texto} onChange={(e) => setTexto(e.target.value)} maxLength={2000} placeholder="Ej. Quedó cableado el primer piso; falta el tablero." />
             </div>
-            <p className="text-xs text-tinta-400">El tiempo trabajado se va sumando. Después te ofrecemos avisarle al cliente por WhatsApp.</p>
+            <p className="text-xs text-tinta-400">El tiempo trabajado se va sumando y hoy queda registrado en la agenda como multi día.{sinFecha ? '' : ' Después te ofrecemos avisarle al cliente por WhatsApp.'}</p>
           </div>
         )}
 

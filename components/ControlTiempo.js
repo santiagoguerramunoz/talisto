@@ -64,7 +64,11 @@ export default function ControlTiempo({ trabajo, onAccion, ocupado = false }) {
         <Reloj tiempos={trabajo.tiempos} minutosManual={trabajo.minutos_manual} className="text-4xl font-extrabold" />
       </p>
       {estado === 'suspendido' && trabajo.nota_estado && <p className="mt-1 text-center text-sm text-red-200">Motivo: {trabajo.nota_estado}</p>}
-      {estado === 'multidia' && <p className="mt-1 text-center text-sm text-[#8cc4ee]">Sigue el {trabajo.fecha?.split('-').reverse().join('/')}</p>}
+      {estado === 'multidia' && (
+        <p className="mt-1 text-center text-sm text-[#8cc4ee]">
+          {trabajo.continuar_pendiente ? 'Pendiente de coordinar continuación' : `Sigue el ${trabajo.fecha?.split('-').reverse().join('/')}`}
+        </p>
+      )}
 
       {/* Acciones principales */}
       {paso === null && (

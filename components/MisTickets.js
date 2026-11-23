@@ -75,6 +75,7 @@ function armarLista(datos, fechaIso) {
       fechaIso: o.fecha,
       fechaTexto: textoDia(o.fecha),
       deOtroDia: o.fecha !== fechaIso,
+      continuarPendiente: !!o.continuar_pendiente,
       lugar: o.direccion || o.lat != null ? { direccion: o.direccion || '', referencia: o.referencia, lat: o.lat, lng: o.lng } : null,
       pedido: o.pedido,
       materiales: o.materiales || [],
@@ -116,6 +117,8 @@ function armarLista(datos, fechaIso) {
       presupuestoNumero: t.presupuesto_numero || null,
       pedidoMateriales: t.pedido_materiales || null,
       estado: t.estado === 'realizado' ? 'finalizado' : corriendo ? 'en_curso' : t.inicio_original ? 'multidia' : 'pendiente',
+      continuarPendiente: !!t.continuar_pendiente,
+      deOtroDia: !!t.continuar_pendiente && k !== fechaIso,
       tiempos: t.tiempos || [],
       resolucion: t.estado === 'realizado' ? t.resolucion : null,
       nota: t.estado !== 'realizado' ? t.nota_estado : null,
@@ -545,7 +548,11 @@ function Tarjeta({ item, numero, ocupado, bloqueado, onVer, onIniciar, onCerrarC
             <Icon name={tipo.icono} className="h-3.5 w-3.5" /> {tipo.texto}
             {item.numero ? ` Nº ${String(item.numero).padStart(4, '0')}` : ''} · <b className="text-tinta-200">{item.cuando}</b>
             {item.pedidoMateriales?.estado === 'pendiente' && <span className="rounded bg-amber-400/15 px-1.5 text-amber-300">Materiales por aprobar</span>}
-            {item.deOtroDia && <span className="rounded bg-[#176ba8]/30 px-1.5 text-[#8cc4ee]">Viene de otro día</span>}
+            {item.continuarPendiente ? (
+              <span className="rounded bg-amber-400/15 px-1.5 text-amber-300">Multi día · pendiente de coordinar continuación</span>
+            ) : item.deOtroDia ? (
+              <span className="rounded bg-[#176ba8]/30 px-1.5 text-[#8cc4ee]">Viene de otro día</span>
+            ) : null}
             {corriendo && (
               <>
                 · <Reloj tiempos={item.tiempos} className="font-bold text-[#8cc8ff]" />

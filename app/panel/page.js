@@ -10,6 +10,7 @@ import MisTickets from '@/components/MisTickets';
 import Campanita from '@/components/Campanita';
 import GenerarTicket from '@/components/GenerarTicket';
 import LeerOrdenTrabajo from '@/components/LeerOrdenTrabajo';
+import ContinuacionesPendientes, { CoordinarContinuacion, DetalleJornada } from '@/components/ContinuacionesPendientes';
 import Link from 'next/link';
 import { useEquipoAsignable } from '@/lib/equipo';
 import { usePanel } from '@/components/PanelContext';
@@ -48,6 +49,8 @@ function AgendaCompleta({ onVerMios }) {
   const [modalOrden, setModalOrden] = useState(null);
   const [nuevoTicket, setNuevoTicket] = useState(false);
   const [leerOrden, setLeerOrden] = useState(false);
+  const [jornadaVer, setJornadaVer] = useState(null);
+  const [coordinarDesde, setCoordinarDesde] = useState(null);
 
   const [desde, hasta] = useMemo(() => {
     if (vista === 'dia') return [fecha, sumarDias(fecha, 1)];
@@ -65,6 +68,7 @@ function AgendaCompleta({ onVerMios }) {
   function abrirEvento(ev) {
     if (ev.clase === 'turno') setModalTurno({ turno: ev.turno });
     else if (ev.clase === 'orden') setModalOrden({ orden: ev.orden });
+    else if (ev.clase === 'jornada') setJornadaVer(ev);
     else setModalBloque({ bloque: ev.bloque, fechaContexto: ev.fecha });
   }
 
@@ -118,6 +122,7 @@ function AgendaCompleta({ onVerMios }) {
       <div className="px-4 pt-4">
         {datos.error && <p className="mb-3 rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{datos.error.message}</p>}
         <TrabajosEnCurso trabajos={datos.enCurso} porId={indice.porId} onAbrir={(t) => setModalOrden({ orden: t })} />
+        <ContinuacionesPendientes lista={datos.pendientes} nombreDe={equipo.hayEquipo ? equipo.nombreDe : null} onCambio={recargar} />
         {vista === 'dia' ? (
           <VistaDia
             fecha={fecha}
@@ -239,6 +244,30 @@ function AgendaCompleta({ onVerMios }) {
         margenDefecto={ajustes.margen_materiales}
         equipo={equipo}
       />
+      {jornadaVer && (
+        <DetalleJornada
+          evento={jornadaVer}
+          onCerrar={() => setJornadaVer(null)}
+          onCoordinar={
+            datos.pendientes.some((p) => p.id === jornadaVer.jornada.trabajo_id)
+              ? () => {
+                  setCoordinarDesde(datos.pendientes.find((p) => p.id === jornadaVer.jornada.trabajo_id));
+                  setJornadaVer(null);
+                }
+              : null
+          }
+        />
+      )}
+      {coordinarDesde && (
+        <CoordinarContinuacion
+          trabajo={coordinarDesde}
+          onCerrar={() => setCoordinarDesde(null)}
+          onListo={() => {
+            setCoordinarDesde(null);
+            recargar();
+          }}
+        />
+      )}
       <LeerOrdenTrabajo
         abierto={leerOrden}
         onCerrar={() => setLeerOrden(false)}
@@ -271,8 +300,8 @@ function AgendaCompleta({ onVerMios }) {
 
 function VistaDia({ fecha, datos, indice, onEvento, onHora, nombreDe }) {
   const eventos = useMemo(
-    () => eventosDelDia({ fecha, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, relevamientos: datos.relevamientos, indice }),
-    [fecha, datos.turnos, datos.bloques, datos.ordenes, datos.relevamientos, indice]
+    () => eventosDelDia({ fecha, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, relevamientos: datos.relevamientos, jornadas: datos.jornadas, indice }),
+    [fecha, datos.turnos, datos.bloques, datos.ordenes, datos.relevamientos, datos.jornadas, indice]
   );
   const conHora = eventos.filter((e) => !e.sinHora);
   const sinHora = eventos.filter((e) => e.sinHora);
@@ -290,6 +319,7 @@ function VistaDia({ fecha, datos, indice, onEvento, onHora, nombreDe }) {
   const y = (min) => ((min - inicioH * 60) / 60) * HORA_PX;
 
   const total = eventos.reduce((s, e) => s + (Number(e.monto) || 0), 0);
+  const compromisos = eventos.filter((e) => e.clase !== 'jornada').length;
   const columnas = distribuirColumnas(conHora);
   const esHoy = esMismoDia(fecha, ahora);
   const minAhora = minutosDeFecha(ahora);
@@ -297,11 +327,11 @@ function VistaDia({ fecha, datos, indice, onEvento, onHora, nombreDe }) {
   return (
     <>
       <div className="mb-3 flex items-center gap-2 text-sm text-tinta-300">
-        {eventos.length === 0 ? (
-          <span>Día libre. Tocá una hora para agendar.</span>
+        {compromisos === 0 ? (
+          <span>{eventos.length ? 'Sin compromisos pendientes.' : 'Día libre. Tocá una hora para agendar.'}</span>
         ) : (
           <>
-            <span className="font-semibold text-tinta-100">{eventos.length} {eventos.length === 1 ? 'compromiso' : 'compromisos'}</span>
+            <span className="font-semibold text-tinta-100">{compromisos} {compromisos === 1 ? 'compromiso' : 'compromisos'}</span>
             {total > 0 && <span>· {monto(total)} acordados</span>}
           </>
         )}
@@ -374,20 +404,21 @@ function VistaDia({ fecha, datos, indice, onEvento, onHora, nombreDe }) {
               key={ev.key}
               type="button"
               onClick={() => onEvento(ev)}
-              className={`absolute z-10 overflow-hidden rounded-xl px-2.5 text-left shadow-lg ${compacto ? 'py-1' : 'py-1.5'} ${ev.estado === 'realizado' || (ev.clase === 'orden' && esFinalizado(ev)) ? 'opacity-55' : ''}`}
+              className={`absolute z-10 overflow-hidden rounded-xl px-2.5 text-left shadow-lg ${compacto ? 'py-1' : 'py-1.5'} ${ev.estado === 'realizado' || (ev.clase === 'orden' && esFinalizado(ev)) || (ev.clase === 'jornada' && ev.estado !== 'pendiente') ? 'opacity-70' : ''}`}
               style={{
                 top: y(ev.ini) + 1,
                 height: alto,
                 left: `calc(${GUTTER} + 0.25rem + ${ancho} * ${ev.col})`,
                 width: `calc(${ancho} - 4px)`,
-                background: ev.flexible
+                background: ev.flexible || ev.clase === 'jornada'
                   ? `repeating-linear-gradient(135deg, ${ev.color}26 0 8px, ${ev.color}10 8px 16px)`
                   : `${ev.color}2e`,
-                borderLeft: `4px ${ev.clase === 'bloque' || ev.flexible ? 'dashed' : 'solid'} ${ev.color}`,
+                borderLeft: `4px ${ev.clase === 'bloque' || ev.flexible || ev.clase === 'jornada' ? 'dashed' : 'solid'} ${ev.color}`,
               }}
             >
               <p className="flex items-center gap-1 truncate text-sm font-bold leading-tight text-tinta-100">
                 {ev.clase === 'bloque' && <Icon name="repetir" className="h-3.5 w-3.5 shrink-0 opacity-70" />}
+                {ev.clase === 'jornada' && <Icon name="agenda" className={`h-3.5 w-3.5 shrink-0 ${ev.estado === 'pendiente' ? 'text-amber-300' : 'text-[#8cc4ee]'}`} />}
                 {ev.tipo === 'relevamiento' && <Icon name="relevamiento" className="h-3.5 w-3.5 shrink-0 text-marca-naranja" />}
                 {ev.clase === 'orden' && estadoTrabajo(ev.estado) !== 'pendiente' && !esFinalizado(ev) ? (
                   <span className={`h-2 w-2 shrink-0 rounded-full ${ESTADOS_TRABAJO[estadoTrabajo(ev.estado)]?.punto} ${ev.estado === 'en_curso' ? 'animate-pulse' : ''}`} />
@@ -399,6 +430,7 @@ function VistaDia({ fecha, datos, indice, onEvento, onHora, nombreDe }) {
               <p className="truncate text-xs text-tinta-300">
                 {ev.tipo === 'relevamiento' ? (ev.flexible ? 'Relevar entre ' : 'Relevar ') : ''}
                 {textoHora(ev.ini)}–{textoHora(Math.min(ev.fin, 1439))}
+                {ev.clase === 'jornada' ? ` · ${ev.leyenda}` : ''}
                 {ev.clase === 'orden' && estadoTrabajo(ev.estado) !== 'pendiente' ? ` · ${ESTADOS_TRABAJO[estadoTrabajo(ev.estado)]?.texto}` : ''}
                 {ev.direccion ? ` · ${ev.direccion.etiqueta}` : ''}
                 {nombreDe && (ev.turno?.asignado_a || ev.orden?.asignado_a) ? ` · ${nombreDe(ev.turno?.asignado_a || ev.orden?.asignado_a)}` : ''}
@@ -419,7 +451,7 @@ function VistaSemana({ lunes, datos, indice, onEvento, onDia }) {
   return (
     <div className="space-y-3 pc:grid pc:grid-cols-2 pc:items-start pc:gap-3 pc:space-y-0 xl:pc:grid-cols-3">
       {dias.map((d) => {
-        const eventos = eventosDelDia({ fecha: d, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, relevamientos: datos.relevamientos, indice });
+        const eventos = eventosDelDia({ fecha: d, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, relevamientos: datos.relevamientos, jornadas: datos.jornadas, indice });
         const esHoy = esMismoDia(d, hoy);
         return (
           <section key={fechaISO(d)} className={`tarjeta overflow-hidden ${esHoy ? 'border-menta-500/60' : ''}`}>
@@ -444,12 +476,13 @@ function VistaSemana({ lunes, datos, indice, onEvento, onDia }) {
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5 truncate font-semibold">
                           {ev.clase === 'bloque' && <Icon name="repetir" className="h-3.5 w-3.5 shrink-0 text-tinta-400" />}
+                          {ev.clase === 'jornada' && <Icon name="agenda" className={`h-3.5 w-3.5 shrink-0 ${ev.estado === 'pendiente' ? 'text-amber-300' : 'text-[#8cc4ee]'}`} />}
                           {ev.tipo === 'relevamiento' && <Icon name="relevamiento" className="h-3.5 w-3.5 shrink-0 text-marca-naranja" />}
                           <span className="truncate">{ev.titulo}</span>
                         </span>
                         <span className="block truncate text-xs text-tinta-400">
                           {ev.tipo === 'relevamiento' ? `Relevamiento${ev.flexible ? ' · horario flexible' : ''} · ` : ''}
-                          {ev.clase === 'orden' ? `${ESTADOS_TRABAJO[estadoTrabajo(ev.estado)]?.texto || ''}${ev.direccion?.direccion ? ` · ${ev.direccion.direccion}` : ''}` : ev.direccion ? `${ev.direccion.etiqueta} · ${ev.direccion.direccion}` : ev.clase === 'bloque' ? 'Horario fijo' : ESTADOS[ev.estado]}
+                          {ev.clase === 'jornada' ? ev.leyenda : ev.clase === 'orden' ? `${ESTADOS_TRABAJO[estadoTrabajo(ev.estado)]?.texto || ''}${ev.direccion?.direccion ? ` · ${ev.direccion.direccion}` : ''}` : ev.direccion ? `${ev.direccion.etiqueta} · ${ev.direccion.direccion}` : ev.clase === 'bloque' ? 'Horario fijo' : ESTADOS[ev.estado]}
                         </span>
                       </span>
                     </button>
