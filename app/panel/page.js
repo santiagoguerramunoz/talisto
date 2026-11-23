@@ -145,6 +145,17 @@ function AgendaCompleta({ onVerMios }) {
       <div className={`fixed right-4 ${empresa ? 'bottom-[calc(7.25rem_+_env(safe-area-inset-bottom))]' : 'bottom-[calc(5.75rem_+_env(safe-area-inset-bottom))]'} z-[1050] flex flex-col items-end gap-2 sm:right-[max(1rem,calc(50%_-_20rem))] pc:bottom-8 pc:right-8`}>
         {menuNuevo && (
           <>
+            {empresas.length > 0 && puedeLeerOrdenes(panel) && (
+              <button
+                className="btn btn-sec shadow-xl"
+                onClick={() => {
+                  setMenuNuevo(false);
+                  setLeerOrden(true);
+                }}
+              >
+                <Icon name="camara" className="h-5 w-5 text-menta-400" /> Orden de trabajo con IA
+              </button>
+            )}
             <button
               className="btn btn-sec shadow-xl"
               onClick={() => {
@@ -172,17 +183,6 @@ function AgendaCompleta({ onVerMios }) {
             >
               <Icon name="relevamiento" className="h-5 w-5 text-marca-naranja" /> Relevamiento
             </button>
-            {empresas.length > 0 && puedeLeerOrdenes(panel) && (
-              <button
-                className="btn btn-sec shadow-xl"
-                onClick={() => {
-                  setMenuNuevo(false);
-                  setLeerOrden(true);
-                }}
-              >
-                <Icon name="camara" className="h-5 w-5 text-menta-400" /> Orden de trabajo con IA
-              </button>
-            )}
             {empresas.map((e) => (
               <button
                 key={e.id}
