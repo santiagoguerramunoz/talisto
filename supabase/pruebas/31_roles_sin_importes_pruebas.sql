@@ -116,7 +116,7 @@ begin
   perform pg_temp.yo();
   select * into o from public.ordenes where id = '31000000-0000-0000-0000-0000000000d1';
   assert o.acondicionamientos = 4 and o.moes = 1, '3.1 Puestas y MOE cambiadas';
-  assert o.precio_acondicionamiento = 1200 and o.factor_moe = 2 and o.mano_obra = 500, '3.2 Precios como estaban';
+  assert o.precio_acondicionamiento = 1200 and o.factor_moe = 1.75 and o.mano_obra = 500, '3.2 Precios y factor como estaban';
   assert o.materiales -> 0 = '{"item":"Sensor","cantidad":3,"unidad":"u","costo":300,"margen":30,"precio":390,"proveedor":"Tienda X"}'::jsonb,
     '3.3 El renglón que estaba conserva sus precios con la cantidad nueva: ' || (o.materiales -> 0)::text;
   assert (o.materiales -> 1 ->> 'precio')::numeric = 15, '3.4 El otro renglón también';
