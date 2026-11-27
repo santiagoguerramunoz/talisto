@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase';
 import { cargarClientes } from '@/lib/clientes';
 import SeccionEmpresa from '@/components/SeccionEmpresa';
 import { useAlVolver } from '@/lib/useAlVolver';
+import { useVeImportes } from '@/lib/equipo';
 import { indexarClientes } from '@/lib/agenda';
 import { fechaCorta, fechaISO, horaHHMM, textoDias } from '@/lib/fechas';
 import { ESTADOS, linkGoogleMaps, linkWaze, linkWhatsapp, mensajeError, monto } from '@/lib/util';
@@ -24,6 +25,7 @@ export default function DetalleCliente() {
   const { id } = useParams();
   const router = useRouter();
   const { profesional } = usePanel();
+  const veImportes = useVeImportes();
 
   const [clientes, setClientes] = useState([]);
   const [bloques, setBloques] = useState([]);
@@ -185,7 +187,7 @@ export default function DetalleCliente() {
                         </span>
                         <span className="block truncate text-xs text-tinta-400">
                           {d ? `${d.etiqueta} · ${d.direccion}` : 'Sin dirección'}
-                          {b.monto ? ` · ${monto(b.monto)} por jornada` : ''}
+                          {veImportes && b.monto ? ` · ${monto(b.monto)} por jornada` : ''}
                           {b.fecha_hasta ? ` · hasta ${fechaCorta(new Date(`${b.fecha_hasta}T00:00`))}` : ''}
                         </span>
                       </span>
@@ -205,7 +207,7 @@ export default function DetalleCliente() {
                         </span>
                         <span className="block truncate text-xs text-tinta-400">
                           {d ? d.etiqueta : 'Sin dirección'}
-                          {t.monto_acordado ? ` · ${monto(t.monto_acordado)}` : ''}
+                          {veImportes && t.monto_acordado ? ` · ${monto(t.monto_acordado)}` : ''}
                           {t.estado !== 'confirmado' ? ` · ${ESTADOS[t.estado]}` : ''}
                         </span>
                       </span>
@@ -282,7 +284,7 @@ export default function DetalleCliente() {
                       {fechaCorta(t.inicio)} · {horaHHMM(t.inicio)}
                       <span className="ml-2 text-xs text-tinta-400">{ESTADOS[t.estado]}</span>
                     </span>
-                    <span className="font-semibold text-tinta-300">{t.monto_acordado ? monto(t.monto_acordado) : ''}</span>
+                    <span className="font-semibold text-tinta-300">{veImportes && t.monto_acordado ? monto(t.monto_acordado) : ''}</span>
                   </button>
                 </li>
               ))}

@@ -6,7 +6,7 @@ import Icon from '@/components/Icon';
 import { usePanel } from '@/components/PanelContext';
 import { supabase } from '@/lib/supabase';
 import { combinar, desdeISO, fechaCorta, fechaISO, sumarDias } from '@/lib/fechas';
-import { useEquipoAsignable } from '@/lib/equipo';
+import { useEquipoAsignable, useVeImportes } from '@/lib/equipo';
 import { monto, mensajeError } from '@/lib/util';
 import { METRICAS, desdeOrden, desdeTurno, planillaProduccion, promedioEquipo, resumenProduccion, textoCorto } from '@/lib/produccion';
 
@@ -39,11 +39,10 @@ const CAMPOS_TURNO =
   'id, tipo, titulo, numero, inicio, estado, tiempos, asignado_a, cerrado_por, resolucion, monto_acordado, clientes(nombre, es_empresa), direcciones(direccion)';
 
 export default function ProduccionEquipo() {
-  const { profesional, empresa, permisos, vistaPc } = usePanel();
+  const { profesional, empresa, vistaPc } = usePanel();
   const equipo = useEquipoAsignable();
   const cuenta = profesional.id;
-  const lista = permisos || [];
-  const conImportes = equipo.esDueno || lista.includes('importes') || lista.includes('tickets_asignar');
+  const conImportes = useVeImportes();
   const [elegido, setElegido] = useState('mes');
   const [rango, setRango] = useState(() => periodo('mes'));
   const [datos, setDatos] = useState({ cargando: true, trabajos: [], error: '' });

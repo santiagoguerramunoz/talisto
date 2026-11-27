@@ -6,12 +6,14 @@ import Icon from './Icon';
 import { supabase } from '@/lib/supabase';
 import { DIAS, DIA_LETRA, SEMANA_ORDEN, desdeISO, fechaISO, fechaLarga, minutos } from '@/lib/fechas';
 import { mensajeError } from '@/lib/util';
+import { useVeImportes } from '@/lib/equipo';
 
 /**
  * Horario fijo que se repite: "Grupo Gamma, lun-mar-mié de 9 a 17".
  * fechaContexto: si se abrió desde un día de la agenda, permite suspenderlo solo ese día.
  */
 export default function FormBloque({ abierto, onCerrar, onGuardado, profesionalId, clientes = [], bloque, inicial, fechaContexto }) {
+  const veImportes = useVeImportes();
   const [form, setForm] = useState(null);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -206,7 +208,7 @@ export default function FormBloque({ abierto, onCerrar, onGuardado, profesionalI
           </div>
         </div>
 
-        <div>
+        <div className={veImportes ? '' : 'hidden'}>
           <label className="etiqueta" htmlFor="b-monto">Precio mano de obra por jornada (UYU)</label>
           <input id="b-monto" type="number" inputMode="decimal" min="0" className="campo" value={form.monto} onChange={(e) => cambiar('monto', e.target.value)} placeholder="Opcional" />
         </div>

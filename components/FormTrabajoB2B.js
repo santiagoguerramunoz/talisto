@@ -7,6 +7,7 @@ import SelectorUbicacion from './SelectorUbicacion';
 import ControlTiempo from './ControlTiempo';
 import EditorMateriales from './EditorMateriales';
 import MaterialesTrabajo from './MaterialesTrabajo';
+import MaterialesSinPrecios from './MaterialesSinPrecios';
 import { supabase } from '@/lib/supabase';
 import { fechaISO, minutos } from '@/lib/fechas';
 import { equivalenteOrden, importePuestas } from '@/lib/liquidacion';
@@ -15,7 +16,7 @@ import { cerrarTiempos, iniciarTiempos, sesionAbierta } from '@/lib/tiempos';
 import { ESTADOS_TRABAJO, estadoTrabajo } from '@/lib/trabajos';
 import { AVISO_SQL_04, faltaSql04 } from '@/lib/sql';
 import { linkGoogleMaps, linkWaze, linkWhatsapp, mensajeError } from '@/lib/util';
-import { hhmm, useEquipoAsignable } from '@/lib/equipo';
+import { hhmm, useEquipoAsignable, useVeImportes } from '@/lib/equipo';
 import { avisar } from '@/lib/avisos';
 import { textoRecordatorio } from '@/lib/trabajos';
 import { usePanel } from './PanelContext';
@@ -144,6 +145,7 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
   const panel = usePanel();
   const equipoPanel = useEquipoAsignable();
   const equipo = equipoProp || equipoPanel;
+  const veImportes = useVeImportes();
   const [form, setForm] = useState(null);
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
@@ -247,6 +249,12 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
     // Código Bykom (SQL 17): solo se manda si hay algo que guardar
     if ((f.codigo_bykom || '').trim() || orden?.codigo_bykom) fila.codigo_bykom = (f.codigo_bykom || '').trim().slice(0, 60) || null;
     if (conEquipo) fila.asignado_a = f.asignado_a || null;
+    // Sin el permiso de importes no se mandan precios: la base pone los del cliente y conserva los que había (SQL 31)
+    if (!veImportes) {
+      delete fila.precio_acondicionamiento;
+      delete fila.factor_moe;
+      delete fila.mano_obra;
+    }
     if (tiempoDelEquipo) {
       // El cronómetro lo maneja quien hace el trabajo. Lo que esa persona completa al cerrar
       // (estado, resolución, puestas, día) solo se manda si acá se cambió, para no pisarlo.
@@ -473,6 +481,8 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
           <Contador etiqueta="MOE" ayuda={`Mano de obra especial (= ${Number(form.factor) || 1.75} puestas)`} valor={form.moes} onChange={(v) => cambiar('moes', v)} />
         </div>
 
+        {veImportes && (
+        <>
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="etiqueta" htmlFor="o-precio">Precio por puesta (UYU)</label>
@@ -488,7 +498,17 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
           <label className="etiqueta" htmlFor="o-mo">Precio mano de obra (UYU)</label>
           <input id="o-mo" type="number" inputMode="decimal" min="0" className="campo" value={form.mano_obra} onChange={(e) => cambiar('mano_obra', e.target.value)} placeholder="Opcional · aparte de las puestas" />
         </div>
+        </>
+        )}
 
+        {!veImportes ? (
+          <MaterialesSinPrecios
+            materiales={form.materiales}
+            onChange={(m) => cambiar('materiales', m)}
+            textoAgregar="Añadir materiales"
+            vacio="Si la tarea lleva o necesita materiales, agregalos acá con la cantidad."
+          />
+        ) : (
         <EditorMateriales
           materiales={form.materiales}
           onChange={(m) => cambiar('materiales', m)}
@@ -499,12 +519,18 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
           textoAgregar="Añadir materiales"
           vacio="Si tuviste que comprar materiales para la tarea, agregalos acá con el proveedor y su precio."
         />
+        )}
 
         {form.id && esBusiness(panel?.plan?.plan) && (panel?.yo?.id === profesionalId || (panel?.permisos || []).includes('stock')) && (
           <MaterialesTrabajo cuenta={profesionalId} tipo="ticket" id={form.id} modo="gestion" ocultarSinSql titulo="Materiales del stock" />
         )}
 
         {/* Resumen del importe */}
+        {!veImportes ? (
+          <p className="rounded-xl bg-navy-850 p-3 text-sm text-tinta-300">
+            {equivalente.toLocaleString('es-UY', { maximumFractionDigits: 3 })} puestas equivalentes
+          </p>
+        ) : (
         <div className="rounded-xl bg-navy-850 p-3 text-sm">
           <div className="flex justify-between text-tinta-300">
             <span>{equivalente.toLocaleString('es-UY', { maximumFractionDigits: 3 })} puestas equivalentes</span>
@@ -528,6 +554,7 @@ export default function FormTrabajoB2B({ abierto, onCerrar, onGuardado, profesio
           </div>
           <p className="mt-1 text-xs text-tinta-500">Costos y proveedores no salen en la planilla: solo los precios finales.</p>
         </div>
+        )}
 
         <div>
           <label className="etiqueta" htmlFor="o-estado">Estado</label>

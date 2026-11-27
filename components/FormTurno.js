@@ -12,7 +12,7 @@ import { AVISO_SQL_UBICACION, consultarRelevamientos, guardarRelevamiento } from
 import { combinar, fechaISO, fechaLarga, horaHHMM, minutos, textoHora } from '@/lib/fechas';
 import { choquesConBloques } from '@/lib/agenda';
 import { ESTADOS, linkWhatsapp, mensajeError } from '@/lib/util';
-import { hhmm, useEquipoAsignable } from '@/lib/equipo';
+import { hhmm, useEquipoAsignable, useVeImportes } from '@/lib/equipo';
 import { avisar } from '@/lib/avisos';
 import { esBusiness } from '@/lib/planes';
 
@@ -42,6 +42,7 @@ export default function FormTurno({
   const panel = usePanel();
   const equipoPanel = useEquipoAsignable();
   const equipo = equipoProp || equipoPanel;
+  const veImportes = useVeImportes();
   // Stock (Business): quien lo maneja ve y manda materiales a este trabajo
   const stockActivo = esBusiness(panel?.plan?.plan) && (panel?.yo?.id === profesionalId || (panel?.permisos || []).includes('stock'));
   const [form, setForm] = useState(null);
@@ -184,6 +185,7 @@ export default function FormTurno({
       notas: form.notas.trim() || null,
     };
     if (conEquipo) fila.asignado_a = form.asignado_a || null;
+    if (!veImportes) delete fila.monto_acordado; // el monto, solo con Importes (SQL 31)
     if (esRelevamiento) {
       fila.tipo = 'relevamiento';
       fila.flexible = !!form.flexible;
@@ -424,11 +426,11 @@ export default function FormTurno({
         )}
 
         <div className="grid grid-cols-2 gap-2">
-          <div>
+          <div className={veImportes ? '' : 'hidden'}>
             <label className="etiqueta" htmlFor="t-monto">{esRelevamiento ? 'Costo de la visita (UYU)' : 'Precio mano de obra (UYU)'}</label>
             <input id="t-monto" type="number" inputMode="decimal" min="0" className="campo" value={form.monto} onChange={(e) => cambiar('monto', e.target.value)} placeholder="Opcional" />
           </div>
-          <div>
+          <div className={veImportes ? '' : 'col-span-2'}>
             <label className="etiqueta" htmlFor="t-estado">Estado</label>
             <select id="t-estado" className="campo" value={form.estado} onChange={(e) => cambiar('estado', e.target.value)}>
               {Object.entries(ESTADOS).map(([valor, texto]) => (

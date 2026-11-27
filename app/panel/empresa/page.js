@@ -9,7 +9,7 @@ import { usePanel } from '@/components/PanelContext';
 import { useContextoEquipo } from '@/lib/equipo';
 import { supabase } from '@/lib/supabase';
 import { esPro } from '@/lib/planes';
-import { PERMISOS, TEXTO_PERMISO, linkInvitacion, textoInvitacion } from '@/lib/empresa';
+import { PERMISOS, PLANTILLAS_ROL, TEXTO_PERMISO, linkInvitacion, textoInvitacion } from '@/lib/empresa';
 import { qrSvg } from '@/lib/qr';
 import { mensajeError } from '@/lib/util';
 
@@ -220,7 +220,32 @@ function EditarRol({ rol, empresaId, soloBusiness = [], onCerrar, onCambio }) {
           <input id="rol-nombre" className="campo" placeholder="Ej. Supervisor" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
         </div>
         <div>
+          <p className="etiqueta">Partir de</p>
+          <div className="flex flex-wrap gap-1.5">
+            {PLANTILLAS_ROL.map((pl) => {
+              const igual = pl.permisos.length === form.permisos.length && pl.permisos.every((x) => form.permisos.includes(x));
+              return (
+                <button
+                  key={pl.nombre}
+                  type="button"
+                  title={pl.detalle}
+                  className={`chip px-3 py-1 text-xs ${igual ? 'chip-activo' : ''}`}
+                  onClick={() => setForm((f) => ({ ...f, nombre: f.nombre.trim() ? f.nombre : pl.nombre, permisos: pl.permisos.filter((x) => !soloBusiness.includes(x)) }))}
+                >
+                  {pl.nombre}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1 text-xs text-tinta-500">Elegí una base y después tildá o destildá lo que quieras.</p>
+        </div>
+        <div>
           <p className="etiqueta">Permisos</p>
+          {form.permisos.includes('tickets_asignar') && !form.permisos.includes('importes') && (
+            <p className="mb-2 rounded-xl bg-[#176ba8]/20 p-2.5 text-xs text-[#8cc4ee]">
+              Sin Importes: crea y edita tickets con puestas, MOE y materiales, pero no ve precios, planillas ni Finanzas.
+            </p>
+          )}
           <div className="space-y-1.5">
             {PERMISOS.map((p) => {
               const activo = form.permisos.includes(p.id);
@@ -483,8 +508,9 @@ export default function Empresa() {
                 ))}
               </ul>
               <p className="mt-2 text-xs text-tinta-500">
-                Producción trabaja en los tickets que le asignan, sin ver importes, gastos ni ganancias. Administración agenda y gestiona, pero no se inicia en
-                tickets ni relevamientos. Tus cuentas nunca pierden acceso a sus datos personales.
+                Producción trabaja en los tickets que le asignan, sin ver importes. Encargado agenda y asigna tickets, carga puestas, MOE y materiales y
+                también trabaja, sin ver precios ni Finanzas. Los precios e importes los ve solo quien tiene Importes. Tus cuentas nunca pierden acceso a
+                sus datos personales.
               </p>
             </section>
 

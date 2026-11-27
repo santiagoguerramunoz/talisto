@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { fechaISO } from '@/lib/fechas';
 import { conDia, diaDeCierre, fechaCierre, leerCierres, nombrePlanilla, planillaDeFecha, problemaCierre } from '@/lib/periodos';
 import { mensajeError } from '@/lib/util';
+import { useVeImportes } from '@/lib/equipo';
 
 // Día de cierre que rige hoy ('' = fin de mes) y la planilla abierta
 function cierreDe(cliente) {
@@ -18,6 +19,7 @@ function cierreDe(cliente) {
 
 // Cliente B2B: trabaja con sus propios clientes y se liquida por puestas y MOE.
 export default function SeccionEmpresa({ cliente, onGuardado }) {
+  const veImportes = useVeImportes();
   const [esEmpresa, setEsEmpresa] = useState(!!cliente.es_empresa);
   const [precio, setPrecio] = useState(cliente.precio_acondicionamiento ?? '');
   const [factor, setFactor] = useState(cliente.factor_moe ?? 1.75);
@@ -79,7 +81,7 @@ export default function SeccionEmpresa({ cliente, onGuardado }) {
 
       {esEmpresa && (
         <div className="mt-4 space-y-3">
-          <div className="grid grid-cols-2 gap-2">
+          <div className={`grid grid-cols-2 gap-2 ${veImportes ? '' : 'hidden'}`}>
             <div>
               <label className="etiqueta" htmlFor="e-precio">Precio por puesta (UYU)</label>
               <input id="e-precio" type="number" inputMode="decimal" min="0" className="campo" value={precio} onChange={(e) => setPrecio(e.target.value)} placeholder="Ej. 1200" />

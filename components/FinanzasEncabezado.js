@@ -9,7 +9,7 @@ import { esBusiness, esPro } from '@/lib/planes';
 import { usePanel } from './PanelContext';
 
 const TABS = [
-  { href: '/panel/finanzas', texto: 'Resumen', permisos: ['importes', 'tickets_asignar'] },
+  { href: '/panel/finanzas', texto: 'Resumen', permisos: ['importes'] },
   { href: '/panel/finanzas/presupuestos', texto: 'Presupuestos', pro: true, permisos: ['presupuestos', 'importes'] },
   { href: '/panel/finanzas/gastos', texto: 'Gastos', pro: true, permisos: ['gastos', 'importes'] },
   { href: '/panel/finanzas/compras', texto: 'Compras', pro: true, permisos: ['compras'], tambien: ['/panel/finanzas/proveedores'] },

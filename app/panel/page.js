@@ -12,7 +12,7 @@ import GenerarTicket from '@/components/GenerarTicket';
 import LeerOrdenTrabajo from '@/components/LeerOrdenTrabajo';
 import ContinuacionesPendientes, { CoordinarContinuacion, DetalleJornada } from '@/components/ContinuacionesPendientes';
 import Link from 'next/link';
-import { useEquipoAsignable } from '@/lib/equipo';
+import { useEquipoAsignable, useVeImportes } from '@/lib/equipo';
 import { usePanel } from '@/components/PanelContext';
 import { useDatosAgenda } from '@/lib/useDatosAgenda';
 import { distribuirColumnas, eventosDelDia, indexarClientes } from '@/lib/agenda';
@@ -31,7 +31,7 @@ export default function Agenda() {
   const { empresa, permisos } = usePanel();
   const lista = permisos || [];
   const [verMios, setVerMios] = useState(true);
-  if (empresa && !lista.includes('agenda')) return <MisTickets />;
+  if (empresa && !lista.includes('agenda') && !lista.includes('tickets_asignar')) return <MisTickets />;
   // Con agenda y tickets: arranca en sus tickets y puede pasar a la agenda de la empresa
   if (empresa && lista.includes('tickets_trabajar') && verMios) return <MisTickets onVerAgenda={() => setVerMios(false)} />;
   return <AgendaCompleta onVerMios={empresa && lista.includes('tickets_trabajar') ? () => setVerMios(true) : null} />;
@@ -299,6 +299,7 @@ function AgendaCompleta({ onVerMios }) {
 }
 
 function VistaDia({ fecha, datos, indice, onEvento, onHora, nombreDe }) {
+  const veImportes = useVeImportes();
   const eventos = useMemo(
     () => eventosDelDia({ fecha, turnos: datos.turnos, bloques: datos.bloques, ordenes: datos.ordenes, relevamientos: datos.relevamientos, jornadas: datos.jornadas, indice }),
     [fecha, datos.turnos, datos.bloques, datos.ordenes, datos.relevamientos, datos.jornadas, indice]
@@ -318,7 +319,7 @@ function VistaDia({ fecha, datos, indice, onEvento, onHora, nombreDe }) {
   const horas = Array.from({ length: finH - inicioH }, (_, i) => inicioH + i);
   const y = (min) => ((min - inicioH * 60) / 60) * HORA_PX;
 
-  const total = eventos.reduce((s, e) => s + (Number(e.monto) || 0), 0);
+  const total = veImportes ? eventos.reduce((s, e) => s + (Number(e.monto) || 0), 0) : 0;
   const compromisos = eventos.filter((e) => e.clase !== 'jornada').length;
   const columnas = distribuirColumnas(conHora);
   const esHoy = esMismoDia(fecha, ahora);
@@ -434,7 +435,7 @@ function VistaDia({ fecha, datos, indice, onEvento, onHora, nombreDe }) {
                 {ev.clase === 'orden' && estadoTrabajo(ev.estado) !== 'pendiente' ? ` · ${ESTADOS_TRABAJO[estadoTrabajo(ev.estado)]?.texto}` : ''}
                 {ev.direccion ? ` · ${ev.direccion.etiqueta}` : ''}
                 {nombreDe && (ev.turno?.asignado_a || ev.orden?.asignado_a) ? ` · ${nombreDe(ev.turno?.asignado_a || ev.orden?.asignado_a)}` : ''}
-                {!compacto && ev.monto ? ` · ${monto(ev.monto)}` : ''}
+                {!compacto && veImportes && ev.monto ? ` · ${monto(ev.monto)}` : ''}
               </p>
             </button>
           );
