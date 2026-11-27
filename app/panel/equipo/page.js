@@ -306,6 +306,10 @@ export default function EquipoEnRuta() {
               {datos.cuando ? ` · actualizado ${hhmm(datos.cuando.toISOString())}` : ''}
             </p>
           </div>
+          <Link href="/panel/equipo/produccion" className="btn btn-sec gap-1.5 px-2.5 py-2 text-sm" aria-label="Producción del equipo">
+            <Icon name="grafico" className="h-4 w-4" />
+            {vistaPc && 'Producción'}
+          </Link>
           <Campanita />
           <button type="button" onClick={cargar} className="btn btn-sec px-2.5 py-2" aria-label="Actualizar">
             <Icon name="repetir" className={`h-4 w-4 ${datos.cargando ? 'animate-spin' : ''}`} />
